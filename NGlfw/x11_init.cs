@@ -413,6 +413,13 @@ public static unsafe partial class Glfw
             0,
             0,
             0);
+
+        if (_glfw.x11.helperWindowHandle != 0 && _glfw.x11.XSelectInput != null)
+        {
+            _glfw.x11.XSelectInput(_glfw.x11.display,
+                _glfw.x11.helperWindowHandle,
+                (nint)PropertyChangeMask);
+        }
     }
 
     static void x11_setPlatformCallbacks(_GLFWplatform* platform)

@@ -40,6 +40,7 @@ public static unsafe partial class Glfw
     const int XA_ATOM = 4;
     const int XA_CARDINAL = 6;
     const int XA_STRING = 31;
+    const int AnyPropertyType = 0;
     const int PMinSize = 1 << 4;
     const int PMaxSize = 1 << 5;
     const int PAspect = 1 << 7;
@@ -296,18 +297,31 @@ public static unsafe partial class Glfw
             &@event);
     }
 
-    static nuint x11_getWindowProperty(nuint window, nuint property, nuint type, int delete, byte** value)
+    static nuint x11_getWindowPropertyRaw(nuint window,
+                                          nuint property,
+                                          nuint type,
+                                          int delete,
+                                          byte** value,
+                                          nuint* actualType,
+                                          int* actualFormat,
+                                          nuint* bytesAfter)
     {
         if (value != null)
             *value = null;
+        if (actualType != null)
+            *actualType = 0;
+        if (actualFormat != null)
+            *actualFormat = 0;
+        if (bytesAfter != null)
+            *bytesAfter = 0;
 
         if (_glfw.x11.XGetWindowProperty == null)
             return 0;
 
-        nuint actualType;
-        int actualFormat;
+        nuint nativeType;
+        int nativeFormat;
         nuint itemCount;
-        nuint bytesAfter;
+        nuint nativeBytesAfter;
         byte* data;
 
         var result = _glfw.x11.XGetWindowProperty(_glfw.x11.display,
@@ -317,18 +331,25 @@ public static unsafe partial class Glfw
             1024 * 1024,
             delete,
             type,
-            &actualType,
-            &actualFormat,
+            &nativeType,
+            &nativeFormat,
             &itemCount,
-            &bytesAfter,
+            &nativeBytesAfter,
             &data);
 
-        if (result != Success || data == null || actualType != type || bytesAfter != 0)
+        if (result != Success || data == null)
         {
             if (data != null && _glfw.x11.XFree != null)
                 _glfw.x11.XFree(data);
             return 0;
         }
+
+        if (actualType != null)
+            *actualType = nativeType;
+        if (actualFormat != null)
+            *actualFormat = nativeFormat;
+        if (bytesAfter != null)
+            *bytesAfter = nativeBytesAfter;
 
         if (value != null)
             *value = data;
@@ -336,6 +357,37 @@ public static unsafe partial class Glfw
             _glfw.x11.XFree(data);
 
         return itemCount;
+    }
+
+    static nuint x11_getWindowProperty(nuint window, nuint property, nuint type, int delete, byte** value)
+    {
+        nuint actualType;
+        int actualFormat;
+        nuint bytesAfter;
+
+        var count = x11_getWindowPropertyRaw(window,
+            property,
+            type,
+            delete,
+            value,
+            &actualType,
+            &actualFormat,
+            &bytesAfter);
+
+        if (count == 0 ||
+            actualType != type ||
+            bytesAfter != 0)
+        {
+            if (value != null && *value != null && _glfw.x11.XFree != null)
+            {
+                _glfw.x11.XFree(*value);
+                *value = null;
+            }
+
+            return 0;
+        }
+
+        return count;
     }
 
     static int x11_writeSelectionString(nuint requestor, nuint property, nuint target, byte* selectionString)
@@ -842,6 +894,158 @@ public static unsafe partial class Glfw
         return GLFW_FALSE;
     }
 
+    static nuint x11_propertyByteCount(nuint itemCount, int format)
+    {
+        return format switch
+        {
+            8 => itemCount,
+            16 => itemCount * 2,
+            32 => itemCount * (nuint)sizeof(nuint),
+            _ => 0
+        };
+    }
+
+    static byte* x11_convertLatin1ToUTF8(byte* data, nuint byteCount)
+    {
+        nuint length = 0;
+        for (nuint i = 0; i < byteCount; i++)
+            length += data[i] < 0x80 ? 1u : 2u;
+
+        var result = (byte*)_glfw_calloc(length + 1, 1);
+        if (result == null)
+            return null;
+
+        var target = result;
+        for (nuint i = 0; i < byteCount; i++)
+        {
+            var value = data[i];
+            if (value < 0x80)
+            {
+                *target++ = value;
+            }
+            else
+            {
+                *target++ = (byte)(0xc0 | (value >> 6));
+                *target++ = (byte)(0x80 | (value & 0x3f));
+            }
+        }
+
+        *target = 0;
+        return result;
+    }
+
+    static byte* x11_copySelectionData(byte* data, nuint byteCount, nuint target)
+    {
+        if (target == XA_STRING)
+            return x11_convertLatin1ToUTF8(data, byteCount);
+
+        var result = (byte*)_glfw_calloc(byteCount + 1, 1);
+        if (result != null && byteCount != 0)
+            _glfw_memcpy(result, data, byteCount);
+
+        return result;
+    }
+
+    static byte* x11_readIncrementalSelection(nuint property, nuint target)
+    {
+        byte* result = null;
+        nuint resultSize = 0;
+        var deadline = _glfwPlatformGetTimerValue() + 5UL * _glfwPlatformGetTimerFrequency();
+
+        while (_glfwPlatformGetTimerValue() < deadline)
+        {
+            if (_glfw.x11.XPending(_glfw.x11.display) == 0)
+            {
+                Thread.Sleep(1);
+                continue;
+            }
+
+            XEvent @event;
+            _glfw.x11.XNextEvent(_glfw.x11.display, &@event);
+
+            if (@event.type == PropertyNotify &&
+                @event.anyWindow == _glfw.x11.helperWindowHandle &&
+                @event.propertyAtom == property &&
+                @event.propertyState == PropertyNewValue)
+            {
+                byte* data;
+                nuint actualType;
+                int actualFormat;
+                nuint bytesAfter;
+
+                var itemCount = x11_getWindowPropertyRaw(_glfw.x11.helperWindowHandle,
+                    property,
+                    AnyPropertyType,
+                    GLFW_TRUE,
+                    &data,
+                    &actualType,
+                    &actualFormat,
+                    &bytesAfter);
+                var byteCount = x11_propertyByteCount(itemCount, actualFormat);
+
+                if (actualType == 0 && data == null)
+                {
+                    _glfw_free(result);
+                    return null;
+                }
+
+                if (itemCount == 0 || byteCount == 0)
+                {
+                    if (data != null && _glfw.x11.XFree != null)
+                        _glfw.x11.XFree(data);
+
+                    if (result == null)
+                        result = (byte*)_glfw_calloc(1, 1);
+
+                    if (target == XA_STRING && result != null)
+                    {
+                        var converted = x11_convertLatin1ToUTF8(result, resultSize);
+                        _glfw_free(result);
+                        return converted;
+                    }
+
+                    return result;
+                }
+
+                if (actualType != target || bytesAfter != 0)
+                {
+                    if (data != null && _glfw.x11.XFree != null)
+                        _glfw.x11.XFree(data);
+                    _glfw_free(result);
+                    return null;
+                }
+
+                var resized = (byte*)_glfw_realloc(result, resultSize + byteCount + 1);
+                if (resized == null)
+                {
+                    if (data != null && _glfw.x11.XFree != null)
+                        _glfw.x11.XFree(data);
+                    _glfw_free(result);
+                    return null;
+                }
+
+                result = resized;
+                _glfw_memcpy(result + resultSize, data, byteCount);
+                resultSize += byteCount;
+                result[resultSize] = 0;
+
+                if (data != null && _glfw.x11.XFree != null)
+                    _glfw.x11.XFree(data);
+            }
+            else if (@event.type == SelectionRequest)
+            {
+                x11_handleSelectionRequest(&@event);
+            }
+            else
+            {
+                x11_processEvent(&@event);
+            }
+        }
+
+        _glfw_free(result);
+        return null;
+    }
+
     static byte* x11_convertSelectionToString(nuint selection, nuint target)
     {
         if (_glfw.x11.helperWindowHandle == 0 ||
@@ -884,17 +1088,40 @@ public static unsafe partial class Glfw
                     return null;
 
                 byte* data;
-                var itemCount = x11_getWindowProperty(_glfw.x11.helperWindowHandle,
-                    @event.selectionNotifyProperty,
-                    target,
-                    GLFW_TRUE,
-                    &data);
-                if (itemCount == 0 || data == null)
-                    return null;
+                nuint actualType;
+                int actualFormat;
+                nuint bytesAfter;
 
-                var result = (byte*)_glfw_calloc(itemCount + 1, 1);
-                if (result != null)
-                    _glfw_memcpy(result, data, itemCount);
+                var itemCount = x11_getWindowPropertyRaw(_glfw.x11.helperWindowHandle,
+                    @event.selectionNotifyProperty,
+                    AnyPropertyType,
+                    GLFW_TRUE,
+                    &data,
+                    &actualType,
+                    &actualFormat,
+                    &bytesAfter);
+
+                if (actualType == _glfw.x11.INCR)
+                {
+                    if (data != null && _glfw.x11.XFree != null)
+                        _glfw.x11.XFree(data);
+
+                    return x11_readIncrementalSelection(@event.selectionNotifyProperty, target);
+                }
+
+                var byteCount = x11_propertyByteCount(itemCount, actualFormat);
+                if (itemCount == 0 ||
+                    data == null ||
+                    actualType != target ||
+                    bytesAfter != 0 ||
+                    byteCount == 0)
+                {
+                    if (data != null && _glfw.x11.XFree != null)
+                        _glfw.x11.XFree(data);
+                    return null;
+                }
+
+                var result = x11_copySelectionData(data, byteCount, target);
 
                 if (_glfw.x11.XFree != null)
                     _glfw.x11.XFree(data);
