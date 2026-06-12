@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="NGlfw/NGlfw.csproj" />
+  <Project Path="examples/BasicWindow/BasicWindow.csproj" />
+</Solution>
