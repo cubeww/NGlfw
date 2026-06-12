@@ -122,6 +122,25 @@ public static unsafe partial class Glfw
         return crtc;
     }
 
+    static int x11_getMonitorIndexFromXinerama(XineramaScreenInfo* screens, int screenCount, XRRCrtcInfo* crtcInfo)
+    {
+        if (screens == null || crtcInfo == null)
+            return -1;
+
+        for (var i = 0; i < screenCount; i++)
+        {
+            if (screens[i].x_org == crtcInfo->x &&
+                screens[i].y_org == crtcInfo->y &&
+                screens[i].width == (int)crtcInfo->width &&
+                screens[i].height == (int)crtcInfo->height)
+            {
+                return screens[i].screen_number;
+            }
+        }
+
+        return -1;
+    }
+
     static void _glfwPollMonitorsX11()
     {
         if (x11_randrAvailable() != 0)
@@ -149,6 +168,14 @@ public static unsafe partial class Glfw
                 var primary = _glfw.x11.XRRGetOutputPrimary != null
                     ? _glfw.x11.XRRGetOutputPrimary(_glfw.x11.display, _glfw.x11.root)
                     : 0;
+
+                var xineramaScreenCount = 0;
+                XineramaScreenInfo* xineramaScreens = null;
+                if (_glfw.x11.xineramaAvailable != 0 &&
+                    _glfw.x11.XineramaQueryScreens != null)
+                {
+                    xineramaScreens = _glfw.x11.XineramaQueryScreens(_glfw.x11.display, &xineramaScreenCount);
+                }
 
                 for (var i = 0; i < resources->noutput; i++)
                 {
@@ -192,6 +219,10 @@ public static unsafe partial class Glfw
                         randrHeightMM = (int)(crtcInfo->height * 25.4f / 96f);
                     }
 
+                    var monitorIndex = x11_getMonitorIndexFromXinerama(xineramaScreens, xineramaScreenCount, crtcInfo);
+                    if (monitorIndex < 0)
+                        monitorIndex = i;
+
                     var name = outputInfo->name != null && outputInfo->nameLen > 0
                         ? System.Text.Encoding.UTF8.GetString(new System.ReadOnlySpan<byte>(outputInfo->name, outputInfo->nameLen))
                         : $"X11 Output {i}";
@@ -204,7 +235,7 @@ public static unsafe partial class Glfw
                         randrMonitor->widthMM = randrWidthMM;
                         randrMonitor->heightMM = randrHeightMM;
                         randrMonitor->x11.crtc = outputInfo->crtc;
-                        randrMonitor->x11.index = i;
+                        randrMonitor->x11.index = monitorIndex;
                         _glfw_free(randrMonitor->modes);
                         randrMonitor->modes = null;
                         randrMonitor->modeCount = 0;
@@ -226,7 +257,7 @@ public static unsafe partial class Glfw
 
                         randrMonitor->x11.output = output;
                         randrMonitor->x11.crtc = outputInfo->crtc;
-                        randrMonitor->x11.index = i;
+                        randrMonitor->x11.index = monitorIndex;
 
                         var modeInfo = x11_getModeInfo(resources, crtcInfo->mode);
                         randrMonitor->currentMode = modeInfo != null
@@ -241,6 +272,9 @@ public static unsafe partial class Glfw
                     _glfw.x11.XRRFreeCrtcInfo(crtcInfo);
                     _glfw.x11.XRRFreeOutputInfo(outputInfo);
                 }
+
+                if (xineramaScreens != null && _glfw.x11.XFree != null)
+                    _glfw.x11.XFree(xineramaScreens);
 
                 _glfw.x11.XRRFreeScreenResources(resources);
 
@@ -385,5 +419,39 @@ public static unsafe partial class Glfw
         }
 
         _glfw.x11.XRRFreeScreenResources(resources);
+    }
+
+    public static nuint glfwGetX11Adapter(GLFWmonitor* monitor)
+    {
+        if (_glfw.initialized == 0)
+        {
+            _glfwInputError(GLFW_NOT_INITIALIZED);
+            return 0;
+        }
+
+        if (_glfw.platform.platformID != GLFW_PLATFORM_X11)
+        {
+            _glfwInputError(GLFW_PLATFORM_UNAVAILABLE, "X11: Platform not initialized");
+            return 0;
+        }
+
+        return ((_GLFWmonitor*)monitor)->x11.crtc;
+    }
+
+    public static nuint glfwGetX11Monitor(GLFWmonitor* monitor)
+    {
+        if (_glfw.initialized == 0)
+        {
+            _glfwInputError(GLFW_NOT_INITIALIZED);
+            return 0;
+        }
+
+        if (_glfw.platform.platformID != GLFW_PLATFORM_X11)
+        {
+            _glfwInputError(GLFW_PLATFORM_UNAVAILABLE, "X11: Platform not initialized");
+            return 0;
+        }
+
+        return ((_GLFWmonitor*)monitor)->x11.output;
     }
 }

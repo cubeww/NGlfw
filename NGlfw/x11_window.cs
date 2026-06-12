@@ -39,10 +39,16 @@ public static unsafe partial class Glfw
     const int ShapeInput = 2;
     const int XIAllMasterDevices = 1;
     const int XI_RawMotion = 17;
+    const uint XkbUseCoreKbd = 0x0100;
+    const int XkbEventCode = 0;
+    const uint XkbStateNotify = 2;
+    const ulong XkbGroupStateMask = 1UL << 4;
     const int RevertToParent = 2;
     const ulong CurrentTime = 0;
     const long NoEventMask = 0;
     const nuint _GLFW_XDND_VERSION = 5;
+    const int QueuedAfterReading = 1;
+    const short POLLIN = 0x0001;
 
     const int KeyPress = 2;
     const int KeyRelease = 3;
@@ -57,12 +63,17 @@ public static unsafe partial class Glfw
     const int DestroyNotify = 17;
     const int UnmapNotify = 18;
     const int MapNotify = 19;
+    const int ReparentNotify = 21;
     const int ConfigureNotify = 22;
+    const int PropertyNotify = 28;
     const int SelectionRequest = 30;
     const int SelectionNotify = 31;
     const int ClientMessage = 33;
     const int GenericEvent = 35;
 
+    const int NormalState = 1;
+    const int IconicState = 3;
+    const int PropertyNewValue = 0;
     const int NotifyGrab = 1;
     const int NotifyUngrab = 2;
 
@@ -100,6 +111,8 @@ public static unsafe partial class Glfw
         var window = x11_findWindow(@event->anyWindow);
         if (window == null && @event->type == ConfigureNotify)
             window = x11_findWindow(@event->configureWindow);
+        if (window == null && @event->type == ReparentNotify)
+            window = x11_findWindow(@event->reparentWindow);
         return window;
     }
 
@@ -121,6 +134,59 @@ public static unsafe partial class Glfw
             mods |= GLFW_MOD_NUM_LOCK;
 
         return mods;
+    }
+
+    static int x11_getWindowState(_GLFWwindow* window)
+    {
+        byte* data;
+        var result = 0;
+        var count = x11_getWindowProperty(window->x11.handle,
+            _glfw.x11.WM_STATE,
+            _glfw.x11.WM_STATE,
+            GLFW_FALSE,
+            &data);
+
+        if (count >= 2 && data != null)
+            result = (int)*(uint*)data;
+
+        if (data != null && _glfw.x11.XFree != null)
+            _glfw.x11.XFree(data);
+
+        return result;
+    }
+
+    static int x11_queryWindowMaximized(_GLFWwindow* window)
+    {
+        if (_glfw.x11.NET_WM_STATE == 0 ||
+            _glfw.x11.NET_WM_STATE_MAXIMIZED_VERT == 0 ||
+            _glfw.x11.NET_WM_STATE_MAXIMIZED_HORZ == 0)
+        {
+            return GLFW_FALSE;
+        }
+
+        byte* data;
+        var count = x11_getWindowProperty(window->x11.handle,
+            _glfw.x11.NET_WM_STATE,
+            XA_ATOM,
+            GLFW_FALSE,
+            &data);
+
+        var maximized = GLFW_FALSE;
+        var states = (nuint*)data;
+        for (nuint i = 0; i < count; i++)
+        {
+            if (states[i] == _glfw.x11.NET_WM_STATE_MAXIMIZED_VERT ||
+                states[i] == _glfw.x11.NET_WM_STATE_MAXIMIZED_HORZ)
+            {
+                maximized = GLFW_TRUE;
+                break;
+            }
+        }
+
+        if (data != null && _glfw.x11.XFree != null)
+            _glfw.x11.XFree(data);
+
+        return maximized;
     }
 
     static int x11_translateKeySym(nuint keysym)
@@ -280,9 +346,12 @@ public static unsafe partial class Glfw
 
     static nuint x11_writeTargetToProperty(XEvent* @event)
     {
-        if (_glfw.x11.XChangeProperty == null || @event->selectionRequestProperty == 0)
+        if (_glfw.x11.XChangeProperty == null)
             return 0;
 
+        var requestProperty = @event->selectionRequestProperty != 0
+            ? @event->selectionRequestProperty
+            : @event->selectionRequestTarget;
         var selectionString = @event->selectionRequestSelection == _glfw.x11.CLIPBOARD
             ? _glfw.x11.clipboardString
             : _glfw.x11.primarySelectionString;
@@ -302,14 +371,14 @@ public static unsafe partial class Glfw
 
             _glfw.x11.XChangeProperty(_glfw.x11.display,
                 @event->selectionRequestor,
-                @event->selectionRequestProperty,
+                requestProperty,
                 XA_ATOM,
                 32,
                 PropModeReplace,
                 (byte*)targets,
                 7);
 
-            return @event->selectionRequestProperty;
+            return requestProperty;
         }
 
         if (@event->selectionRequestTarget == _glfw.x11.MULTIPLE &&
@@ -317,7 +386,7 @@ public static unsafe partial class Glfw
         {
             byte* data;
             var count = x11_getWindowProperty(@event->selectionRequestor,
-                @event->selectionRequestProperty,
+                requestProperty,
                 _glfw.x11.ATOM_PAIR,
                 GLFW_FALSE,
                 &data);
@@ -371,7 +440,7 @@ public static unsafe partial class Glfw
 
             _glfw.x11.XChangeProperty(_glfw.x11.display,
                 @event->selectionRequestor,
-                @event->selectionRequestProperty,
+                requestProperty,
                 _glfw.x11.ATOM_PAIR,
                 32,
                 PropModeReplace,
@@ -381,21 +450,21 @@ public static unsafe partial class Glfw
             if (_glfw.x11.XFree != null)
                 _glfw.x11.XFree(data);
 
-            return @event->selectionRequestProperty;
+            return requestProperty;
         }
 
         if (@event->selectionRequestTarget == _glfw.x11.SAVE_TARGETS)
         {
             _glfw.x11.XChangeProperty(_glfw.x11.display,
                 @event->selectionRequestor,
-                @event->selectionRequestProperty,
+                requestProperty,
                 _glfw.x11.NULL_,
                 32,
                 PropModeReplace,
                 null,
                 0);
 
-            return @event->selectionRequestProperty;
+            return requestProperty;
         }
 
         if (@event->selectionRequestTarget == _glfw.x11.UTF8_STRING ||
@@ -403,10 +472,10 @@ public static unsafe partial class Glfw
             @event->selectionRequestTarget == _glfw.x11.TEXT)
         {
             return x11_writeSelectionString(@event->selectionRequestor,
-                @event->selectionRequestProperty,
+                requestProperty,
                 @event->selectionRequestTarget,
                 selectionString) != 0
-                    ? @event->selectionRequestProperty
+                    ? requestProperty
                     : 0;
         }
 
@@ -433,6 +502,56 @@ public static unsafe partial class Glfw
             0,
             &reply);
         _glfw.x11.XFlush(_glfw.x11.display);
+    }
+
+    static void _glfwPushSelectionToManagerX11()
+    {
+        if (_glfw.x11.helperWindowHandle == 0 ||
+            _glfw.x11.CLIPBOARD_MANAGER == 0 ||
+            _glfw.x11.SAVE_TARGETS == 0 ||
+            _glfw.x11.XConvertSelection == null ||
+            _glfw.x11.XPending == null ||
+            _glfw.x11.XNextEvent == null)
+        {
+            return;
+        }
+
+        _glfw.x11.XConvertSelection(_glfw.x11.display,
+            _glfw.x11.CLIPBOARD_MANAGER,
+            _glfw.x11.SAVE_TARGETS,
+            0,
+            _glfw.x11.helperWindowHandle,
+            CurrentTime);
+        _glfw.x11.XFlush(_glfw.x11.display);
+
+        var deadline = _glfwPlatformGetTimerValue() + 5UL * _glfwPlatformGetTimerFrequency();
+        while (_glfwPlatformGetTimerValue() < deadline)
+        {
+            if (_glfw.x11.XPending(_glfw.x11.display) == 0)
+            {
+                Thread.Sleep(1);
+                continue;
+            }
+
+            XEvent @event;
+            _glfw.x11.XNextEvent(_glfw.x11.display, &@event);
+
+            if (@event.type == SelectionRequest)
+            {
+                x11_handleSelectionRequest(&@event);
+            }
+            else if (@event.type == SelectionNotify &&
+                     @event.selectionNotifyRequestor == _glfw.x11.helperWindowHandle &&
+                     @event.selectionNotifySelection == _glfw.x11.CLIPBOARD_MANAGER &&
+                     @event.selectionNotifyTarget == _glfw.x11.SAVE_TARGETS)
+            {
+                return;
+            }
+            else
+            {
+                x11_processEvent(&@event);
+            }
+        }
     }
 
     static void x11_sendXdndFinished(_GLFWwindow* window, int accepted)
@@ -680,6 +799,30 @@ public static unsafe partial class Glfw
         }
 
         _glfw.x11.XFreeEventData(_glfw.x11.display, @event);
+    }
+
+    static int x11_isKeyReleaseRepeat(XEvent* @event)
+    {
+        if (_glfw.x11.xkbDetectable != 0 ||
+            _glfw.x11.XEventsQueued == null ||
+            _glfw.x11.XPeekEvent == null ||
+            _glfw.x11.XEventsQueued(_glfw.x11.display, QueuedAfterReading) == 0)
+        {
+            return GLFW_FALSE;
+        }
+
+        XEvent next;
+        _glfw.x11.XPeekEvent(_glfw.x11.display, &next);
+
+        if (next.type == KeyPress &&
+            next.anyWindow == @event->anyWindow &&
+            next.keycode == @event->keycode &&
+            next.time - @event->time < 20)
+        {
+            return GLFW_TRUE;
+        }
+
+        return GLFW_FALSE;
     }
 
     static byte* x11_convertSelectionToString(nuint selection, nuint target)
@@ -930,6 +1073,37 @@ public static unsafe partial class Glfw
         }
     }
 
+    static void x11_setWindowClass(_GLFWwindow* window, _GLFWwndconfig* wndconfig)
+    {
+        if (window->x11.handle == 0 || _glfw.x11.XSetClassHint == null)
+            return;
+
+        var instanceName = stackalloc byte[_GLFW_MESSAGE_SIZE];
+        var className = stackalloc byte[_GLFW_MESSAGE_SIZE];
+
+        if (wndconfig->x11.instanceName[0] != 0)
+        {
+            _glfw_strncpy(instanceName, wndconfig->x11.instanceName, (nuint)_GLFW_MESSAGE_SIZE);
+        }
+        else
+        {
+            var resourceName = System.Environment.GetEnvironmentVariable("RESOURCE_NAME");
+            _glfw_strcpy(instanceName,
+                !string.IsNullOrEmpty(resourceName) ? resourceName : "glfw-application");
+        }
+
+        if (wndconfig->x11.className[0] != 0)
+            _glfw_strncpy(className, wndconfig->x11.className, (nuint)_GLFW_MESSAGE_SIZE);
+        else
+            _glfw_strcpy(className, "GLFW-Application");
+
+        XClassHint hint = default;
+        hint.res_name = instanceName;
+        hint.res_class = className;
+
+        _glfw.x11.XSetClassHint(_glfw.x11.display, window->x11.handle, &hint);
+    }
+
     static void x11_processEvent(XEvent* @event)
     {
         if (@event->type == GenericEvent)
@@ -951,6 +1125,18 @@ public static unsafe partial class Glfw
                 _glfw.x11.XRRUpdateConfiguration(@event);
 
             _glfwPollMonitorsX11();
+            return;
+        }
+
+        if (_glfw.x11.xkbAvailable != 0 &&
+            @event->type == _glfw.x11.xkbEventBase + XkbEventCode)
+        {
+            if (@event->xkbType == XkbStateNotify &&
+                (@event->xkbStateChanged & XkbGroupStateMask) != 0)
+            {
+                _glfw.x11.xkbGroup = (uint)@event->xkbStateGroup;
+            }
+
             return;
         }
 
@@ -989,6 +1175,9 @@ public static unsafe partial class Glfw
                     key = x11_translateKeySym(keysym);
 
                 var action = @event->type == KeyPress ? GLFW_PRESS : GLFW_RELEASE;
+
+                if (action == GLFW_RELEASE && x11_isKeyReleaseRepeat(@event) != 0)
+                    return;
 
                 _glfwInputKey(window, key, scancode, action, mods);
 
@@ -1089,11 +1278,25 @@ public static unsafe partial class Glfw
                 }
                 return;
 
+            case ReparentNotify:
+                window->x11.parent = @event->reparentParent;
+                return;
+
             case ClientMessage:
                 if (@event->clientMessageType == _glfw.x11.WM_PROTOCOLS &&
                     (nuint)@event->clientData0 == _glfw.x11.WM_DELETE_WINDOW)
                 {
                     _glfwInputWindowCloseRequest(window);
+                }
+                else if (@event->clientMessageType == _glfw.x11.WM_PROTOCOLS &&
+                         (nuint)@event->clientData0 == _glfw.x11.NET_WM_PING)
+                {
+                    @event->anyWindow = _glfw.x11.root;
+                    _glfw.x11.XSendEvent(_glfw.x11.display,
+                        _glfw.x11.root,
+                        GLFW_FALSE,
+                        (nint)(SubstructureNotifyMask | SubstructureRedirectMask),
+                        @event);
                 }
                 else if (@event->clientMessageType == _glfw.x11.XdndEnter ||
                          @event->clientMessageType == _glfw.x11.XdndPosition ||
@@ -1125,6 +1328,49 @@ public static unsafe partial class Glfw
 
             case Expose:
                 _glfwInputWindowDamage(window);
+                return;
+
+            case PropertyNotify:
+                if (@event->propertyState != PropertyNewValue)
+                    return;
+
+                if (@event->propertyAtom == _glfw.x11.WM_STATE)
+                {
+                    var state = x11_getWindowState(window);
+                    if (state != IconicState && state != NormalState)
+                        return;
+
+                    var iconified = state == IconicState ? GLFW_TRUE : GLFW_FALSE;
+                    if (window->x11.iconified != iconified)
+                    {
+                        if (window->monitor != null)
+                        {
+                            if (iconified != 0)
+                            {
+                                _glfwRestoreVideoModeX11(window->monitor);
+                                _glfwInputMonitorWindow(window->monitor, null);
+                            }
+                            else
+                            {
+                                _glfwSetVideoModeX11(window->monitor, &window->videoMode);
+                                _glfwInputMonitorWindow(window->monitor, window);
+                            }
+                        }
+
+                        window->x11.iconified = iconified;
+                        _glfwInputWindowIconify(window, iconified);
+                    }
+                }
+                else if (@event->propertyAtom == _glfw.x11.NET_WM_STATE)
+                {
+                    var maximized = x11_queryWindowMaximized(window);
+                    if (window->x11.maximized != maximized)
+                    {
+                        window->x11.maximized = maximized;
+                        _glfwInputWindowMaximize(window, maximized);
+                    }
+                }
+
                 return;
 
             case MapNotify:
@@ -1223,6 +1469,7 @@ public static unsafe partial class Glfw
         window->x11.ypos = ypos;
         window->x11.opacity = 1f;
 
+        x11_setWindowClass(window, wndconfig);
         x11_setWindowTitle(window, wndconfig->title);
         x11_updateNormalHints(window, width, height);
 
@@ -1239,11 +1486,17 @@ public static unsafe partial class Glfw
                 1);
         }
 
-        if (_glfw.x11.WM_DELETE_WINDOW != 0)
+        if (_glfw.x11.WM_DELETE_WINDOW != 0 || _glfw.x11.NET_WM_PING != 0)
         {
-            var protocols = stackalloc nuint[1];
-            protocols[0] = _glfw.x11.WM_DELETE_WINDOW;
-            _glfw.x11.XSetWMProtocols(_glfw.x11.display, window->x11.handle, protocols, 1);
+            var count = 0;
+            var protocols = stackalloc nuint[2];
+
+            if (_glfw.x11.WM_DELETE_WINDOW != 0)
+                protocols[count++] = _glfw.x11.WM_DELETE_WINDOW;
+            if (_glfw.x11.NET_WM_PING != 0)
+                protocols[count++] = _glfw.x11.NET_WM_PING;
+
+            _glfw.x11.XSetWMProtocols(_glfw.x11.display, window->x11.handle, protocols, count);
         }
 
         return GLFW_TRUE;
@@ -1376,7 +1629,7 @@ public static unsafe partial class Glfw
         if (key == GLFW_KEY_UNKNOWN || _glfw.x11.XkbKeycodeToKeysym == null)
             return null;
 
-        var keysym = _glfw.x11.XkbKeycodeToKeysym(_glfw.x11.display, (uint)scancode, 0, 0);
+        var keysym = _glfw.x11.XkbKeycodeToKeysym(_glfw.x11.display, (uint)scancode, (int)_glfw.x11.xkbGroup, 0);
         if (keysym == 0)
             return null;
 
@@ -2096,23 +2349,51 @@ public static unsafe partial class Glfw
         }
     }
 
+    static void x11_waitForEvent(double* timeout)
+    {
+        if (_glfw.x11.XPending(_glfw.x11.display) != 0)
+            return;
+
+        if (_glfw.x11.XConnectionNumber != null)
+        {
+            var fd = _glfw.x11.XConnectionNumber(_glfw.x11.display);
+            if (fd >= 0)
+            {
+                POLLFD fds = default;
+                fds.fd = fd;
+                fds.events = POLLIN;
+
+                _glfw.x11.XFlush(_glfw.x11.display);
+                _glfwPollPOSIX(&fds, 1, timeout);
+                return;
+            }
+        }
+
+        if (timeout == null)
+        {
+            while (_glfw.x11.XPending(_glfw.x11.display) == 0)
+                Thread.Sleep(1);
+        }
+        else
+        {
+            var deadline = _glfwPlatformGetTimerValue() + (ulong)(*timeout * _glfwPlatformGetTimerFrequency());
+            while (_glfw.x11.XPending(_glfw.x11.display) == 0 &&
+                   _glfwPlatformGetTimerValue() < deadline)
+            {
+                Thread.Sleep(1);
+            }
+        }
+    }
+
     static void _glfwWaitEventsX11()
     {
-        while (_glfw.x11.XPending(_glfw.x11.display) == 0)
-            Thread.Sleep(1);
-
+        x11_waitForEvent(null);
         _glfwPollEventsX11();
     }
 
     static void _glfwWaitEventsTimeoutX11(double timeout)
     {
-        var deadline = _glfwPlatformGetTimerValue() + (ulong)(timeout * _glfwPlatformGetTimerFrequency());
-        while (_glfw.x11.XPending(_glfw.x11.display) == 0 &&
-               _glfwPlatformGetTimerValue() < deadline)
-        {
-            Thread.Sleep(1);
-        }
-
+        x11_waitForEvent(&timeout);
         _glfwPollEventsX11();
     }
 
@@ -2138,6 +2419,77 @@ public static unsafe partial class Glfw
             0,
             &@event);
         _glfw.x11.XFlush(_glfw.x11.display);
+    }
+
+    public static void glfwSetX11SelectionString(byte* value)
+    {
+        if (_glfw.initialized == 0)
+        {
+            _glfwInputError(GLFW_NOT_INITIALIZED);
+            return;
+        }
+
+        if (_glfw.platform.platformID != GLFW_PLATFORM_X11)
+        {
+            _glfwInputError(GLFW_PLATFORM_UNAVAILABLE, "X11: Platform not initialized");
+            return;
+        }
+
+        if (value == null)
+        {
+            _glfwInputError(GLFW_INVALID_VALUE);
+            return;
+        }
+
+        _glfw_free(_glfw.x11.primarySelectionString);
+        _glfw.x11.primarySelectionString = _glfw_strdup(value);
+
+        if (_glfw.x11.helperWindowHandle != 0 &&
+            _glfw.x11.PRIMARY != 0 &&
+            _glfw.x11.XSetSelectionOwner != null)
+        {
+            _glfw.x11.XSetSelectionOwner(_glfw.x11.display,
+                _glfw.x11.PRIMARY,
+                _glfw.x11.helperWindowHandle,
+                CurrentTime);
+            _glfw.x11.XFlush(_glfw.x11.display);
+        }
+    }
+
+    public static byte* glfwGetX11SelectionString()
+    {
+        if (_glfw.initialized == 0)
+        {
+            _glfwInputError(GLFW_NOT_INITIALIZED);
+            return null;
+        }
+
+        if (_glfw.platform.platformID != GLFW_PLATFORM_X11)
+        {
+            _glfwInputError(GLFW_PLATFORM_UNAVAILABLE, "X11: Platform not initialized");
+            return null;
+        }
+
+        if (_glfw.x11.helperWindowHandle != 0 &&
+            _glfw.x11.PRIMARY != 0 &&
+            _glfw.x11.XGetSelectionOwner != null)
+        {
+            var owner = _glfw.x11.XGetSelectionOwner(_glfw.x11.display, _glfw.x11.PRIMARY);
+            if (owner != 0 && owner != _glfw.x11.helperWindowHandle)
+            {
+                var stringValue = x11_convertSelectionToString(_glfw.x11.PRIMARY, _glfw.x11.UTF8_STRING);
+                if (stringValue == null)
+                    stringValue = x11_convertSelectionToString(_glfw.x11.PRIMARY, XA_STRING);
+
+                if (stringValue != null)
+                {
+                    _glfw_free(_glfw.x11.primarySelectionString);
+                    _glfw.x11.primarySelectionString = stringValue;
+                }
+            }
+        }
+
+        return _glfw.x11.primarySelectionString;
     }
 
     public static void* glfwGetX11Display()

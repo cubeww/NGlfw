@@ -37,6 +37,7 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwVkKHRSurfaceExtensionName;
     static readonly byte* _glfwVkKHRWin32SurfaceExtensionName;
     static readonly byte* _glfwVkKHRXlibSurfaceExtensionName;
+    static readonly byte* _glfwVkKHRXcbSurfaceExtensionName;
     static readonly byte* _glfwWin32MappingName;
 
     static Glfw()
@@ -45,6 +46,7 @@ public static unsafe partial class Glfw
         _glfwVkKHRSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_surface");
         _glfwVkKHRWin32SurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_win32_surface");
         _glfwVkKHRXlibSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_xlib_surface");
+        _glfwVkKHRXcbSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_xcb_surface");
         _glfwWin32MappingName = _glfw_allocate_static_string("Windows");
         _glfwInitHints = default;
         _glfwInitHints.hatButtons = GLFW_TRUE;
@@ -533,13 +535,26 @@ public static unsafe partial class Glfw
         public int randrErrorBase;
         public int randrMajor;
         public int randrMinor;
+        public void* xineramaHandle;
+        public int xineramaAvailable;
+        public void* x11xcbHandle;
+        public void* x11xcbConnection;
         public void* xshapeHandle;
         public void* xrenderHandle;
         public void* xiHandle;
         public int xiAvailable;
         public int xiMajorOpcode;
+        public int xkbAvailable;
+        public int xkbDetectable;
+        public int xkbMajorOpcode;
+        public int xkbEventBase;
+        public int xkbErrorBase;
+        public int xkbMajor;
+        public int xkbMinor;
+        public uint xkbGroup;
         public nuint WM_PROTOCOLS;
         public nuint WM_DELETE_WINDOW;
+        public nuint NET_WM_PING;
         public nuint WM_STATE;
         public nuint NET_WM_NAME;
         public nuint NET_WM_ICON_NAME;
@@ -559,7 +574,9 @@ public static unsafe partial class Glfw
         public nuint NET_WORKAREA;
         public nuint NET_CURRENT_DESKTOP;
         public nuint MOTIF_WM_HINTS;
+        public nuint PRIMARY;
         public nuint CLIPBOARD;
+        public nuint CLIPBOARD_MANAGER;
         public nuint TARGETS;
         public nuint MULTIPLE;
         public nuint ATOM_PAIR;
@@ -587,6 +604,7 @@ public static unsafe partial class Glfw
         public fixed short scancodes[GLFW_KEY_LAST + 1];
         public fixed byte keyname[64];
         public delegate* unmanaged<void*, int> XCloseDisplay;
+        public delegate* unmanaged<void*, int> XConnectionNumber;
         public delegate* unmanaged<void*, int> XFree;
         public delegate* unmanaged<void*, int> XDefaultScreen;
         public delegate* unmanaged<void*, int, nuint> XRootWindow;
@@ -598,6 +616,10 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, int, int> XDisplayHeightMM;
         public delegate* unmanaged<void*, int*, int*, int> XDisplayKeycodes;
         public delegate* unmanaged<void*, uint, int, int, nuint> XkbKeycodeToKeysym;
+        public delegate* unmanaged<void*, int*, int*, int*, int*, int*, int> XkbQueryExtension;
+        public delegate* unmanaged<void*, int, int*, int> XkbSetDetectableAutoRepeat;
+        public delegate* unmanaged<void*, uint, XkbStateRec*, int> XkbGetState;
+        public delegate* unmanaged<void*, uint, uint, ulong, ulong, int> XkbSelectEventDetails;
         public delegate* unmanaged<int, int, XcursorImage*> XcursorImageCreate;
         public delegate* unmanaged<XcursorImage*, void> XcursorImageDestroy;
         public delegate* unmanaged<void*, XcursorImage*, nuint> XcursorImageLoadCursor;
@@ -618,6 +640,10 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<XRRCrtcGamma*, void> XRRFreeGamma;
         public delegate* unmanaged<void*, nuint, XRRCrtcGamma*, void> XRRSetCrtcGamma;
         public delegate* unmanaged<XEvent*, int> XRRUpdateConfiguration;
+        public delegate* unmanaged<void*, int*, int*, int> XineramaQueryExtension;
+        public delegate* unmanaged<void*, int> XineramaIsActive;
+        public delegate* unmanaged<void*, int*, XineramaScreenInfo*> XineramaQueryScreens;
+        public delegate* unmanaged<void*, void*> XGetXCBConnection;
         public delegate* unmanaged<void*> XCreateRegion;
         public delegate* unmanaged<void*, int> XDestroyRegion;
         public delegate* unmanaged<void*, nuint, int, int, int, void*, int, void> XShapeCombineRegion;
@@ -645,6 +671,7 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, nuint, int, nint, XEvent*, int> XSendEvent;
         public delegate* unmanaged<void*, nuint, XSizeHints*, void> XSetWMNormalHints;
         public delegate* unmanaged<void*, nuint, nuint*, int, int> XSetWMProtocols;
+        public delegate* unmanaged<void*, nuint, XClassHint*, int> XSetClassHint;
         public delegate* unmanaged<void*, nuint, int> XMapWindow;
         public delegate* unmanaged<void*, nuint, int> XUnmapWindow;
         public delegate* unmanaged<void*, nuint, int, int, int> XMoveWindow;
@@ -662,7 +689,9 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, nuint, nuint, int> XDefineCursor;
         public delegate* unmanaged<void*, nuint, int> XUndefineCursor;
         public delegate* unmanaged<void*, int> XPending;
+        public delegate* unmanaged<void*, int, int> XEventsQueued;
         public delegate* unmanaged<void*, XEvent*, int> XNextEvent;
+        public delegate* unmanaged<void*, XEvent*, int> XPeekEvent;
         public delegate* unmanaged<XEvent*, byte*, int, nuint*, void*, int> XLookupString;
         public delegate* unmanaged<void*, int> XFlush;
     }
@@ -742,6 +771,24 @@ public static unsafe partial class Glfw
     public struct _GLFWcursorX11
     {
         public nuint handle;
+    }
+
+    public struct XkbStateRec
+    {
+        public byte group;
+        public byte locked_group;
+        public ushort base_group;
+        public ushort latched_group;
+        public byte mods;
+        public byte base_mods;
+        public byte latched_mods;
+        public byte locked_mods;
+        public byte compat_state;
+        public byte grab_mods;
+        public byte compat_grab_mods;
+        public byte lookup_mods;
+        public byte compat_lookup_mods;
+        public ushort ptr_buttons;
     }
 
     public struct XcursorImage
@@ -950,6 +997,9 @@ public static unsafe partial class Glfw
         [FieldOffset(56)] public int configureWidth;
         [FieldOffset(60)] public int configureHeight;
 
+        [FieldOffset(40)] public nuint reparentWindow;
+        [FieldOffset(48)] public nuint reparentParent;
+
         [FieldOffset(40)] public int exposeX;
         [FieldOffset(44)] public int exposeY;
         [FieldOffset(48)] public int exposeWidth;
@@ -975,10 +1025,17 @@ public static unsafe partial class Glfw
         [FieldOffset(40)] public int focusMode;
         [FieldOffset(44)] public int focusDetail;
 
+        [FieldOffset(40)] public nuint propertyAtom;
+        [FieldOffset(56)] public int propertyState;
+
         [FieldOffset(32)] public int genericExtension;
         [FieldOffset(36)] public int genericEvType;
         [FieldOffset(40)] public uint genericCookie;
         [FieldOffset(48)] public void* genericData;
+
+        [FieldOffset(40)] public int xkbType;
+        [FieldOffset(48)] public uint xkbStateChanged;
+        [FieldOffset(52)] public int xkbStateGroup;
 
         [FieldOffset(32)] public nuint selectionRequestOwner;
         [FieldOffset(40)] public nuint selectionRequestor;
@@ -992,6 +1049,21 @@ public static unsafe partial class Glfw
         [FieldOffset(48)] public nuint selectionNotifyTarget;
         [FieldOffset(56)] public nuint selectionNotifyProperty;
         [FieldOffset(64)] public ulong selectionNotifyTime;
+    }
+
+    public struct XineramaScreenInfo
+    {
+        public int screen_number;
+        public short x_org;
+        public short y_org;
+        public short width;
+        public short height;
+    }
+
+    public struct XClassHint
+    {
+        public byte* res_name;
+        public byte* res_class;
     }
 
     public struct _GLFWlibraryLinuxJoystick

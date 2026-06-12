@@ -46,6 +46,59 @@ public static unsafe partial class Glfw
         }
     }
 
+    static void x11_initXkb()
+    {
+        if (_glfw.x11.XkbQueryExtension == null)
+            return;
+
+        _glfw.x11.xkbMajor = 1;
+        _glfw.x11.xkbMinor = 0;
+
+        fixed (int* majorOpcode = &_glfw.x11.xkbMajorOpcode)
+        fixed (int* eventBase = &_glfw.x11.xkbEventBase)
+        fixed (int* errorBase = &_glfw.x11.xkbErrorBase)
+        fixed (int* major = &_glfw.x11.xkbMajor)
+        fixed (int* minor = &_glfw.x11.xkbMinor)
+        {
+            _glfw.x11.xkbAvailable =
+                _glfw.x11.XkbQueryExtension(_glfw.x11.display,
+                    majorOpcode,
+                    eventBase,
+                    errorBase,
+                    major,
+                    minor);
+        }
+
+        if (_glfw.x11.xkbAvailable == 0)
+            return;
+
+        if (_glfw.x11.XkbSetDetectableAutoRepeat != null)
+        {
+            var supported = 0;
+            if (_glfw.x11.XkbSetDetectableAutoRepeat(_glfw.x11.display, GLFW_TRUE, &supported) != 0 &&
+                supported != 0)
+            {
+                _glfw.x11.xkbDetectable = GLFW_TRUE;
+            }
+        }
+
+        if (_glfw.x11.XkbGetState != null)
+        {
+            XkbStateRec state;
+            if (_glfw.x11.XkbGetState(_glfw.x11.display, XkbUseCoreKbd, &state) == Success)
+                _glfw.x11.xkbGroup = state.group;
+        }
+
+        if (_glfw.x11.XkbSelectEventDetails != null)
+        {
+            _glfw.x11.XkbSelectEventDetails(_glfw.x11.display,
+                XkbUseCoreKbd,
+                XkbStateNotify,
+                XkbGroupStateMask,
+                XkbGroupStateMask);
+        }
+    }
+
     static void x11_initXcursor()
     {
         _glfw.x11.xcursorHandle = x11_loadModule("libXcursor.so.1");
@@ -168,6 +221,60 @@ public static unsafe partial class Glfw
                 _glfw.x11.root,
                 RROutputChangeNotifyMask);
         }
+    }
+
+    static void x11_initXinerama()
+    {
+        _glfw.x11.xineramaHandle = x11_loadModule("libXinerama.so.1");
+        if (_glfw.x11.xineramaHandle == null)
+            _glfw.x11.xineramaHandle = x11_loadModule("libXinerama.so");
+
+        if (_glfw.x11.xineramaHandle == null)
+            return;
+
+        _glfw.x11.XineramaQueryExtension =
+            (delegate* unmanaged<void*, int*, int*, int>)x11_getModuleSymbol(_glfw.x11.xineramaHandle, "XineramaQueryExtension");
+        _glfw.x11.XineramaIsActive =
+            (delegate* unmanaged<void*, int>)x11_getModuleSymbol(_glfw.x11.xineramaHandle, "XineramaIsActive");
+        _glfw.x11.XineramaQueryScreens =
+            (delegate* unmanaged<void*, int*, XineramaScreenInfo*>)x11_getModuleSymbol(_glfw.x11.xineramaHandle, "XineramaQueryScreens");
+
+        if (_glfw.x11.XineramaQueryExtension == null ||
+            _glfw.x11.XineramaIsActive == null ||
+            _glfw.x11.XineramaQueryScreens == null)
+        {
+            return;
+        }
+
+        var eventBase = 0;
+        var errorBase = 0;
+        if (_glfw.x11.XineramaQueryExtension(_glfw.x11.display, &eventBase, &errorBase) == 0)
+            return;
+
+        if (_glfw.x11.XineramaIsActive(_glfw.x11.display) == 0)
+            return;
+
+        _glfw.x11.xineramaAvailable = GLFW_TRUE;
+    }
+
+    static void x11_initX11XCB()
+    {
+        if (_glfwInitHints.x11.xcbVulkanSurface == 0)
+            return;
+
+        _glfw.x11.x11xcbHandle = x11_loadModule("libX11-xcb.so.1");
+        if (_glfw.x11.x11xcbHandle == null)
+            _glfw.x11.x11xcbHandle = x11_loadModule("libX11-xcb.so");
+
+        if (_glfw.x11.x11xcbHandle == null)
+            return;
+
+        _glfw.x11.XGetXCBConnection =
+            (delegate* unmanaged<void*, void*>)x11_getModuleSymbol(_glfw.x11.x11xcbHandle, "XGetXCBConnection");
+        if (_glfw.x11.XGetXCBConnection == null)
+            return;
+
+        _glfw.x11.x11xcbConnection = _glfw.x11.XGetXCBConnection(_glfw.x11.display);
     }
 
     static void x11_initXShape()
@@ -399,6 +506,7 @@ public static unsafe partial class Glfw
         var XrmInitialize = (delegate* unmanaged<void>)x11_getModuleSymbol(module, "XrmInitialize");
         var XOpenDisplay = (delegate* unmanaged<byte*, void*>)x11_getModuleSymbol(module, "XOpenDisplay");
         var XCloseDisplay = (delegate* unmanaged<void*, int>)x11_getModuleSymbol(module, "XCloseDisplay");
+        var XConnectionNumber = (delegate* unmanaged<void*, int>)x11_getModuleSymbol(module, "XConnectionNumber");
         var XFree = (delegate* unmanaged<void*, int>)x11_getModuleSymbol(module, "XFree");
         var XDefaultScreen = (delegate* unmanaged<void*, int>)x11_getModuleSymbol(module, "XDefaultScreen");
         var XRootWindow = (delegate* unmanaged<void*, int, nuint>)x11_getModuleSymbol(module, "XRootWindow");
@@ -434,6 +542,7 @@ public static unsafe partial class Glfw
         _glfw.x11.handle = module;
         _glfw.x11.display = display;
         _glfw.x11.XCloseDisplay = XCloseDisplay;
+        _glfw.x11.XConnectionNumber = XConnectionNumber;
         _glfw.x11.XFree = XFree;
         _glfw.x11.XDefaultScreen = XDefaultScreen;
         _glfw.x11.XRootWindow = XRootWindow;
@@ -471,6 +580,14 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, int*, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XDisplayKeycodes");
         _glfw.x11.XkbKeycodeToKeysym =
             (delegate* unmanaged<void*, uint, int, int, nuint>)x11_getModuleSymbol(_glfw.x11.handle, "XkbKeycodeToKeysym");
+        _glfw.x11.XkbQueryExtension =
+            (delegate* unmanaged<void*, int*, int*, int*, int*, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XkbQueryExtension");
+        _glfw.x11.XkbSetDetectableAutoRepeat =
+            (delegate* unmanaged<void*, int, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XkbSetDetectableAutoRepeat");
+        _glfw.x11.XkbGetState =
+            (delegate* unmanaged<void*, uint, XkbStateRec*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XkbGetState");
+        _glfw.x11.XkbSelectEventDetails =
+            (delegate* unmanaged<void*, uint, uint, ulong, ulong, int>)x11_getModuleSymbol(_glfw.x11.handle, "XkbSelectEventDetails");
         _glfw.x11.XQueryExtension =
             (delegate* unmanaged<void*, byte*, int*, int*, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XQueryExtension");
         _glfw.x11.XGetEventData =
@@ -515,6 +632,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, nuint, XSizeHints*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XSetWMNormalHints");
         _glfw.x11.XSetWMProtocols =
             (delegate* unmanaged<void*, nuint, nuint*, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSetWMProtocols");
+        _glfw.x11.XSetClassHint =
+            (delegate* unmanaged<void*, nuint, XClassHint*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSetClassHint");
         _glfw.x11.XMapWindow =
             (delegate* unmanaged<void*, nuint, int>)x11_getModuleSymbol(_glfw.x11.handle, "XMapWindow");
         _glfw.x11.XUnmapWindow =
@@ -549,8 +668,12 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, nuint, int>)x11_getModuleSymbol(_glfw.x11.handle, "XUndefineCursor");
         _glfw.x11.XPending =
             (delegate* unmanaged<void*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XPending");
+        _glfw.x11.XEventsQueued =
+            (delegate* unmanaged<void*, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XEventsQueued");
         _glfw.x11.XNextEvent =
             (delegate* unmanaged<void*, XEvent*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XNextEvent");
+        _glfw.x11.XPeekEvent =
+            (delegate* unmanaged<void*, XEvent*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XPeekEvent");
         _glfw.x11.XLookupString =
             (delegate* unmanaged<XEvent*, byte*, int, nuint*, void*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XLookupString");
         _glfw.x11.XFlush =
@@ -578,6 +701,7 @@ public static unsafe partial class Glfw
 
         _glfw.x11.WM_PROTOCOLS = x11_internAtom("WM_PROTOCOLS");
         _glfw.x11.WM_DELETE_WINDOW = x11_internAtom("WM_DELETE_WINDOW");
+        _glfw.x11.NET_WM_PING = x11_internAtom("_NET_WM_PING");
         _glfw.x11.WM_STATE = x11_internAtom("WM_STATE");
         _glfw.x11.NET_WM_NAME = x11_internAtom("_NET_WM_NAME");
         _glfw.x11.NET_WM_ICON_NAME = x11_internAtom("_NET_WM_ICON_NAME");
@@ -597,7 +721,9 @@ public static unsafe partial class Glfw
         _glfw.x11.NET_WORKAREA = x11_internAtom("_NET_WORKAREA");
         _glfw.x11.NET_CURRENT_DESKTOP = x11_internAtom("_NET_CURRENT_DESKTOP");
         _glfw.x11.MOTIF_WM_HINTS = x11_internAtom("_MOTIF_WM_HINTS");
+        _glfw.x11.PRIMARY = x11_internAtom("PRIMARY");
         _glfw.x11.CLIPBOARD = x11_internAtom("CLIPBOARD");
+        _glfw.x11.CLIPBOARD_MANAGER = x11_internAtom("CLIPBOARD_MANAGER");
         _glfw.x11.TARGETS = x11_internAtom("TARGETS");
         _glfw.x11.MULTIPLE = x11_internAtom("MULTIPLE");
         _glfw.x11.ATOM_PAIR = x11_internAtom("ATOM_PAIR");
@@ -624,9 +750,12 @@ public static unsafe partial class Glfw
         x11_createHelperWindow();
         x11_initXcursor();
         x11_initRandR();
+        x11_initXinerama();
         x11_initXShape();
         x11_initXRender();
         x11_initXI();
+        x11_initXkb();
+        x11_initX11XCB();
         x11_createHiddenCursor();
         x11_createKeyTables();
         _glfwPollMonitorsX11();
@@ -636,6 +765,15 @@ public static unsafe partial class Glfw
     static void _glfwTerminateX11()
     {
         _glfwTerminateGLX();
+
+        if (_glfw.x11.display != null &&
+            _glfw.x11.helperWindowHandle != 0 &&
+            _glfw.x11.CLIPBOARD != 0 &&
+            _glfw.x11.XGetSelectionOwner != null &&
+            _glfw.x11.XGetSelectionOwner(_glfw.x11.display, _glfw.x11.CLIPBOARD) == _glfw.x11.helperWindowHandle)
+        {
+            _glfwPushSelectionToManagerX11();
+        }
 
         if (_glfw.x11.display != null &&
             _glfw.x11.hiddenCursorHandle != 0 &&
@@ -662,6 +800,12 @@ public static unsafe partial class Glfw
 
         if (_glfw.x11.randrHandle != null)
             _glfwPlatformFreeModule(_glfw.x11.randrHandle);
+
+        if (_glfw.x11.xineramaHandle != null)
+            _glfwPlatformFreeModule(_glfw.x11.xineramaHandle);
+
+        if (_glfw.x11.x11xcbHandle != null)
+            _glfwPlatformFreeModule(_glfw.x11.x11xcbHandle);
 
         if (_glfw.x11.xshapeHandle != null)
             _glfwPlatformFreeModule(_glfw.x11.xshapeHandle);
@@ -1033,20 +1177,72 @@ public static unsafe partial class Glfw
         return window != null ? (void*)window->x11.handle : null;
     }
 
+    static int x11_xcbVulkanSurfaceAvailable()
+    {
+        return _glfwInitHints.x11.xcbVulkanSurface != 0 &&
+               _glfw.x11.x11xcbConnection != null &&
+               _glfw.vk.KHR_xcb_surface != 0
+            ? GLFW_TRUE
+            : GLFW_FALSE;
+    }
+
+    static int x11_usingXcbVulkanSurface()
+    {
+        return _glfw.vk.extensions != null &&
+               _glfw.vk.extensions[1] == _glfwVkKHRXcbSurfaceExtensionName
+            ? GLFW_TRUE
+            : GLFW_FALSE;
+    }
+
     static void _glfwGetRequiredInstanceExtensionsX11(byte** extensions)
     {
         if (extensions == null)
             return;
 
-        if (_glfw.vk.KHR_surface == 0 || _glfw.vk.KHR_xlib_surface == 0)
+        if (_glfw.vk.KHR_surface == 0)
+            return;
+
+        byte* surfaceExtension = null;
+
+        if (x11_xcbVulkanSurfaceAvailable() != 0)
+            surfaceExtension = _glfwVkKHRXcbSurfaceExtensionName;
+        else if (_glfw.vk.KHR_xlib_surface != 0)
+            surfaceExtension = _glfwVkKHRXlibSurfaceExtensionName;
+
+        if (surfaceExtension == null)
             return;
 
         extensions[0] = _glfwVkKHRSurfaceExtensionName;
-        extensions[1] = _glfwVkKHRXlibSurfaceExtensionName;
+        extensions[1] = surfaceExtension;
     }
 
     static int _glfwGetPhysicalDevicePresentationSupportX11(void* instance, void* device, uint queuefamily)
     {
+        var visual = _glfw.x11.XDefaultVisual != null
+            ? _glfw.x11.XDefaultVisual(_glfw.x11.display, _glfw.x11.screen)
+            : null;
+        var visualID = visual != null && _glfw.x11.XVisualIDFromVisual != null
+            ? _glfw.x11.XVisualIDFromVisual(visual)
+            : 0;
+
+        if (x11_usingXcbVulkanSurface() != 0)
+        {
+            var vkGetPhysicalDeviceXcbPresentationSupportKHR =
+                (delegate* unmanaged<void*, uint, void*, uint, int>)
+                vulkan_getInstanceProcAddress(instance, "vkGetPhysicalDeviceXcbPresentationSupportKHR");
+            if (vkGetPhysicalDeviceXcbPresentationSupportKHR == null)
+            {
+                _glfwInputError(GLFW_API_UNAVAILABLE,
+                    "X11: Vulkan instance missing VK_KHR_xcb_surface extension");
+                return GLFW_FALSE;
+            }
+
+            return vkGetPhysicalDeviceXcbPresentationSupportKHR(device,
+                queuefamily,
+                _glfw.x11.x11xcbConnection,
+                (uint)visualID);
+        }
+
         var vkGetPhysicalDeviceXlibPresentationSupportKHR =
             (delegate* unmanaged<void*, uint, void*, nuint, int>)
             vulkan_getInstanceProcAddress(instance, "vkGetPhysicalDeviceXlibPresentationSupportKHR");
@@ -1057,13 +1253,6 @@ public static unsafe partial class Glfw
             return GLFW_FALSE;
         }
 
-        var visual = _glfw.x11.XDefaultVisual != null
-            ? _glfw.x11.XDefaultVisual(_glfw.x11.display, _glfw.x11.screen)
-            : null;
-        var visualID = visual != null && _glfw.x11.XVisualIDFromVisual != null
-            ? _glfw.x11.XVisualIDFromVisual(visual)
-            : 0;
-
         return vkGetPhysicalDeviceXlibPresentationSupportKHR(device,
             queuefamily,
             _glfw.x11.display,
@@ -1072,6 +1261,36 @@ public static unsafe partial class Glfw
 
     static int _glfwCreateWindowSurfaceX11(void* instance, _GLFWwindow* window, void* allocator, ulong* surface)
     {
+        if (x11_usingXcbVulkanSurface() != 0)
+        {
+            var vkCreateXcbSurfaceKHR =
+                (delegate* unmanaged<void*, VkXcbSurfaceCreateInfoKHR*, void*, ulong*, int>)
+                vulkan_getInstanceProcAddress(instance, "vkCreateXcbSurfaceKHR");
+            if (vkCreateXcbSurfaceKHR == null)
+            {
+                _glfwInputError(GLFW_API_UNAVAILABLE,
+                    "X11: Vulkan instance missing VK_KHR_xcb_surface extension");
+                return VK_ERROR_EXTENSION_NOT_PRESENT;
+            }
+
+            var xcbSci = new VkXcbSurfaceCreateInfoKHR
+            {
+                sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
+                connection = _glfw.x11.x11xcbConnection,
+                window = (uint)window->x11.handle
+            };
+
+            var xcbErr = vkCreateXcbSurfaceKHR(instance, &xcbSci, allocator, surface);
+            if (xcbErr != VK_SUCCESS)
+            {
+                _glfwInputError(GLFW_PLATFORM_ERROR,
+                    "X11: Failed to create Vulkan XCB surface: {0}",
+                    vulkan_resultString(xcbErr));
+            }
+
+            return xcbErr;
+        }
+
         var vkCreateXlibSurfaceKHR =
             (delegate* unmanaged<void*, VkXlibSurfaceCreateInfoKHR*, void*, ulong*, int>)
             vulkan_getInstanceProcAddress(instance, "vkCreateXlibSurfaceKHR");

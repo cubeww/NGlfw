@@ -15,6 +15,16 @@ public static unsafe partial class Glfw
         public nuint window;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    struct VkXcbSurfaceCreateInfoKHR
+    {
+        public int sType;
+        public void* pNext;
+        public uint flags;
+        public void* connection;
+        public uint window;
+    }
+
     static void* x11_loadModule(string name)
     {
         var bytes = Encoding.ASCII.GetBytes(name + '\0');
