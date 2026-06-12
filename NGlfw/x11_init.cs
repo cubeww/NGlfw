@@ -277,6 +277,14 @@ public static unsafe partial class Glfw
         _glfw.x11.x11xcbConnection = _glfw.x11.XGetXCBConnection(_glfw.x11.display);
     }
 
+    static void x11_initXIM()
+    {
+        if (_glfw.x11.XOpenIM == null)
+            return;
+
+        _glfw.x11.im = _glfw.x11.XOpenIM(_glfw.x11.display, null, null, null);
+    }
+
     static void x11_initXShape()
     {
         _glfw.x11.xshapeHandle = x11_loadModule("libXext.so.6");
@@ -612,6 +620,24 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, nuint, byte*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XStoreName");
         _glfw.x11.Xutf8SetWMProperties =
             (delegate* unmanaged<void*, nuint, byte*, byte*, byte**, int, void*, void*, void*, void>)x11_getModuleSymbol(_glfw.x11.handle, "Xutf8SetWMProperties");
+        _glfw.x11.XOpenIM =
+            (delegate* unmanaged<void*, void*, byte*, byte*, void*>)x11_getModuleSymbol(_glfw.x11.handle, "XOpenIM");
+        _glfw.x11.XCloseIM =
+            (delegate* unmanaged<void*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XCloseIM");
+        _glfw.x11.XCreateIC =
+            (delegate* unmanaged<void*, byte*, nuint, byte*, nuint, byte*, nuint, void*, void*>)x11_getModuleSymbol(_glfw.x11.handle, "XCreateIC");
+        _glfw.x11.XDestroyIC =
+            (delegate* unmanaged<void*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XDestroyIC");
+        _glfw.x11.XGetICValues =
+            (delegate* unmanaged<void*, byte*, ulong*, void*, byte*>)x11_getModuleSymbol(_glfw.x11.handle, "XGetICValues");
+        _glfw.x11.XSetICFocus =
+            (delegate* unmanaged<void*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XSetICFocus");
+        _glfw.x11.XUnsetICFocus =
+            (delegate* unmanaged<void*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XUnsetICFocus");
+        _glfw.x11.Xutf8LookupString =
+            (delegate* unmanaged<void*, XEvent*, byte*, int, nuint*, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "Xutf8LookupString");
+        _glfw.x11.XFilterEvent =
+            (delegate* unmanaged<XEvent*, nuint, int>)x11_getModuleSymbol(_glfw.x11.handle, "XFilterEvent");
         _glfw.x11.XChangeProperty =
             (delegate* unmanaged<void*, nuint, nuint, nuint, int, int, byte*, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XChangeProperty");
         _glfw.x11.XGetWindowProperty =
@@ -634,6 +660,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, nuint, nuint*, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSetWMProtocols");
         _glfw.x11.XSetClassHint =
             (delegate* unmanaged<void*, nuint, XClassHint*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSetClassHint");
+        _glfw.x11.XSelectInput =
+            (delegate* unmanaged<void*, nuint, nint, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSelectInput");
         _glfw.x11.XMapWindow =
             (delegate* unmanaged<void*, nuint, int>)x11_getModuleSymbol(_glfw.x11.handle, "XMapWindow");
         _glfw.x11.XUnmapWindow =
@@ -756,6 +784,7 @@ public static unsafe partial class Glfw
         x11_initXI();
         x11_initXkb();
         x11_initX11XCB();
+        x11_initXIM();
         x11_createHiddenCursor();
         x11_createKeyTables();
         _glfwPollMonitorsX11();
@@ -773,6 +802,12 @@ public static unsafe partial class Glfw
             _glfw.x11.XGetSelectionOwner(_glfw.x11.display, _glfw.x11.CLIPBOARD) == _glfw.x11.helperWindowHandle)
         {
             _glfwPushSelectionToManagerX11();
+        }
+
+        if (_glfw.x11.im != null && _glfw.x11.XCloseIM != null)
+        {
+            _glfw.x11.XCloseIM(_glfw.x11.im);
+            _glfw.x11.im = null;
         }
 
         if (_glfw.x11.display != null &&

@@ -38,6 +38,10 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwVkKHRWin32SurfaceExtensionName;
     static readonly byte* _glfwVkKHRXlibSurfaceExtensionName;
     static readonly byte* _glfwVkKHRXcbSurfaceExtensionName;
+    static readonly byte* _glfwX11InputStyleName;
+    static readonly byte* _glfwX11ClientWindowName;
+    static readonly byte* _glfwX11FocusWindowName;
+    static readonly byte* _glfwX11FilterEventsName;
     static readonly byte* _glfwWin32MappingName;
 
     static Glfw()
@@ -47,6 +51,10 @@ public static unsafe partial class Glfw
         _glfwVkKHRWin32SurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_win32_surface");
         _glfwVkKHRXlibSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_xlib_surface");
         _glfwVkKHRXcbSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_xcb_surface");
+        _glfwX11InputStyleName = _glfw_allocate_static_string("inputStyle");
+        _glfwX11ClientWindowName = _glfw_allocate_static_string("clientWindow");
+        _glfwX11FocusWindowName = _glfw_allocate_static_string("focusWindow");
+        _glfwX11FilterEventsName = _glfw_allocate_static_string("filterEvents");
         _glfwWin32MappingName = _glfw_allocate_static_string("Windows");
         _glfwInitHints = default;
         _glfwInitHints.hatButtons = GLFW_TRUE;
@@ -661,6 +669,15 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, nuint, int> XFreeColormap;
         public delegate* unmanaged<void*, nuint, byte*, int> XStoreName;
         public delegate* unmanaged<void*, nuint, byte*, byte*, byte**, int, void*, void*, void*, void> Xutf8SetWMProperties;
+        public delegate* unmanaged<void*, void*, byte*, byte*, void*> XOpenIM;
+        public delegate* unmanaged<void*, int> XCloseIM;
+        public delegate* unmanaged<void*, byte*, nuint, byte*, nuint, byte*, nuint, void*, void*> XCreateIC;
+        public delegate* unmanaged<void*, void> XDestroyIC;
+        public delegate* unmanaged<void*, byte*, ulong*, void*, byte*> XGetICValues;
+        public delegate* unmanaged<void*, void> XSetICFocus;
+        public delegate* unmanaged<void*, void> XUnsetICFocus;
+        public delegate* unmanaged<void*, XEvent*, byte*, int, nuint*, int*, int> Xutf8LookupString;
+        public delegate* unmanaged<XEvent*, nuint, int> XFilterEvent;
         public delegate* unmanaged<void*, nuint, nuint, nuint, int, int, byte*, int, int> XChangeProperty;
         public delegate* unmanaged<void*, nuint, nuint, nint, nint, int, nuint, nuint*, int*, nuint*, nuint*, byte**, int> XGetWindowProperty;
         public delegate* unmanaged<void*, nuint, nuint, int> XDeleteProperty;
@@ -672,6 +689,7 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, nuint, XSizeHints*, void> XSetWMNormalHints;
         public delegate* unmanaged<void*, nuint, nuint*, int, int> XSetWMProtocols;
         public delegate* unmanaged<void*, nuint, XClassHint*, int> XSetClassHint;
+        public delegate* unmanaged<void*, nuint, nint, int> XSelectInput;
         public delegate* unmanaged<void*, nuint, int> XMapWindow;
         public delegate* unmanaged<void*, nuint, int> XUnmapWindow;
         public delegate* unmanaged<void*, nuint, int, int, int> XMoveWindow;

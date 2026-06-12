@@ -23,6 +23,18 @@ public static unsafe partial class Glfw
     const long SubstructureRedirectMask = 1L << 20;
     const long FocusChangeMask = 1L << 21;
     const long PropertyChangeMask = 1L << 22;
+    const long GLFW_X11_WINDOW_EVENT_MASK = StructureNotifyMask |
+                                            KeyPressMask |
+                                            KeyReleaseMask |
+                                            PointerMotionMask |
+                                            ButtonPressMask |
+                                            ButtonReleaseMask |
+                                            ExposureMask |
+                                            FocusChangeMask |
+                                            VisibilityChangeMask |
+                                            EnterWindowMask |
+                                            LeaveWindowMask |
+                                            PropertyChangeMask;
     const int PropModeReplace = 0;
     const int Success = 0;
     const int XA_ATOM = 4;
@@ -43,6 +55,11 @@ public static unsafe partial class Glfw
     const int XkbEventCode = 0;
     const uint XkbStateNotify = 2;
     const ulong XkbGroupStateMask = 1UL << 4;
+    const ulong XIMPreeditNothing = 0x0008;
+    const ulong XIMStatusNothing = 0x0400;
+    const int XBufferOverflow = -1;
+    const int XLookupChars = 2;
+    const int XLookupBoth = 4;
     const int RevertToParent = 2;
     const ulong CurrentTime = 0;
     const long NoEventMask = 0;
@@ -1025,6 +1042,46 @@ public static unsafe partial class Glfw
         _glfw.x11.XFlush(_glfw.x11.display);
     }
 
+    static void x11_createInputContext(_GLFWwindow* window)
+    {
+        if (_glfw.x11.im == null || _glfw.x11.XCreateIC == null)
+            return;
+
+        window->x11.ic = _glfw.x11.XCreateIC(_glfw.x11.im,
+            _glfwX11InputStyleName,
+            (nuint)(XIMPreeditNothing | XIMStatusNothing),
+            _glfwX11ClientWindowName,
+            window->x11.handle,
+            _glfwX11FocusWindowName,
+            window->x11.handle,
+            null);
+
+        if (window->x11.ic != null &&
+            _glfw.x11.XGetICValues != null &&
+            _glfw.x11.XSelectInput != null)
+        {
+            var filter = 0UL;
+            if (_glfw.x11.XGetICValues(window->x11.ic,
+                    _glfwX11FilterEventsName,
+                    &filter,
+                    null) == null)
+            {
+                _glfw.x11.XSelectInput(_glfw.x11.display,
+                    window->x11.handle,
+                    (nint)(GLFW_X11_WINDOW_EVENT_MASK | (long)filter));
+            }
+        }
+    }
+
+    static void x11_destroyInputContext(_GLFWwindow* window)
+    {
+        if (window->x11.ic != null && _glfw.x11.XDestroyIC != null)
+        {
+            _glfw.x11.XDestroyIC(window->x11.ic);
+            window->x11.ic = null;
+        }
+    }
+
     static void x11_inputText(_GLFWwindow* window, byte* chars, int count, int mods, int plain)
     {
         if (count <= 0)
@@ -1036,6 +1093,67 @@ public static unsafe partial class Glfw
             if (!char.IsSurrogate(ch))
                 _glfwInputChar(window, ch, mods, plain);
         }
+    }
+
+    static int x11_lookupString(_GLFWwindow* window,
+                                XEvent* @event,
+                                byte* buffer,
+                                int bufferSize,
+                                byte** text,
+                                nuint* keysym)
+    {
+        *text = buffer;
+
+        if (@event->type == KeyPress &&
+            window->x11.ic != null &&
+            _glfw.x11.Xutf8LookupString != null)
+        {
+            var status = 0;
+            var count = _glfw.x11.Xutf8LookupString(window->x11.ic,
+                @event,
+                buffer,
+                bufferSize - 1,
+                keysym,
+                &status);
+
+            if (status == XBufferOverflow && count > 0)
+            {
+                var dynamic = (byte*)_glfw_calloc((nuint)count + 1, 1);
+                if (dynamic == null)
+                    return 0;
+
+                *text = dynamic;
+                status = 0;
+                count = _glfw.x11.Xutf8LookupString(window->x11.ic,
+                    @event,
+                    dynamic,
+                    count,
+                    keysym,
+                    &status);
+            }
+
+            if (status != XLookupChars && status != XLookupBoth)
+                return 0;
+
+            if (count > 0)
+                (*text)[count] = 0;
+
+            return count;
+        }
+
+        if (_glfw.x11.XLookupString == null)
+            return 0;
+
+        var fallbackCount = _glfw.x11.XLookupString(@event,
+            buffer,
+            bufferSize - 1,
+            keysym,
+            null);
+
+        if (fallbackCount > 0)
+            buffer[fallbackCount] = 0;
+
+        return fallbackCount;
     }
 
     static void x11_setWindowTitle(_GLFWwindow* window, byte* title)
@@ -1147,6 +1265,16 @@ public static unsafe partial class Glfw
             return;
         }
 
+        var keycode = 0;
+        var eventTime = @event->time;
+        var eventState = @event->state;
+        if (@event->type == KeyPress || @event->type == KeyRelease)
+            keycode = (int)@event->keycode;
+
+        var filtered = _glfw.x11.XFilterEvent != null
+            ? _glfw.x11.XFilterEvent(@event, 0)
+            : GLFW_FALSE;
+
         var window = x11_findWindowForEvent(@event);
         if (window == null)
             return;
@@ -1156,14 +1284,15 @@ public static unsafe partial class Glfw
             case KeyPress:
             case KeyRelease:
             {
-                var mods = x11_translateState(@event->state);
+                var mods = x11_translateState(eventState);
                 var plain = (mods & (GLFW_MOD_CONTROL | GLFW_MOD_ALT)) == 0 ? GLFW_TRUE : GLFW_FALSE;
                 nuint keysym = 0;
                 var buffer = stackalloc byte[64];
-                var count = _glfw.x11.XLookupString != null
-                    ? _glfw.x11.XLookupString(@event, buffer, 63, &keysym, null)
+                byte* text = buffer;
+                var count = filtered == 0 || @event->type == KeyRelease
+                    ? x11_lookupString(window, @event, buffer, 64, &text, &keysym)
                     : 0;
-                var scancode = (int)@event->keycode;
+                var scancode = keycode;
                 var key = GLFW_KEY_UNKNOWN;
                 if (scancode >= 0 && scancode <= _GLFW_X11_KEYCODE_LAST)
                 {
@@ -1179,12 +1308,27 @@ public static unsafe partial class Glfw
                 if (action == GLFW_RELEASE && x11_isKeyReleaseRepeat(@event) != 0)
                     return;
 
-                _glfwInputKey(window, key, scancode, action, mods);
+                if (action == GLFW_PRESS &&
+                    window->x11.ic != null &&
+                    scancode > 0 &&
+                    scancode < 256)
+                {
+                    var diff = eventTime - window->x11.keyPressTimes[scancode];
+                    if (diff == eventTime || (diff > 0 && diff < (1UL << 31)))
+                    {
+                        _glfwInputKey(window, key, scancode, GLFW_PRESS, mods);
+                        window->x11.keyPressTimes[scancode] = eventTime;
+                    }
+                }
+                else
+                {
+                    _glfwInputKey(window, key, scancode, action, mods);
+                }
 
-                if (@event->type == KeyPress)
+                if (@event->type == KeyPress && filtered == 0)
                 {
                     if (count > 0)
-                        x11_inputText(window, buffer, count, mods, plain);
+                        x11_inputText(window, text, count, mods, plain);
                     else
                     {
                         var codepoint = _glfwKeySym2Unicode((uint)keysym);
@@ -1192,6 +1336,9 @@ public static unsafe partial class Glfw
                             _glfwInputChar(window, codepoint, mods, plain);
                     }
                 }
+
+                if (text != buffer)
+                    _glfw_free(text);
 
                 return;
             }
@@ -1313,6 +1460,9 @@ public static unsafe partial class Glfw
             case FocusIn:
                 if (@event->focusMode != NotifyGrab && @event->focusMode != NotifyUngrab)
                 {
+                    if (window->x11.ic != null && _glfw.x11.XSetICFocus != null)
+                        _glfw.x11.XSetICFocus(window->x11.ic);
+
                     window->x11.focused = GLFW_TRUE;
                     _glfwInputWindowFocus(window, GLFW_TRUE);
                 }
@@ -1321,6 +1471,9 @@ public static unsafe partial class Glfw
             case FocusOut:
                 if (@event->focusMode != NotifyGrab && @event->focusMode != NotifyUngrab)
                 {
+                    if (window->x11.ic != null && _glfw.x11.XUnsetICFocus != null)
+                        _glfw.x11.XUnsetICFocus(window->x11.ic);
+
                     window->x11.focused = GLFW_FALSE;
                     _glfwInputWindowFocus(window, GLFW_FALSE);
                 }
@@ -1426,18 +1579,7 @@ public static unsafe partial class Glfw
         XSetWindowAttributes wa = default;
         wa.border_pixel = 0;
         wa.colormap = window->x11.colormap;
-        wa.event_mask = (nint)(StructureNotifyMask |
-                               KeyPressMask |
-                               KeyReleaseMask |
-                               PointerMotionMask |
-                               ButtonPressMask |
-                               ButtonReleaseMask |
-                               ExposureMask |
-                               FocusChangeMask |
-                               VisibilityChangeMask |
-                               EnterWindowMask |
-                               LeaveWindowMask |
-                               PropertyChangeMask);
+        wa.event_mask = (nint)GLFW_X11_WINDOW_EVENT_MASK;
 
         _glfwGrabErrorHandlerX11();
 
@@ -1499,6 +1641,7 @@ public static unsafe partial class Glfw
             _glfw.x11.XSetWMProtocols(_glfw.x11.display, window->x11.handle, protocols, count);
         }
 
+        x11_createInputContext(window);
         return GLFW_TRUE;
     }
 
@@ -1791,6 +1934,8 @@ public static unsafe partial class Glfw
 
         if (window->context.destroy != null)
             window->context.destroy(window);
+
+        x11_destroyInputContext(window);
 
         if (window->x11.handle != 0)
         {
