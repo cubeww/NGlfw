@@ -101,6 +101,37 @@ public static unsafe partial class Glfw
         cocoa_releaseTemporaryString(key);
     }
 
+    static void cocoa_changeToResourcesDirectory()
+    {
+        var bundle = cocoa_msgSend_id(cocoa_getClass("NSBundle"), "mainBundle");
+        if (bundle == null)
+            return;
+
+        var resourcesPath = cocoa_msgSend_id(bundle, "resourcePath");
+        if (resourcesPath == null)
+            return;
+
+        var lastComponent = cocoa_msgSend_id(resourcesPath, "lastPathComponent");
+        if (lastComponent == null)
+            return;
+
+        var expected = cocoa_stringFromUTF8("Resources");
+        if (expected == null)
+            return;
+
+        var isResources = objc_msgSend_bool_ptr(lastComponent,
+            cocoa_sel("isEqualToString:"),
+            expected);
+        cocoa_releaseTemporaryString(expected);
+
+        if (isResources == 0)
+            return;
+
+        var fileManager = cocoa_msgSend_id(cocoa_getClass("NSFileManager"), "defaultManager");
+        if (fileManager != null)
+            objc_msgSend_bool_ptr(fileManager, cocoa_sel("changeCurrentDirectoryPath:"), resourcesPath);
+    }
+
     static void cocoa_createKeyTables()
     {
         fixed (short* keycodes = _glfw.ns.keycodes)
@@ -281,6 +312,9 @@ public static unsafe partial class Glfw
         }
 
         cocoa_msgSend_void_ptr(app, "setDelegate:", _glfw.ns.delegateObject);
+
+        if (_glfw.hints.init.ns.chdir != 0)
+            cocoa_changeToResourcesDirectory();
 
         cocoa_registerUserDefaults();
         cocoa_createKeyTables();

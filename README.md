@@ -114,6 +114,7 @@ Started, but not yet functional:
   autorelease pools
 - basic `NSApplicationDelegate` registration for terminate requests, screen
   parameter changes, finish-launch wakeup, and app hide video-mode restoration
+- Cocoa resource-directory `chdir` behavior for bundled apps
 - Cocoa `NSUserDefaults` registration for `ApplePressAndHoldEnabled = NO`
 - Cocoa backend file skeletons for init, windows, monitors, cursors, clipboard,
   joysticks, Vulkan surface hooks, and native accessors
@@ -161,8 +162,8 @@ Started, but not yet functional:
 
 Known remaining work:
 
-- full NSApplication helper behavior, menu bar setup, resource directory
-  handling, key-up monitor, and launch lifecycle parity
+- full NSApplication helper behavior, menu bar setup, key-up monitor, and
+  launch lifecycle parity
 - complete `NSView` / `NSTextInputClient` parity, including IME and
   drag-and-drop edge-case validation
 - full keyboard layout Unicode translation for scancode names
