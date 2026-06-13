@@ -2948,7 +2948,13 @@ public static unsafe partial class Glfw
 
     static void wayland_lockPointer(_GLFWwindow* window)
     {
-        if (_glfw.wl.relativePointerManager == null || _glfw.wl.pointerConstraints == null)
+        if (_glfw.wl.relativePointerManager == null)
+        {
+            _glfwInputError(GLFW_FEATURE_UNAVAILABLE, "Wayland: The compositor does not support relative pointer motion");
+            return;
+        }
+
+        if (_glfw.wl.pointerConstraints == null)
         {
             _glfwInputError(GLFW_FEATURE_UNAVAILABLE, "Wayland: The compositor does not support pointer locking");
             return;
@@ -2997,7 +3003,10 @@ public static unsafe partial class Glfw
     static void wayland_confinePointer(_GLFWwindow* window)
     {
         if (_glfw.wl.pointerConstraints == null)
+        {
+            _glfwInputError(GLFW_FEATURE_UNAVAILABLE, "Wayland: The compositor does not support confining the pointer");
             return;
+        }
 
         window->wl.confinedPointer =
             wayland_pointerConstraintsConfinePointer(_glfw.wl.pointerConstraints,
