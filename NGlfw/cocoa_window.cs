@@ -773,6 +773,9 @@ public static unsafe partial class Glfw
 
     static void _glfwSetWindowMousePassthroughCocoa(_GLFWwindow* window, int enabled)
     {
+        if (window->ns.@object != null)
+            cocoa_msgSend_void_bool(window->ns.@object, "setIgnoresMouseEvents:", enabled);
+
         window->mousePassthrough = enabled;
     }
 

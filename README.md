@@ -128,7 +128,8 @@ Started, but not yet functional:
   object-to-GLFW-window routing
 - basic `NSWindow` / `NSView` creation for Cocoa windows
 - common Cocoa window operations, including title, position, size, visibility,
-  focus, opacity, style, limits, aspect ratio, and event polling
+  focus, opacity, style, limits, aspect ratio, mouse passthrough, and event
+  polling
 - basic Cocoa window delegate callbacks for close, resize, move, iconify,
   restore, focus, occlusion state, and framebuffer/content-scale changes
 - Cocoa view callbacks for damage, mouse buttons, cursor movement,
