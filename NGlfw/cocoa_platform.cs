@@ -1681,6 +1681,15 @@ public static unsafe partial class Glfw
     static extern int CGDisplaySetDisplayMode(uint display, void* mode, void* options);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern int CGAcquireDisplayFadeReservation(double seconds, uint* token);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern int CGDisplayFade(uint token, double duration, double startBlend, double endBlend, double redBlend, double greenBlend, double blueBlend, byte synchronous);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern void CGReleaseDisplayFadeReservation(uint token);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     static extern int CGDisplayMoveCursorToPoint(uint display, NSPoint point);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]

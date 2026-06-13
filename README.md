@@ -133,8 +133,8 @@ Started, but not yet functional:
 - Cocoa file drag-and-drop through URL pasteboard objects and `_glfwInputDrop`
 - basic CoreGraphics monitor enumeration, monitor position, full display mode
   enumeration with duplicate filtering, current video mode, fullscreen video
-  mode switching/restoration, work area fallback, gamma ramp access, and the
-  Cocoa monitor native accessor
+  mode switching/restoration with display fade transitions, work area fallback,
+  gamma ramp access, and the Cocoa monitor native accessor
 - Cocoa monitor hotplug polling with disconnected-monitor detection
 - NSScreen mapping for localized monitor names, content scale, and visible
   work area queries
@@ -163,8 +163,7 @@ Known remaining work:
 - complete `NSView` / `NSTextInputClient` parity, including IME and
   drag-and-drop edge-case validation
 - full keyboard layout Unicode translation for scancode names
-- display reconfiguration callbacks, IOKit fallback monitor names, fade
-  transitions, and IOKit fallback refresh-rate lookup
+- IOKit fallback monitor names and IOKit fallback refresh-rate lookup
 - NSGL runtime validation and edge-case parity for context hints unsupported by
   macOS
 - IOKit / HID joystick support

@@ -37,6 +37,40 @@ public static unsafe partial class Glfw
         };
     }
 
+    static uint cocoa_beginFadeReservation()
+    {
+        uint token = 0;
+        if (CGAcquireDisplayFadeReservation(5.0, &token) == 0)
+        {
+            CGDisplayFade(token,
+                0.3,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1);
+        }
+
+        return token;
+    }
+
+    static void cocoa_endFadeReservation(uint token)
+    {
+        if (token == 0)
+            return;
+
+        CGDisplayFade(token,
+            0.5,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0);
+        CGReleaseDisplayFadeReservation(token);
+    }
+
     static void* cocoa_getScreenForDisplay(uint displayID)
     {
         var screens = cocoa_msgSend_id(cocoa_getClass("NSScreen"), "screens");
@@ -236,7 +270,9 @@ public static unsafe partial class Glfw
             if (monitor->ns.previousMode == null)
                 monitor->ns.previousMode = CGDisplayCopyDisplayMode(monitor->ns.displayID);
 
+            var token = cocoa_beginFadeReservation();
             CGDisplaySetDisplayMode(monitor->ns.displayID, native, null);
+            cocoa_endFadeReservation(token);
             monitor->currentMode = *best;
         }
 
@@ -248,7 +284,9 @@ public static unsafe partial class Glfw
         if (monitor->ns.previousMode == null)
             return;
 
+        var token = cocoa_beginFadeReservation();
         CGDisplaySetDisplayMode(monitor->ns.displayID, monitor->ns.previousMode, null);
+        cocoa_endFadeReservation(token);
         CGDisplayModeRelease(monitor->ns.previousMode);
         monitor->ns.previousMode = null;
 
