@@ -3980,20 +3980,21 @@ public static unsafe partial class Glfw
         {
             if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_unset_maximized != null)
                 _glfw.wl.libdecor.libdecor_frame_unset_maximized(window->wl.libdecor.frame);
-            else
+            else if (window->wl.xdg.toplevel != null)
                 wayland_xdgToplevelUnsetMaximized(window->wl.xdg.toplevel);
+            else
+                window->wl.maximized = GLFW_FALSE;
         }
-
-        window->wl.maximized = GLFW_FALSE;
     }
 
     static void _glfwMaximizeWindowWayland(_GLFWwindow* window)
     {
-        window->wl.maximized = GLFW_TRUE;
         if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_set_maximized != null)
             _glfw.wl.libdecor.libdecor_frame_set_maximized(window->wl.libdecor.frame);
-        else
+        else if (window->wl.xdg.toplevel != null)
             wayland_xdgToplevelSetMaximized(window->wl.xdg.toplevel);
+        else
+            window->wl.maximized = GLFW_TRUE;
     }
 
     static void _glfwShowWindowWayland(_GLFWwindow* window)
