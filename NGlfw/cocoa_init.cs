@@ -779,6 +779,8 @@ public static unsafe partial class Glfw
     {
         cocoa_showCursor();
         _glfwTerminateNSGL();
+        _glfwTerminateEGL();
+        _glfwTerminateOSMesa();
 
         if (_glfw.ns.inputSource != null)
         {
