@@ -4220,7 +4220,7 @@ public static unsafe partial class Glfw
 
     static int _glfwRawMouseMotionSupportedWayland()
     {
-        return _glfw.wl.relativePointerManager != null ? GLFW_TRUE : GLFW_FALSE;
+        return GLFW_TRUE;
     }
 
     static int wayland_flushDisplay()
