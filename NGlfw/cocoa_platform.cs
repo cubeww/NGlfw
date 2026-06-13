@@ -43,6 +43,11 @@ public static unsafe partial class Glfw
     const ulong NSTrackingEnabledDuringMouseDrag = 1 << 10;
     const ulong NSWindowOcclusionStateVisible = 1 << 1;
     const int kCFNumberIntType = 9;
+    const int kIOHIDOptionsTypeNone = 0;
+    const int kHIDPage_GenericDesktop = 0x01;
+    const int kHIDUsage_GD_Joystick = 0x04;
+    const int kHIDUsage_GD_GamePad = 0x05;
+    const int kHIDUsage_GD_MultiAxisController = 0x08;
     const int kUCKeyActionDisplay = 3;
     const uint kUCKeyTranslateNoDeadKeysBit = 0;
     const uint kCFStringEncodingUTF8 = 0x08000100;
@@ -65,6 +70,7 @@ public static unsafe partial class Glfw
         public void* delegateObject;
         public void* helper;
         public void* helperClass;
+        public void* hidManager;
         public void* cursor;
         public void* keyUpMonitor;
         public void* nibObjects;
@@ -1655,6 +1661,9 @@ public static unsafe partial class Glfw
     static extern void objc_msgSend_void_ptr(void* receiver, nint selector, void* value);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void objc_msgSend_void_ptr_ptr(void* receiver, nint selector, void* value1, void* value2);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void objc_msgSend_void_ptr_bool(void* receiver, nint selector, void* value, byte value2);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
@@ -1918,6 +1927,12 @@ public static unsafe partial class Glfw
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFBundleGetDataPointerForName(void* bundle, void* symbolName);
 
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void* CFRunLoopGetMain();
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern int CFRunLoopRunInMode(void* mode, double seconds, byte returnAfterSourceHandled);
+
     [DllImport("/usr/lib/libSystem.B.dylib", EntryPoint = "_NSGetProgname")]
     static extern byte** _NSGetProgname();
 
@@ -1938,4 +1953,26 @@ public static unsafe partial class Glfw
 
     [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
     static extern void* IODisplayCreateInfoDictionary(uint framebuffer, uint options);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void* IOHIDManagerCreate(void* allocator, int options);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void IOHIDManagerSetDeviceMatchingMultiple(void* manager, void* multiple);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void IOHIDManagerRegisterDeviceMatchingCallback(void* manager,
+                                                                  delegate* unmanaged<void*, int, void*, void*, void> callback,
+                                                                  void* context);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void IOHIDManagerRegisterDeviceRemovalCallback(void* manager,
+                                                                 delegate* unmanaged<void*, int, void*, void*, void> callback,
+                                                                 void* context);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void IOHIDManagerScheduleWithRunLoop(void* manager, void* runLoop, void* runLoopMode);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern int IOHIDManagerOpen(void* manager, int options);
 }

@@ -169,6 +169,8 @@ Started, but not yet functional:
 - Cocoa EGL platform selection for ANGLE OpenGL and Metal hints
 - Cocoa Vulkan surface creation through `CAMetalLayer`,
   `VK_EXT_metal_surface`, and `VK_MVK_macos_surface`
+- basic Cocoa IOHID manager creation, joystick/gamepad matching setup, run-loop
+  scheduling, and manager teardown
 - POSIX runtime plumbing adjusted for macOS library names and pthread key sizes
 
 Known remaining work:
@@ -179,7 +181,9 @@ Known remaining work:
   drag-and-drop edge-case validation
 - NSGL runtime validation and edge-case parity for context hints unsupported by
   macOS
-- IOKit / HID joystick support
+- complete IOKit / HID joystick support, including device callbacks, element
+  enumeration, axis/button/hat polling, GUID generation, and disconnect
+  handling
 - runtime validation on macOS
 
 ### Other Backends
