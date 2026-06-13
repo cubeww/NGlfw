@@ -40,9 +40,26 @@ Implemented or mostly implemented:
 
 Still incomplete:
 
-- EGL context creation
-- OSMesa context creation
 - full parity checks against the upstream GLFW test suite
+
+### EGL / OSMesa Context Backends
+
+Implemented or mostly implemented:
+
+- EGL dynamic library loading and entry point resolution
+- EGL platform display selection through backend callbacks
+- EGL config selection, context creation, window surface creation, swapping,
+  swap interval, extension lookup, and function lookup
+- EGL native accessors for display, context, and surface
+- X11 EGL visual selection through `EGL_NATIVE_VISUAL_ID`
+- OSMesa dynamic library loading and entry point resolution
+- OSMesa context creation, offscreen framebuffer allocation, buffer accessors,
+  and native context accessor
+
+Known remaining work:
+
+- runtime validation across real EGL providers, ANGLE, Mesa EGL, and OSMesa
+- Wayland-specific EGL surface behavior once the Wayland backend is added
 
 ### Win32 Backend
 
@@ -85,6 +102,8 @@ Implemented or partially implemented:
   fullscreen monitor handling, and hotplug polling
 - GLX context creation, swapping, swap interval, extension lookup, and Vulkan
   Xlib/XCB surface support
+- EGL platform selection, X11 visual selection, context creation, and window
+  surface creation
 
 Known remaining work:
 
@@ -99,7 +118,6 @@ Known remaining work:
   save/restore, `XSetWMHints`, and fullscreen fallback details
 - `ConfigureNotify` position correction for reparented windows by translating
   coordinates back to the root window
-- X11 EGL platform selection in `_glfwGetEGLPlatformX11`
 - more complete XKB parity for physical key names and layout edge cases
 - XIM instantiate/destroy callbacks and input-method restart edge cases
 - full Xdnd edge-case coverage

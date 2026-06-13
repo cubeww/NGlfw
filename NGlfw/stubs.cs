@@ -175,36 +175,6 @@ public static unsafe partial class Glfw
     {
     }
 
-    static int _glfwInitEGL()
-    {
-        _glfwInputError(GLFW_FEATURE_UNIMPLEMENTED, "EGL context creation has not yet been ported");
-        return GLFW_FALSE;
-    }
-
-    static void _glfwTerminateEGL()
-    {
-    }
-
-    static int _glfwCreateContextEGL(_GLFWwindow* window, _GLFWctxconfig* ctxconfig, _GLFWfbconfig* fbconfig)
-    {
-        return GLFW_FALSE;
-    }
-
-    static int _glfwInitOSMesa()
-    {
-        _glfwInputError(GLFW_FEATURE_UNIMPLEMENTED, "OSMesa context creation has not yet been ported");
-        return GLFW_FALSE;
-    }
-
-    static void _glfwTerminateOSMesa()
-    {
-    }
-
-    static int _glfwCreateContextOSMesa(_GLFWwindow* window, _GLFWctxconfig* ctxconfig, _GLFWfbconfig* fbconfig)
-    {
-        return GLFW_FALSE;
-    }
-
     static void _glfwTerminateJoysticksNull()
     {
     }

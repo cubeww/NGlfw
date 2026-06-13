@@ -2335,6 +2335,8 @@ public static unsafe partial class Glfw
             {
                 if (_glfwInitEGL() == 0)
                     return GLFW_FALSE;
+                if (_glfwChooseVisualEGL(wndconfig, ctxconfig, fbconfig, &visual, &depth) == 0)
+                    return GLFW_FALSE;
             }
             else if (ctxconfig->source == GLFW_OSMESA_CONTEXT_API)
             {

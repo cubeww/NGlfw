@@ -1136,6 +1136,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, nuint>)x11_getModuleSymbol(_glfw.x11.handle, "XCreateFontCursor");
         _glfw.x11.XVisualIDFromVisual =
             (delegate* unmanaged<void*, nuint>)x11_getModuleSymbol(_glfw.x11.handle, "XVisualIDFromVisual");
+        _glfw.x11.XGetVisualInfo =
+            (delegate* unmanaged<void*, nint, XVisualInfo*, int*, XVisualInfo*>)x11_getModuleSymbol(_glfw.x11.handle, "XGetVisualInfo");
         _glfw.x11.XFreeCursor =
             (delegate* unmanaged<void*, nuint, int>)x11_getModuleSymbol(_glfw.x11.handle, "XFreeCursor");
         _glfw.x11.XDefineCursor =
@@ -1173,6 +1175,7 @@ public static unsafe partial class Glfw
             _glfw.x11.XCreateWindow == null ||
             _glfw.x11.XDestroyWindow == null ||
             _glfw.x11.XFreeColormap == null ||
+            _glfw.x11.XGetVisualInfo == null ||
             _glfw.x11.XInternAtom == null ||
             _glfw.x11.XSetWMProtocols == null ||
             _glfw.x11.XMapWindow == null ||

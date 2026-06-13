@@ -753,6 +753,7 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, ulong, int> XUngrabPointer;
         public delegate* unmanaged<void*, uint, nuint> XCreateFontCursor;
         public delegate* unmanaged<void*, nuint> XVisualIDFromVisual;
+        public delegate* unmanaged<void*, nint, XVisualInfo*, int*, XVisualInfo*> XGetVisualInfo;
         public delegate* unmanaged<void*, nuint, int> XFreeCursor;
         public delegate* unmanaged<void*, nuint, nuint, int> XDefineCursor;
         public delegate* unmanaged<void*, nuint, int> XUndefineCursor;
@@ -1247,12 +1248,45 @@ public static unsafe partial class Glfw
         public int ANGLE_platform_angle_metal;
         public int EXT_platform_base;
         public int EXT_platform_x11;
+        public int EXT_platform_wayland;
+        public int EXT_client_extensions;
+        public int KHR_create_context;
+        public int KHR_create_context_no_error;
+        public int KHR_gl_colorspace;
+        public int KHR_get_all_proc_addresses;
+        public int KHR_context_flush_control;
+        public int EXT_present_opaque;
         public void* handle;
+        public delegate* unmanaged<void*, void*, int, int*, int> GetConfigAttrib;
+        public delegate* unmanaged<void*, void**, int, int*, int> GetConfigs;
+        public delegate* unmanaged<void*, void*> GetDisplay;
+        public delegate* unmanaged<int> GetError;
+        public delegate* unmanaged<void*, int*, int*, int> Initialize;
+        public delegate* unmanaged<void*, int> Terminate;
+        public delegate* unmanaged<int, int> BindAPI;
+        public delegate* unmanaged<void*, void*, void*, int*, void*> CreateContext;
+        public delegate* unmanaged<void*, void*, int> DestroySurface;
+        public delegate* unmanaged<void*, void*, int> DestroyContext;
+        public delegate* unmanaged<void*, void*, void*, int*, void*> CreateWindowSurface;
+        public delegate* unmanaged<void*, void*, void*, void*, int> MakeCurrent;
+        public delegate* unmanaged<void*, void*, int> SwapBuffers;
+        public delegate* unmanaged<void*, int, int> SwapInterval;
+        public delegate* unmanaged<void*, int, byte*> QueryString;
+        public delegate* unmanaged<byte*, void*> GetProcAddress;
+        public delegate* unmanaged<int, void*, int*, void*> GetPlatformDisplayEXT;
+        public delegate* unmanaged<void*, void*, void*, int*, void*> CreatePlatformWindowSurfaceEXT;
     }
 
     public struct _GLFWlibrary_osmesa
     {
         public void* handle;
+        public delegate* unmanaged<int, int, int, int, void*, void*> CreateContextExt;
+        public delegate* unmanaged<int*, void*, void*> CreateContextAttribs;
+        public delegate* unmanaged<void*, void> DestroyContext;
+        public delegate* unmanaged<void*, void*, uint, int, int, int> MakeCurrent;
+        public delegate* unmanaged<void*, int*, int*, int*, void**, int> GetColorBuffer;
+        public delegate* unmanaged<void*, int*, int*, int*, void**, int> GetDepthBuffer;
+        public delegate* unmanaged<byte*, void*> GetProcAddress;
     }
 
     public struct _GLFWlibrary_wgl
