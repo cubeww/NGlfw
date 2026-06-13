@@ -9,14 +9,32 @@ public static unsafe partial class Glfw
 
     static void cocoa_acquireMonitor(_GLFWwindow* window)
     {
-        if (window->monitor != null)
-            _glfwInputMonitorWindow(window->monitor, window);
+        if (window->monitor == null || window->ns.@object == null)
+            return;
+
+        _glfwSetVideoModeCocoa(window->monitor, &window->videoMode);
+
+        var bounds = CGDisplayBounds(window->monitor->ns.displayID);
+        var frame = cocoa_makeRect(bounds.origin.x,
+            cocoa_transformY(bounds.origin.y + bounds.size.height - 1),
+            bounds.size.width,
+            bounds.size.height);
+
+        objc_msgSend_void_rect_bool(window->ns.@object,
+            cocoa_sel("setFrame:display:"),
+            frame,
+            1);
+
+        _glfwInputMonitorWindow(window->monitor, window);
     }
 
     static void cocoa_releaseMonitor(_GLFWwindow* window)
     {
-        if (window->monitor != null && window->monitor->window == window)
-            _glfwInputMonitorWindow(window->monitor, null);
+        if (window->monitor == null || window->monitor->window != window)
+            return;
+
+        _glfwInputMonitorWindow(window->monitor, null);
+        _glfwRestoreVideoModeCocoa(window->monitor);
     }
 
     static double cocoa_transformY(double y)
@@ -261,7 +279,6 @@ public static unsafe partial class Glfw
         {
             _glfwShowWindowCocoa(window);
             _glfwFocusWindowCocoa(window);
-            _glfwSetVideoModeCocoa(window->monitor, &window->videoMode);
             cocoa_acquireMonitor(window);
 
             if (wndconfig->centerCursor != 0)
@@ -285,10 +302,7 @@ public static unsafe partial class Glfw
         cocoa_msgSend_void_ptr(window->ns.@object, "orderOut:", null);
 
         if (window->monitor != null)
-        {
-            _glfwRestoreVideoModeCocoa(window->monitor);
             cocoa_releaseMonitor(window);
-        }
 
         if (window->context.destroy != null)
             window->context.destroy(window);
@@ -597,11 +611,41 @@ public static unsafe partial class Glfw
                                            int width, int height,
                                            int refreshRate)
     {
-        if (window->monitor != null)
+        if (window->monitor == monitor)
         {
-            _glfwRestoreVideoModeCocoa(window->monitor);
-            cocoa_releaseMonitor(window);
+            if (monitor != null)
+            {
+                if (monitor->window == window)
+                    cocoa_acquireMonitor(window);
+            }
+            else
+            {
+                if (window->ns.@object != null)
+                {
+                    var contentRect = cocoa_makeRect(xpos,
+                        cocoa_transformY(ypos + height - 1),
+                        width,
+                        height);
+                    var frameRect = objc_msgSend_rect_rect(window->ns.@object,
+                        cocoa_sel("frameRectForContentRect:"),
+                        contentRect);
+                    objc_msgSend_void_rect_bool(window->ns.@object,
+                        cocoa_sel("setFrame:display:"),
+                        frameRect,
+                        1);
+                }
+
+                window->ns.xpos = xpos;
+                window->ns.ypos = ypos;
+                window->ns.width = width;
+                window->ns.height = height;
+            }
+
+            return;
         }
+
+        if (window->monitor != null)
+            cocoa_releaseMonitor(window);
 
         _glfwInputWindowMonitor(window, monitor);
 
@@ -610,7 +654,6 @@ public static unsafe partial class Glfw
             var styleMask = (ulong)objc_msgSend_int(window->ns.@object, cocoa_sel("styleMask"));
             if (window->monitor != null)
             {
-                _glfwSetVideoModeCocoa(window->monitor, &window->videoMode);
                 styleMask &= ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable);
                 styleMask |= NSWindowStyleMaskBorderless;
                 objc_msgSend_void_ulong(window->ns.@object, cocoa_sel("setStyleMask:"), styleMask);
