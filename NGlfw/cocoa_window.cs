@@ -223,6 +223,8 @@ public static unsafe partial class Glfw
 
         cocoa_msgSend_void_bool(window->ns.@object, "setAcceptsMouseMovedEvents:", GLFW_TRUE);
         cocoa_msgSend_void_bool(window->ns.@object, "setRestorable:", GLFW_FALSE);
+        if (objc_msgSend_bool_nint(window->ns.@object, cocoa_sel("respondsToSelector:"), cocoa_sel("setTabbingMode:")) != 0)
+            objc_msgSend_void_long(window->ns.@object, cocoa_sel("setTabbingMode:"), NSWindowTabbingModeDisallowed);
 
         _glfwGetWindowSizeCocoa(window, &window->ns.width, &window->ns.height);
         _glfwGetFramebufferSizeCocoa(window, &window->ns.fbWidth, &window->ns.fbHeight);

@@ -17,6 +17,7 @@ public static unsafe partial class Glfw
     const long NSNormalWindowLevel = 0;
     const long NSFloatingWindowLevel = 3;
     const long NSMainMenuWindowLevel = 24;
+    const long NSWindowTabbingModeDisallowed = 2;
     const uint kDisplayModeValidFlag = 0x00000001;
     const uint kDisplayModeSafeFlag = 0x00000002;
     const uint kDisplayModeInterlacedFlag = 0x00000008;
