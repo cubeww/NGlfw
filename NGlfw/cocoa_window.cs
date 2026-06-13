@@ -1171,7 +1171,12 @@ public static unsafe partial class Glfw
         if (privateSelector != 0 &&
             objc_msgSend_bool_nint(cursorClass, cocoa_sel("respondsToSelector:"), privateSelector) != 0)
         {
-            cursor->ns.@object = objc_msgSend_id_nint(cursorClass, cocoa_sel("performSelector:"), privateSelector);
+            var @object = objc_msgSend_id_nint(cursorClass, cocoa_sel("performSelector:"), privateSelector);
+            if (@object != null &&
+                objc_msgSend_bool_ptr(@object, cocoa_sel("isKindOfClass:"), cursorClass) != 0)
+            {
+                cursor->ns.@object = @object;
+            }
         }
 
         var selector = shape switch
