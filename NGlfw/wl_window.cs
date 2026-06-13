@@ -4160,15 +4160,10 @@ public static unsafe partial class Glfw
         else if (window->wl.xdg.decoration != null)
         {
             wayland_updateXdgDecorationMode(window);
-
-            if (enabled == 0 || window->monitor != null)
-                wayland_destroyFallbackDecorations(window);
-            else if (window->wl.xdg.decorationMode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE)
-                wayland_createFallbackDecorations(window);
         }
         else if (window->wl.xdg.toplevel != null)
         {
-            if (enabled != 0 && window->monitor == null)
+            if (enabled != 0)
                 wayland_createFallbackDecorations(window);
             else
                 wayland_destroyFallbackDecorations(window);
