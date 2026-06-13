@@ -118,6 +118,8 @@ Started, but not yet functional:
 - Cocoa `NSUserDefaults` registration for `ApplePressAndHoldEnabled = NO`
 - Cocoa backend file skeletons for init, windows, monitors, cursors, clipboard,
   joysticks, Vulkan surface hooks, and native accessors
+- Cocoa native accessors for `NSWindow`, `NSView`, `CGDirectDisplayID`, and
+  `NSOpenGLContext`
 - basic runtime `GLFWWindow` subclass registration through the Objective-C
   runtime
 - runtime `GLFWWindowDelegate` and `GLFWContentView` subclass registration with

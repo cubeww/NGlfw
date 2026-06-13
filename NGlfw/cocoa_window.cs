@@ -1351,4 +1351,21 @@ public static unsafe partial class Glfw
 
         return ((_GLFWwindow*)window)->ns.@object;
     }
+
+    public static void* glfwGetCocoaView(GLFWwindow* window)
+    {
+        if (_glfw.initialized == 0)
+        {
+            _glfwInputError(GLFW_NOT_INITIALIZED);
+            return null;
+        }
+
+        if (_glfw.platform.platformID != GLFW_PLATFORM_COCOA)
+        {
+            _glfwInputError(GLFW_PLATFORM_UNAVAILABLE, "Cocoa: Platform not initialized");
+            return null;
+        }
+
+        return ((_GLFWwindow*)window)->ns.view;
+    }
 }
