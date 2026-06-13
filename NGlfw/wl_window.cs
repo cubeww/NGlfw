@@ -3431,8 +3431,12 @@ public static unsafe partial class Glfw
 
         wayland_commitLibdecorFrame(window, null, window->wl.width, window->wl.height);
 
-        if (window->wl.appId != null && _glfw.wl.libdecor.libdecor_frame_set_app_id != null)
+        if (window->wl.appId != null &&
+            _glfw_strlen(window->wl.appId) != 0 &&
+            _glfw.wl.libdecor.libdecor_frame_set_app_id != null)
+        {
             _glfw.wl.libdecor.libdecor_frame_set_app_id(window->wl.libdecor.frame, window->wl.appId);
+        }
 
         if (_glfw.wl.libdecor.libdecor_frame_set_title != null)
             _glfw.wl.libdecor.libdecor_frame_set_title(window->wl.libdecor.frame, window->title);
@@ -3659,8 +3663,7 @@ public static unsafe partial class Glfw
         window->wl.bufferScale = 1;
         window->wl.scalingNumerator = 120;
 
-        if (wndconfig->wl.appId[0] != 0)
-            window->wl.appId = _glfw_strdup(wndconfig->wl.appId);
+        window->wl.appId = _glfw_strdup(wndconfig->wl.appId);
 
         window->wl.maximized = wndconfig->maximized;
 
