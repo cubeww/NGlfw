@@ -137,6 +137,16 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, void*, void> selection;
     }
 
+    struct wl_data_source_listener
+    {
+        public delegate* unmanaged<void*, void*, byte*, void> target;
+        public delegate* unmanaged<void*, void*, byte*, int, void> send;
+        public delegate* unmanaged<void*, void*, void> cancelled;
+        public delegate* unmanaged<void*, void*, void> dnd_drop_performed;
+        public delegate* unmanaged<void*, void*, void> dnd_finished;
+        public delegate* unmanaged<void*, void*, uint, void> action;
+    }
+
     struct ITIMERSPEC
     {
         public TIMESPEC it_interval;
@@ -160,6 +170,7 @@ public static unsafe partial class Glfw
     static wl_keyboard_listener* _glfwWaylandKeyboardListener;
     static wl_data_offer_listener* _glfwWaylandDataOfferListener;
     static wl_data_device_listener* _glfwWaylandDataDeviceListener;
+    static wl_data_source_listener* _glfwWaylandDataSourceListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
 
@@ -267,6 +278,25 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandDataDeviceListener;
+    }
+
+    static wl_data_source_listener* wayland_getDataSourceListener()
+    {
+        if (_glfwWaylandDataSourceListener == null)
+        {
+            _glfwWaylandDataSourceListener = (wl_data_source_listener*)_glfw_calloc(1, (nuint)sizeof(wl_data_source_listener));
+            if (_glfwWaylandDataSourceListener != null)
+            {
+                _glfwWaylandDataSourceListener->target = &wayland_dataSourceHandleTarget;
+                _glfwWaylandDataSourceListener->send = &wayland_dataSourceHandleSend;
+                _glfwWaylandDataSourceListener->cancelled = &wayland_dataSourceHandleCancelled;
+                _glfwWaylandDataSourceListener->dnd_drop_performed = &wayland_dataSourceHandleDndDropPerformed;
+                _glfwWaylandDataSourceListener->dnd_finished = &wayland_dataSourceHandleDndFinished;
+                _glfwWaylandDataSourceListener->action = &wayland_dataSourceHandleAction;
+            }
+        }
+
+        return _glfwWaylandDataSourceListener;
     }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
@@ -2556,10 +2586,144 @@ public static unsafe partial class Glfw
         }
     }
 
+    static void* wayland_dataDeviceManagerCreateDataSource(void* manager)
+    {
+        if (manager == null ||
+            _glfw.wl.client.dataSourceInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor == null)
+        {
+            return null;
+        }
+
+        var source = _glfw.wl.client.proxy_marshal_constructor(manager,
+            WL_DATA_DEVICE_MANAGER_CREATE_DATA_SOURCE,
+            _glfw.wl.client.dataSourceInterface,
+            null);
+
+        wayland_tagProxy(source);
+        return source;
+    }
+
+    static void wayland_dataSourceOffer(void* source, byte* mimeType)
+    {
+        if (source != null && mimeType != null && _glfw.wl.client.proxy_marshal_string != null)
+            _glfw.wl.client.proxy_marshal_string(source, WL_DATA_SOURCE_OFFER, mimeType);
+    }
+
+    static void wayland_dataSourceDestroy(void* source)
+    {
+        wayland_proxyDestroyWithOpcode(source, WL_DATA_SOURCE_DESTROY);
+    }
+
+    static void wayland_dataDeviceSetSelection(void* device, void* source, uint serial)
+    {
+        if (device != null && _glfw.wl.client.proxy_marshal_object_uint != null)
+            _glfw.wl.client.proxy_marshal_object_uint(device, WL_DATA_DEVICE_SET_SELECTION, source, serial);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataSourceHandleTarget(void* userData, void* source, byte* mimeType)
+    {
+        if (_glfw.wl.selectionSource != source)
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Unknown clipboard data source");
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataSourceHandleSend(void* userData, void* source, byte* mimeType, int fd)
+    {
+        if (_glfw.wl.selectionSource != source ||
+            wayland_stringEquals(mimeType, "text/plain;charset=utf-8") == 0)
+        {
+            wayland_close(fd);
+            return;
+        }
+
+        var @string = _glfw.wl.clipboardString;
+        var length = (nuint)_glfw_strlen(@string);
+
+        while (length > 0)
+        {
+            var result = wayland_write(fd, @string, length);
+            if (result == -1)
+            {
+                if (Marshal.GetLastPInvokeError() == EINTR)
+                    continue;
+
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Error while writing the clipboard");
+                break;
+            }
+
+            length -= (nuint)result;
+            @string += result;
+        }
+
+        wayland_close(fd);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataSourceHandleCancelled(void* userData, void* source)
+    {
+        wayland_dataSourceDestroy(source);
+
+        if (_glfw.wl.selectionSource == source)
+            _glfw.wl.selectionSource = null;
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataSourceHandleDndDropPerformed(void* userData, void* source)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataSourceHandleDndFinished(void* userData, void* source)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataSourceHandleAction(void* userData, void* source, uint action)
+    {
+    }
+
     static void _glfwSetClipboardStringWayland(byte* @string)
     {
+        if (_glfw.wl.selectionSource != null)
+        {
+            wayland_dataSourceDestroy(_glfw.wl.selectionSource);
+            _glfw.wl.selectionSource = null;
+        }
+
+        var copy = _glfw_strdup(@string);
+        if (copy == null)
+        {
+            _glfwInputError(GLFW_OUT_OF_MEMORY);
+            return;
+        }
+
         _glfw_free(_glfw.wl.clipboardString);
-        _glfw.wl.clipboardString = _glfw_strdup(@string);
+        _glfw.wl.clipboardString = copy;
+
+        if (_glfw.wl.dataDeviceManager == null || _glfw.wl.dataDevice == null)
+            return;
+
+        _glfw.wl.selectionSource = wayland_dataDeviceManagerCreateDataSource(_glfw.wl.dataDeviceManager);
+        if (_glfw.wl.selectionSource == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create clipboard data source");
+            return;
+        }
+
+        var listener = wayland_getDataSourceListener();
+        if (listener == null ||
+            _glfw.wl.client.proxy_add_listener(_glfw.wl.selectionSource, listener, null) != 0)
+        {
+            wayland_dataSourceDestroy(_glfw.wl.selectionSource);
+            _glfw.wl.selectionSource = null;
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add data source listener");
+            return;
+        }
+
+        wayland_dataSourceOffer(_glfw.wl.selectionSource, _glfwWaylandTextPlainUtf8);
+        wayland_dataDeviceSetSelection(_glfw.wl.dataDevice, _glfw.wl.selectionSource, _glfw.wl.serial);
     }
 
     static byte* _glfwGetClipboardStringWayland()
@@ -2704,6 +2868,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libc", EntryPoint = "read", SetLastError = true)]
     static extern nint wayland_read(int fd, void* buf, nuint count);
+
+    [DllImport("libc", EntryPoint = "write", SetLastError = true)]
+    static extern nint wayland_write(int fd, void* buf, nuint count);
 
     [DllImport("libc", EntryPoint = "timerfd_create", SetLastError = true)]
     static extern int wayland_timerfd_create(int clockid, int flags);

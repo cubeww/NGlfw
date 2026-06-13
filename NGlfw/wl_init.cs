@@ -28,6 +28,10 @@ public static unsafe partial class Glfw
     const uint WL_DATA_OFFER_ACCEPT = 0;
     const uint WL_DATA_OFFER_RECEIVE = 1;
     const uint WL_DATA_OFFER_DESTROY = 2;
+    const uint WL_DATA_SOURCE_OFFER = 0;
+    const uint WL_DATA_SOURCE_DESTROY = 1;
+    const uint WL_DATA_DEVICE_SET_SELECTION = 1;
+    const uint WL_DATA_DEVICE_MANAGER_CREATE_DATA_SOURCE = 0;
     const uint WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE = 1;
     const uint WL_DATA_DEVICE_RELEASE = 2;
     const uint WL_DATA_DEVICE_RELEASE_SINCE_VERSION = 2;
@@ -982,6 +986,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, byte*, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_object =
             (delegate* unmanaged<void*, uint, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
+        _glfw.wl.client.proxy_marshal_object_uint =
+            (delegate* unmanaged<void*, uint, void*, uint, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_object_int_int =
             (delegate* unmanaged<void*, uint, void*, int, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_uint_object_int_int =
@@ -1032,6 +1038,7 @@ public static unsafe partial class Glfw
         _glfw.wl.client.dataDeviceManagerInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_data_device_manager_interface");
         _glfw.wl.client.dataDeviceInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_data_device_interface");
         _glfw.wl.client.dataOfferInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_data_offer_interface");
+        _glfw.wl.client.dataSourceInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_data_source_interface");
         _glfw.wl.client.surfaceInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_surface_interface");
 
         if (_glfw.wl.client.display_flush == null ||
@@ -1049,6 +1056,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal_int == null ||
             _glfw.wl.client.proxy_marshal_string_int == null ||
             _glfw.wl.client.proxy_marshal_object == null ||
+            _glfw.wl.client.proxy_marshal_object_uint == null ||
             _glfw.wl.client.proxy_marshal_object_int_int == null ||
             _glfw.wl.client.proxy_marshal_uint_object_int_int == null ||
             _glfw.wl.client.proxy_marshal_int_int == null ||
@@ -1079,6 +1087,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.dataDeviceManagerInterface == null ||
             _glfw.wl.client.dataDeviceInterface == null ||
             _glfw.wl.client.dataOfferInterface == null ||
+            _glfw.wl.client.dataSourceInterface == null ||
             _glfw.wl.client.surfaceInterface == null)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to load libwayland-client entry point");
@@ -1208,6 +1217,8 @@ public static unsafe partial class Glfw
             wayland_dataOfferDestroy(_glfw.wl.selectionOffer);
         if (_glfw.wl.dragOffer != null)
             wayland_dataOfferDestroy(_glfw.wl.dragOffer);
+        if (_glfw.wl.selectionSource != null)
+            wayland_dataSourceDestroy(_glfw.wl.selectionSource);
 
         wayland_proxyDestroyWithOpcode(_glfw.wl.wmBase, XDG_WM_BASE_DESTROY);
         wayland_pointerDestroy(_glfw.wl.pointer);
@@ -1239,6 +1250,7 @@ public static unsafe partial class Glfw
         _glfw_free(_glfwWaylandKeyboardListener);
         _glfw_free(_glfwWaylandDataOfferListener);
         _glfw_free(_glfwWaylandDataDeviceListener);
+        _glfw_free(_glfwWaylandDataSourceListener);
         _glfw_free(_glfwWaylandXdgWmBaseListener);
         _glfw_free(_glfwWaylandXdgSurfaceListener);
         _glfw_free(_glfwWaylandXdgToplevelListener);
@@ -1250,6 +1262,7 @@ public static unsafe partial class Glfw
         _glfwWaylandKeyboardListener = null;
         _glfwWaylandDataOfferListener = null;
         _glfwWaylandDataDeviceListener = null;
+        _glfwWaylandDataSourceListener = null;
         _glfwWaylandXdgWmBaseListener = null;
         _glfwWaylandXdgSurfaceListener = null;
         _glfwWaylandXdgToplevelListener = null;

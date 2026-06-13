@@ -245,6 +245,8 @@ Implemented or partially implemented:
 - initial Wayland data-device setup with data offer tracking, selection offer
   filtering, URI-list drag-and-drop receive, and `_glfwInputDrop` dispatch
 - clipboard string retrieval from Wayland selection offers
+- clipboard string ownership through `wl_data_source`, MIME offering, and
+  compositor-requested data writes
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
@@ -258,7 +260,7 @@ Known remaining work:
 
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
-- Wayland clipboard data source ownership/write path
+- Wayland clipboard edge-case parity and runtime validation
 - animated cursor timers and libdecor fd integration in the Wayland event loop
 - advanced pointer events, full disabled-cursor behavior, and
   interactive decoration move/resize paths
