@@ -732,6 +732,8 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, nuint, nuint*, nuint*, int*, int*, int*, int*, uint*, int> XQueryPointer;
         public delegate* unmanaged<void*, nuint, nuint, int, int, int*, int*, nuint*, int> XTranslateCoordinates;
         public delegate* unmanaged<void*, nuint, nuint, int, int, uint, uint, int, int, int> XWarpPointer;
+        public delegate* unmanaged<void*, nuint, int, uint, int, int, nuint, nuint, ulong, int> XGrabPointer;
+        public delegate* unmanaged<void*, ulong, int> XUngrabPointer;
         public delegate* unmanaged<void*, uint, nuint> XCreateFontCursor;
         public delegate* unmanaged<void*, nuint> XVisualIDFromVisual;
         public delegate* unmanaged<void*, nuint, int> XFreeCursor;

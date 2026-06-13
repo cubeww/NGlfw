@@ -806,6 +806,10 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, nuint, nuint, int, int, int*, int*, nuint*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XTranslateCoordinates");
         _glfw.x11.XWarpPointer =
             (delegate* unmanaged<void*, nuint, nuint, int, int, uint, uint, int, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XWarpPointer");
+        _glfw.x11.XGrabPointer =
+            (delegate* unmanaged<void*, nuint, int, uint, int, int, nuint, nuint, ulong, int>)x11_getModuleSymbol(_glfw.x11.handle, "XGrabPointer");
+        _glfw.x11.XUngrabPointer =
+            (delegate* unmanaged<void*, ulong, int>)x11_getModuleSymbol(_glfw.x11.handle, "XUngrabPointer");
         _glfw.x11.XCreateFontCursor =
             (delegate* unmanaged<void*, uint, nuint>)x11_getModuleSymbol(_glfw.x11.handle, "XCreateFontCursor");
         _glfw.x11.XVisualIDFromVisual =

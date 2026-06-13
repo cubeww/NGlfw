@@ -69,6 +69,7 @@ public static unsafe partial class Glfw
     const int RevertToParent = 2;
     const ulong CurrentTime = 0;
     const long NoEventMask = 0;
+    const int GrabModeAsync = 1;
     const nuint _GLFW_XDND_VERSION = 5;
     const int QueuedAfterReading = 1;
     const short POLLIN = 0x0001;
@@ -1207,6 +1208,57 @@ public static unsafe partial class Glfw
         _glfw.x11.XFlush(_glfw.x11.display);
     }
 
+    static void x11_captureCursor(_GLFWwindow* window)
+    {
+        if (window->x11.handle == 0 || _glfw.x11.XGrabPointer == null)
+            return;
+
+        _glfw.x11.XGrabPointer(_glfw.x11.display,
+            window->x11.handle,
+            GLFW_TRUE,
+            (uint)(ButtonPressMask | ButtonReleaseMask | PointerMotionMask),
+            GrabModeAsync,
+            GrabModeAsync,
+            window->x11.handle,
+            0,
+            CurrentTime);
+    }
+
+    static void x11_releaseCursor()
+    {
+        if (_glfw.x11.XUngrabPointer != null)
+            _glfw.x11.XUngrabPointer(_glfw.x11.display, CurrentTime);
+    }
+
+    static void x11_disableCursor(_GLFWwindow* window)
+    {
+        if (window->rawMouseMotion != 0)
+            x11_setRawMouseMotionEvents(GLFW_TRUE);
+
+        _glfw.x11.disabledCursorWindow = window;
+        double restoreX;
+        double restoreY;
+        _glfwGetCursorPosX11(window, &restoreX, &restoreY);
+        _glfw.x11.restoreCursorPosX = restoreX;
+        _glfw.x11.restoreCursorPosY = restoreY;
+        x11_updateCursorImage(window);
+        _glfwSetCursorPosX11(window, window->x11.width / 2.0, window->x11.height / 2.0);
+        x11_captureCursor(window);
+    }
+
+    static void x11_enableCursor(_GLFWwindow* window)
+    {
+        if (window->rawMouseMotion != 0)
+            x11_setRawMouseMotionEvents(GLFW_FALSE);
+
+        _glfw.x11.disabledCursorWindow = null;
+        x11_releaseCursor();
+        _glfwSetCursorPosX11(window,
+            _glfw.x11.restoreCursorPosX,
+            _glfw.x11.restoreCursorPosY);
+        x11_updateCursorImage(window);
+    }
+
     static void x11_updateWindowMode(_GLFWwindow* window)
     {
         if (window->x11.handle == 0)
@@ -1694,6 +1746,9 @@ public static unsafe partial class Glfw
             }
 
             case EnterNotify:
+                if (window->cursorMode == GLFW_CURSOR_HIDDEN)
+                    x11_updateCursorImage(window);
+
                 window->x11.lastCursorPosX = @event->x;
                 window->x11.lastCursorPosY = @event->y;
                 _glfwInputCursorEnter(window, GLFW_TRUE);
@@ -1705,9 +1760,31 @@ public static unsafe partial class Glfw
                 return;
 
             case MotionNotify:
+                if (@event->x != window->x11.warpCursorPosX ||
+                    @event->y != window->x11.warpCursorPosY)
+                {
+                    if (window->cursorMode == GLFW_CURSOR_DISABLED)
+                    {
+                        if (_glfw.x11.disabledCursorWindow != window)
+                            return;
+                        if (window->rawMouseMotion != 0)
+                            return;
+
+                        var dx = @event->x - window->x11.lastCursorPosX;
+                        var dy = @event->y - window->x11.lastCursorPosY;
+
+                        _glfwInputCursorPos(window,
+                            window->virtualCursorPosX + dx,
+                            window->virtualCursorPosY + dy);
+                    }
+                    else
+                    {
+                        _glfwInputCursorPos(window, @event->x, @event->y);
+                    }
+                }
+
                 window->x11.lastCursorPosX = @event->x;
                 window->x11.lastCursorPosY = @event->y;
-                _glfwInputCursorPos(window, @event->x, @event->y);
                 return;
 
             case ConfigureNotify:
@@ -1785,6 +1862,11 @@ public static unsafe partial class Glfw
             case FocusIn:
                 if (@event->focusMode != NotifyGrab && @event->focusMode != NotifyUngrab)
                 {
+                    if (window->cursorMode == GLFW_CURSOR_DISABLED)
+                        x11_disableCursor(window);
+                    else if (window->cursorMode == GLFW_CURSOR_CAPTURED)
+                        x11_captureCursor(window);
+
                     if (window->x11.ic != null && _glfw.x11.XSetICFocus != null)
                         _glfw.x11.XSetICFocus(window->x11.ic);
 
@@ -1796,6 +1878,11 @@ public static unsafe partial class Glfw
             case FocusOut:
                 if (@event->focusMode != NotifyGrab && @event->focusMode != NotifyUngrab)
                 {
+                    if (window->cursorMode == GLFW_CURSOR_DISABLED)
+                        x11_enableCursor(window);
+                    else if (window->cursorMode == GLFW_CURSOR_CAPTURED)
+                        x11_releaseCursor();
+
                     if (window->x11.ic != null && _glfw.x11.XUnsetICFocus != null)
                         _glfw.x11.XUnsetICFocus(window->x11.ic);
 
@@ -2034,22 +2121,18 @@ public static unsafe partial class Glfw
     {
         if (mode == GLFW_CURSOR_DISABLED)
         {
-            double restoreX;
-            double restoreY;
-            _glfwGetCursorPosX11(window, &restoreX, &restoreY);
-            _glfw.x11.restoreCursorPosX = restoreX;
-            _glfw.x11.restoreCursorPosY = restoreY;
-            _glfw.x11.disabledCursorWindow = window;
-            _glfwSetCursorPosX11(window, window->x11.width / 2.0, window->x11.height / 2.0);
-            if (window->rawMouseMotion != 0)
-                x11_setRawMouseMotionEvents(GLFW_TRUE);
+            if (_glfw.x11.disabledCursorWindow != window)
+                x11_disableCursor(window);
         }
-        else if (_glfw.x11.disabledCursorWindow == window)
+        else
         {
-            if (window->rawMouseMotion != 0)
-                x11_setRawMouseMotionEvents(GLFW_FALSE);
-            _glfw.x11.disabledCursorWindow = null;
-            _glfwSetCursorPosX11(window, _glfw.x11.restoreCursorPosX, _glfw.x11.restoreCursorPosY);
+            if (_glfw.x11.disabledCursorWindow == window)
+                x11_enableCursor(window);
+
+            if (mode == GLFW_CURSOR_CAPTURED)
+                x11_captureCursor(window);
+            else
+                x11_releaseCursor();
         }
 
         x11_updateCursorImage(window);
@@ -2280,6 +2363,9 @@ public static unsafe partial class Glfw
 
     static void _glfwDestroyWindowX11(_GLFWwindow* window)
     {
+        if (_glfw.x11.disabledCursorWindow == window)
+            x11_enableCursor(window);
+
         if (window->monitor != null)
             x11_releaseMonitor(window);
 
@@ -2840,6 +2926,10 @@ public static unsafe partial class Glfw
             _glfw.x11.XNextEvent(_glfw.x11.display, &@event);
             x11_processEvent(&@event);
         }
+
+        var window = _glfw.x11.disabledCursorWindow;
+        if (window != null)
+            _glfwSetCursorPosX11(window, window->x11.width / 2.0, window->x11.height / 2.0);
     }
 
     static void x11_waitForEvent(double* timeout)
