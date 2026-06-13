@@ -24,6 +24,23 @@ public static unsafe partial class Glfw
         return index < bytes.Length ? bytes[index] : (byte)0;
     }
 
+    static bool cocoa_asciiMatches(byte* value, string expected)
+    {
+        for (var i = 0; i < expected.Length; i++)
+        {
+            if (value[i] != (byte)expected[i])
+                return false;
+        }
+
+        return true;
+    }
+
+    static void cocoa_writeAscii(byte* destination, string value)
+    {
+        for (var i = 0; i < value.Length; i++)
+            destination[i] = (byte)value[i];
+    }
+
     static string cocoa_getHIDStringProperty(void* device, string keyName)
     {
         var key = cocoa_stringFromUTF8(keyName);
@@ -465,5 +482,23 @@ public static unsafe partial class Glfw
 
     static void _glfwUpdateGamepadGUIDCocoa(byte* guid)
     {
+        if (cocoa_asciiMatches(guid + 4, "000000000000") == false ||
+            cocoa_asciiMatches(guid + 20, "000000000000") == false)
+        {
+            return;
+        }
+
+        var original = stackalloc byte[33];
+        for (var i = 0; i < 33; i++)
+            original[i] = guid[i];
+
+        cocoa_writeAscii(guid, "03000000");
+        for (var i = 0; i < 4; i++)
+            guid[8 + i] = original[i];
+        cocoa_writeAscii(guid + 12, "0000");
+        for (var i = 0; i < 4; i++)
+            guid[16 + i] = original[16 + i];
+        cocoa_writeAscii(guid + 20, "000000000000");
+        guid[32] = 0;
     }
 }
