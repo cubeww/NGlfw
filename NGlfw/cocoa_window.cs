@@ -165,6 +165,9 @@ public static unsafe partial class Glfw
                 wndconfig->ypos == GLFW_ANY_POSITION)
             {
                 cocoa_msgSend_void(window->ns.@object, "center");
+                _glfw.ns.cascadePoint = objc_msgSend_point_point(window->ns.@object,
+                    cocoa_sel("cascadeTopLeftFromPoint:"),
+                    _glfw.ns.cascadePoint);
             }
 
             if (wndconfig->resizable != 0)
