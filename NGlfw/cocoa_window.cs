@@ -1165,6 +1165,48 @@ public static unsafe partial class Glfw
         return GLFW_TRUE;
     }
 
+    static int cocoa_createMetalLayer(_GLFWwindow* window)
+    {
+        var path = cocoa_stringFromUTF8("/System/Library/Frameworks/QuartzCore.framework");
+        var bundle = cocoa_msgSend_id_ptr(cocoa_getClass("NSBundle"), "bundleWithPath:", path);
+        cocoa_releaseTemporaryString(path);
+        if (bundle == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR,
+                "Cocoa: Failed to find QuartzCore.framework");
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
+        }
+
+        var className = cocoa_stringFromUTF8("CAMetalLayer");
+        var layerClass = cocoa_msgSend_id_ptr(bundle, "classNamed:", className);
+        cocoa_releaseTemporaryString(className);
+        if (layerClass == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR,
+                "Cocoa: Failed to find CAMetalLayer");
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
+        }
+
+        window->ns.layer = cocoa_msgSend_id(layerClass, "layer");
+        if (window->ns.layer == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR,
+                "Cocoa: Failed to create layer for view");
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
+        }
+
+        if (window->ns.retina != 0)
+        {
+            var scale = objc_msgSend_double(window->ns.@object, cocoa_sel("backingScaleFactor"));
+            objc_msgSend_void_double(window->ns.layer, cocoa_sel("setContentsScale:"), scale);
+        }
+
+        cocoa_msgSend_void_ptr(window->ns.view, "setLayer:", window->ns.layer);
+        cocoa_msgSend_void_bool(window->ns.view, "setWantsLayer:", GLFW_TRUE);
+
+        return VK_SUCCESS;
+    }
+
     static int _glfwCreateWindowSurfaceCocoa(void* instance,
                                              _GLFWwindow* window,
                                              void* allocator,
@@ -1173,8 +1215,59 @@ public static unsafe partial class Glfw
         if (surface != null)
             *surface = 0;
 
-        cocoa_reportUnimplemented("Vulkan surface creation");
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
+        var err = cocoa_createMetalLayer(window);
+        if (err != VK_SUCCESS)
+            return err;
+
+        if (_glfw.vk.EXT_metal_surface != 0)
+        {
+            var vkCreateMetalSurfaceEXT =
+                (delegate* unmanaged<void*, VkMetalSurfaceCreateInfoEXT*, void*, ulong*, int>)
+                vulkan_getInstanceProcAddress(instance, "vkCreateMetalSurfaceEXT");
+            if (vkCreateMetalSurfaceEXT == null)
+            {
+                _glfwInputError(GLFW_API_UNAVAILABLE,
+                    "Cocoa: Vulkan instance missing VK_EXT_metal_surface extension");
+                return VK_ERROR_EXTENSION_NOT_PRESENT;
+            }
+
+            var sci = new VkMetalSurfaceCreateInfoEXT
+            {
+                sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
+                pLayer = window->ns.layer
+            };
+
+            err = vkCreateMetalSurfaceEXT(instance, &sci, allocator, surface);
+        }
+        else
+        {
+            var vkCreateMacOSSurfaceMVK =
+                (delegate* unmanaged<void*, VkMacOSSurfaceCreateInfoMVK*, void*, ulong*, int>)
+                vulkan_getInstanceProcAddress(instance, "vkCreateMacOSSurfaceMVK");
+            if (vkCreateMacOSSurfaceMVK == null)
+            {
+                _glfwInputError(GLFW_API_UNAVAILABLE,
+                    "Cocoa: Vulkan instance missing VK_MVK_macos_surface extension");
+                return VK_ERROR_EXTENSION_NOT_PRESENT;
+            }
+
+            var sci = new VkMacOSSurfaceCreateInfoMVK
+            {
+                sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK,
+                pView = window->ns.view
+            };
+
+            err = vkCreateMacOSSurfaceMVK(instance, &sci, allocator, surface);
+        }
+
+        if (err != VK_SUCCESS)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR,
+                "Cocoa: Failed to create Vulkan surface: {0}",
+                vulkan_resultString(err));
+        }
+
+        return err;
     }
 
     public static void* glfwGetCocoaWindow(GLFWwindow* window)

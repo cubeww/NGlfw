@@ -146,6 +146,8 @@ Started, but not yet functional:
   make-current, swap buffers, swap interval, function lookup, destroy path, and
   native context accessor
 - Cocoa EGL platform selection for ANGLE OpenGL and Metal hints
+- Cocoa Vulkan surface creation through `CAMetalLayer`,
+  `VK_EXT_metal_surface`, and `VK_MVK_macos_surface`
 - POSIX runtime plumbing adjusted for macOS library names and pthread key sizes
 
 Known remaining work:

@@ -147,6 +147,24 @@ public static unsafe partial class Glfw
         public void* framework;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    struct VkMacOSSurfaceCreateInfoMVK
+    {
+        public int sType;
+        public void* pNext;
+        public uint flags;
+        public void* pView;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct VkMetalSurfaceCreateInfoEXT
+    {
+        public int sType;
+        public void* pNext;
+        public uint flags;
+        public void* pLayer;
+    }
+
     static byte[] cocoa_ascii(string value)
     {
         return Encoding.ASCII.GetBytes(value + '\0');
