@@ -2824,7 +2824,7 @@ public static unsafe partial class Glfw
         return GLFW_TRUE;
     }
 
-    static void wayland_applyPendingSize(_GLFWwindow* window)
+    static int wayland_applyPendingSize(_GLFWwindow* window)
     {
         var width = window->wl.pending.width;
         var height = window->wl.pending.height;
@@ -2833,7 +2833,7 @@ public static unsafe partial class Glfw
         window->wl.pending.height = 0;
 
         if (width <= 0 || height <= 0)
-            return;
+            return GLFW_FALSE;
 
         if (window->wl.maximized == 0 &&
             window->wl.fullscreen == 0 &&
@@ -2850,11 +2850,12 @@ public static unsafe partial class Glfw
         }
 
         if (wayland_resizeWindow(window, width, height) == 0)
-            return;
+            return GLFW_FALSE;
 
         wayland_surfaceCommit(window->wl.surface);
 
         _glfwInputWindowSize(window, window->wl.width, window->wl.height);
+        return GLFW_TRUE;
     }
 
     [UnmanagedCallersOnly]
@@ -2878,7 +2879,15 @@ public static unsafe partial class Glfw
         }
 
         window->wl.fullscreen = window->wl.pending.fullscreen;
-        wayland_applyPendingSize(window);
+        if (wayland_applyPendingSize(window) != 0 && window->wl.visible != 0)
+            _glfwInputWindowDamage(window);
+
+        if (window->wl.visible == 0 &&
+            (window->wl.xdg.decoration == null || window->wl.xdg.decorationMode != 0))
+        {
+            window->wl.visible = GLFW_TRUE;
+            _glfwInputWindowDamage(window);
+        }
     }
 
     [UnmanagedCallersOnly]
@@ -3310,7 +3319,6 @@ public static unsafe partial class Glfw
             return GLFW_FALSE;
         }
 
-        window->wl.visible = GLFW_TRUE;
         return GLFW_TRUE;
     }
 
@@ -3677,7 +3685,6 @@ public static unsafe partial class Glfw
             return;
         }
 
-        window->wl.visible = GLFW_TRUE;
     }
 
     static void _glfwHideWindowWayland(_GLFWwindow* window)
