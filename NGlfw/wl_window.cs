@@ -3822,7 +3822,10 @@ public static unsafe partial class Glfw
             _glfw.wl.pending = default;
         }
         if (window == _glfw.wl.keyboardFocus)
+        {
+            wayland_stopKeyRepeatTimer();
             _glfw.wl.keyboardFocus = null;
+        }
 
         if (window->context.destroy != null)
             window->context.destroy(window);
