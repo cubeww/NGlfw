@@ -234,6 +234,8 @@ Implemented or partially implemented:
   buffer scale updates
 - initial `wl_seat` capability handling and `wl_pointer` enter/leave, motion,
   button, and scroll callbacks
+- basic Wayland event loop using `wl_display_prepare_read`, display-fd polling,
+  `wl_display_read_events`, pending dispatch, and `wl_display.sync` wakeups
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
@@ -248,6 +250,8 @@ Known remaining work:
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
 - keyboard, data-device, and XKB event handling
+- keyboard repeat timers, animated cursor timers, and libdecor fd integration in
+  the Wayland event loop
 - advanced pointer events, full disabled-cursor behavior, and
   interactive decoration move/resize paths
 - preferred buffer scale/transform and fractional-scale protocol handling

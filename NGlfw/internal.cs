@@ -753,6 +753,7 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, byte**, void> proxy_set_tag;
         public delegate* unmanaged<void*, uint> proxy_get_version;
         public delegate* unmanaged<void*, uint, void*, uint, uint, void*> proxy_marshal_flags;
+        public void* callbackInterface;
         public void* registryInterface;
         public void* compositorInterface;
         public void* subcompositorInterface;

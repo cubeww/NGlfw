@@ -6,6 +6,7 @@ namespace NGlfw;
 
 public static unsafe partial class Glfw
 {
+    const uint WL_DISPLAY_SYNC = 0;
     const uint WL_DISPLAY_GET_REGISTRY = 1;
     const uint WL_REGISTRY_BIND = 0;
     const uint WL_COMPOSITOR_CREATE_SURFACE = 0;
@@ -655,6 +656,7 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_get_version");
         _glfw.wl.client.proxy_marshal_flags =
             (delegate* unmanaged<void*, uint, void*, uint, uint, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_flags");
+        _glfw.wl.client.callbackInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_callback_interface");
         _glfw.wl.client.registryInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_registry_interface");
         _glfw.wl.client.compositorInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_compositor_interface");
         _glfw.wl.client.subcompositorInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_subcompositor_interface");
@@ -696,6 +698,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_set_user_data == null ||
             _glfw.wl.client.proxy_get_tag == null ||
             _glfw.wl.client.proxy_set_tag == null ||
+            _glfw.wl.client.callbackInterface == null ||
             _glfw.wl.client.registryInterface == null ||
             _glfw.wl.client.compositorInterface == null ||
             _glfw.wl.client.subcompositorInterface == null ||

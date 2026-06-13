@@ -16,6 +16,7 @@ public static unsafe partial class Glfw
     const int PROT_WRITE = 2;
     const int MAP_SHARED = 1;
     const int ENOENT = 2;
+    const short POLLOUT = 0x0004;
     const uint BTN_LEFT = 0x110;
     const uint BTN_RIGHT = 0x111;
     const uint BTN_MIDDLE = 0x112;
@@ -1392,28 +1393,127 @@ public static unsafe partial class Glfw
         return _glfw.wl.relativePointerManager != null ? GLFW_TRUE : GLFW_FALSE;
     }
 
+    static int wayland_flushDisplay()
+    {
+        if (_glfw.wl.display == null ||
+            _glfw.wl.client.display_flush == null ||
+            _glfw.wl.client.display_get_fd == null)
+        {
+            return GLFW_FALSE;
+        }
+
+        while (_glfw.wl.client.display_flush(_glfw.wl.display) == -1)
+        {
+            POLLFD fd = new()
+            {
+                fd = _glfw.wl.client.display_get_fd(_glfw.wl.display),
+                events = POLLOUT
+            };
+
+            if (_glfwPollPOSIX(&fd, 1, null) == 0)
+                return GLFW_FALSE;
+        }
+
+        return GLFW_TRUE;
+    }
+
+    static void wayland_dispatchCloseRequests()
+    {
+        var window = _glfw.windowListHead;
+        while (window != null)
+        {
+            _glfwInputWindowCloseRequest(window);
+            window = window->next;
+        }
+    }
+
+    static void wayland_handleEvents(double* timeout)
+    {
+        if (_glfw.wl.display == null ||
+            _glfw.wl.client.display_prepare_read == null ||
+            _glfw.wl.client.display_cancel_read == null ||
+            _glfw.wl.client.display_read_events == null ||
+            _glfw.wl.client.display_dispatch_pending == null ||
+            _glfw.wl.client.display_get_fd == null)
+        {
+            return;
+        }
+
+        var @event = GLFW_FALSE;
+        POLLFD fd = new()
+        {
+            fd = _glfw.wl.client.display_get_fd(_glfw.wl.display),
+            events = POLLIN
+        };
+
+        while (@event == 0)
+        {
+            while (_glfw.wl.client.display_prepare_read(_glfw.wl.display) != 0)
+            {
+                if (_glfw.wl.client.display_dispatch_pending(_glfw.wl.display) > 0)
+                    return;
+            }
+
+            if (wayland_flushDisplay() == 0)
+            {
+                _glfw.wl.client.display_cancel_read(_glfw.wl.display);
+                wayland_dispatchCloseRequests();
+                return;
+            }
+
+            fd.revents = 0;
+            if (_glfwPollPOSIX(&fd, 1, timeout) == 0)
+            {
+                _glfw.wl.client.display_cancel_read(_glfw.wl.display);
+                return;
+            }
+
+            if ((fd.revents & POLLIN) != 0)
+            {
+                _glfw.wl.client.display_read_events(_glfw.wl.display);
+                if (_glfw.wl.client.display_dispatch_pending(_glfw.wl.display) > 0)
+                    @event = GLFW_TRUE;
+            }
+            else
+                _glfw.wl.client.display_cancel_read(_glfw.wl.display);
+        }
+    }
+
+    static void wayland_displaySync()
+    {
+        if (_glfw.wl.display == null ||
+            _glfw.wl.client.callbackInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor == null)
+        {
+            return;
+        }
+
+        _glfw.wl.client.proxy_marshal_constructor(_glfw.wl.display,
+            WL_DISPLAY_SYNC,
+            _glfw.wl.client.callbackInterface,
+            null);
+    }
+
     static void _glfwPollEventsWayland()
     {
-        if (_glfw.wl.client.display_dispatch_pending != null)
-            _glfw.wl.client.display_dispatch_pending(_glfw.wl.display);
-        if (_glfw.wl.client.display_flush != null)
-            _glfw.wl.client.display_flush(_glfw.wl.display);
+        var timeout = 0.0;
+        wayland_handleEvents(&timeout);
     }
 
     static void _glfwWaitEventsWayland()
     {
-        _glfwPollEventsWayland();
+        wayland_handleEvents(null);
     }
 
     static void _glfwWaitEventsTimeoutWayland(double timeout)
     {
-        _glfwPollEventsWayland();
+        wayland_handleEvents(&timeout);
     }
 
     static void _glfwPostEmptyEventWayland()
     {
-        if (_glfw.wl.client.display_flush != null)
-            _glfw.wl.client.display_flush(_glfw.wl.display);
+        wayland_displaySync();
+        wayland_flushDisplay();
     }
 
     static void _glfwGetCursorPosWayland(_GLFWwindow* window, double* xpos, double* ypos)
