@@ -113,7 +113,10 @@ Started, but not yet functional:
 - Objective-C runtime helper layer for classes, selectors, messages, and
   autorelease pools
 - basic `NSApplicationDelegate` registration for terminate requests, screen
-  parameter changes, finish-launch wakeup, and app hide video-mode restoration
+  parameter changes, finish-launch wakeup, will-finish menu setup, and app
+  hide video-mode restoration
+- Cocoa menu bar setup, including bundled `MainMenu.nib` loading and the
+  fallback application/window menus
 - Cocoa finish-launch path through `NSRunningApplication`, `NSApp run`, and
   regular activation policy for menubar-enabled apps
 - Cocoa resource-directory `chdir` behavior for bundled apps
@@ -170,8 +173,8 @@ Started, but not yet functional:
 
 Known remaining work:
 
-- remaining NSApplication behavior, including menu bar setup, key-up monitor,
-  and launch lifecycle validation
+- remaining NSApplication behavior, including key-up monitor and launch
+  lifecycle validation
 - complete `NSView` / `NSTextInputClient` parity, including IME and
   drag-and-drop edge-case validation
 - NSGL runtime validation and edge-case parity for context hints unsupported by

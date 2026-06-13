@@ -632,6 +632,9 @@ public static unsafe partial class Glfw
                 class_addMethod(cls, cocoa_sel("applicationDidChangeScreenParameters:"),
                     (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_applicationDidChangeScreenParameters,
                     voidTypesPtr);
+                class_addMethod(cls, cocoa_sel("applicationWillFinishLaunching:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_applicationWillFinishLaunching,
+                    voidTypesPtr);
                 class_addMethod(cls, cocoa_sel("applicationDidFinishLaunching:"),
                     (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_applicationDidFinishLaunching,
                     voidTypesPtr);
@@ -1024,6 +1027,44 @@ public static unsafe partial class Glfw
         }
 
         _glfwPollMonitorsCocoa();
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_applicationWillFinishLaunching(void* self, nint cmd, void* notification)
+    {
+        if (_glfw.hints.init.ns.menubar == 0)
+            return;
+
+        var bundle = cocoa_msgSend_id(cocoa_getClass("NSBundle"), "mainBundle");
+        if (bundle == null)
+        {
+            cocoa_createMenuBar();
+            return;
+        }
+
+        var resource = cocoa_stringFromUTF8("MainMenu");
+        var type = cocoa_stringFromUTF8("nib");
+        var path = objc_msgSend_id_ptr_ptr(bundle,
+            cocoa_sel("pathForResource:ofType:"),
+            resource,
+            type);
+
+        if (path != null)
+        {
+            fixed (_GLFWlibrary* glfw = &_glfw)
+            {
+                objc_msgSend_bool_ptr_ptr_ptr(bundle,
+                    cocoa_sel("loadNibNamed:owner:topLevelObjects:"),
+                    resource,
+                    cocoa_getNSApp(),
+                    &glfw->ns.nibObjects);
+            }
+        }
+        else
+            cocoa_createMenuBar();
+
+        cocoa_releaseTemporaryString(type);
+        cocoa_releaseTemporaryString(resource);
     }
 
     [UnmanagedCallersOnly]
@@ -1613,6 +1654,9 @@ public static unsafe partial class Glfw
     static extern void objc_msgSend_void_nint_ptr_ptr(void* receiver, nint selector, nint value1, void* value2, void* value3);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void objc_msgSend_void_nint_ptr(void* receiver, nint selector, nint value1, void* value2);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void objc_msgSend_void_ptr_nint_ptr_ptr(void* receiver, nint selector, void* value1, nint value2, void* value3, void* value4);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
@@ -1643,6 +1687,9 @@ public static unsafe partial class Glfw
     static extern void* objc_msgSend_id_ptr_ptr(void* receiver, nint selector, void* value1, void* value2);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void* objc_msgSend_id_ptr_nint_ptr(void* receiver, nint selector, void* value1, nint value2, void* value3);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void* objc_msgSend_id_ptr_long_long_long_long_bool_bool_ptr_ulong_long_long(void* receiver, nint selector, void* value1, long value2, long value3, long value4, long value5, byte value6, byte value7, void* value8, ulong value9, long value10, long value11);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
@@ -1671,6 +1718,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern byte objc_msgSend_bool_ptr_ptr(void* receiver, nint selector, void* value1, void* value2);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern byte objc_msgSend_bool_ptr_ptr_ptr(void* receiver, nint selector, void* value1, void* value2, void* value3);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern byte objc_msgSend_bool_point_rect(void* receiver, nint selector, NSPoint point, NSRect rect);
@@ -1854,6 +1904,9 @@ public static unsafe partial class Glfw
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFBundleGetDataPointerForName(void* bundle, void* symbolName);
+
+    [DllImport("/usr/lib/libSystem.B.dylib", EntryPoint = "_NSGetProgname")]
+    static extern byte** _NSGetProgname();
 
     [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
     static extern void* IOServiceMatching(byte* name);

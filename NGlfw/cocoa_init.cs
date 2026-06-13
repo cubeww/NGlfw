@@ -132,6 +132,188 @@ public static unsafe partial class Glfw
             objc_msgSend_bool_ptr(fileManager, cocoa_sel("changeCurrentDirectoryPath:"), resourcesPath);
     }
 
+    static void* cocoa_copyApplicationName()
+    {
+        var bundle = cocoa_msgSend_id(cocoa_getClass("NSBundle"), "mainBundle");
+        var bundleInfo = bundle != null ? cocoa_msgSend_id(bundle, "infoDictionary") : null;
+        if (bundleInfo != null)
+        {
+            string[] nameKeys =
+            {
+                "CFBundleDisplayName",
+                "CFBundleName",
+                "CFBundleExecutable"
+            };
+
+            foreach (var key in nameKeys)
+            {
+                var keyObject = cocoa_stringFromUTF8(key);
+                if (keyObject == null)
+                    continue;
+
+                var name = objc_msgSend_id_ptr(bundleInfo, cocoa_sel("objectForKey:"), keyObject);
+                cocoa_releaseTemporaryString(keyObject);
+
+                if (name != null &&
+                    objc_msgSend_bool_ptr(name, cocoa_sel("isKindOfClass:"), cocoa_getClass("NSString")) != 0 &&
+                    objc_msgSend_ulong(name, cocoa_sel("length")) != 0)
+                {
+                    return cocoa_msgSend_id(name, "retain");
+                }
+            }
+        }
+
+        var progname = _NSGetProgname();
+        if (progname != null && *progname != null)
+            return cocoa_stringFromUTF8(*progname);
+
+        return cocoa_stringFromUTF8("GLFW Application");
+    }
+
+    static void* cocoa_copyStringByAppendingString(string prefix, void* suffix)
+    {
+        var prefixObject = cocoa_stringFromUTF8(prefix);
+        if (prefixObject == null || suffix == null)
+        {
+            cocoa_releaseTemporaryString(prefixObject);
+            return null;
+        }
+
+        var result = objc_msgSend_id_ptr(prefixObject,
+            cocoa_sel("stringByAppendingString:"),
+            suffix);
+        if (result != null)
+            cocoa_msgSend_void(result, "retain");
+
+        cocoa_releaseTemporaryString(prefixObject);
+        return result;
+    }
+
+    static void* cocoa_addMenuItem(void* menu, void* title, nint action, string keyEquivalent)
+    {
+        if (menu == null || title == null)
+            return null;
+
+        var key = cocoa_stringFromUTF8(keyEquivalent);
+        if (key == null)
+            return null;
+
+        var item = objc_msgSend_id_ptr_nint_ptr(menu,
+            cocoa_sel("addItemWithTitle:action:keyEquivalent:"),
+            title,
+            action,
+            key);
+        cocoa_releaseTemporaryString(key);
+        return item;
+    }
+
+    static void* cocoa_addMenuItem(void* menu, string title, nint action, string keyEquivalent)
+    {
+        var titleObject = cocoa_stringFromUTF8(title);
+        var item = cocoa_addMenuItem(menu, titleObject, action, keyEquivalent);
+        cocoa_releaseTemporaryString(titleObject);
+        return item;
+    }
+
+    static void cocoa_addMenuSeparator(void* menu)
+    {
+        var item = cocoa_msgSend_id(cocoa_getClass("NSMenuItem"), "separatorItem");
+        cocoa_msgSend_void_ptr(menu, "addItem:", item);
+    }
+
+    static void cocoa_createMenuBar()
+    {
+        var app = cocoa_getNSApp();
+        if (app == null)
+            return;
+
+        var appName = cocoa_copyApplicationName();
+        if (appName == null)
+            return;
+
+        var menuClass = cocoa_getClass("NSMenu");
+        var bar = cocoa_msgSend_id(cocoa_msgSend_id(menuClass, "alloc"), "init");
+        if (bar == null)
+        {
+            cocoa_releaseTemporaryString(appName);
+            return;
+        }
+
+        cocoa_msgSend_void_ptr(app, "setMainMenu:", bar);
+
+        var appMenuItem = cocoa_addMenuItem(bar, "", 0, "");
+        var appMenu = cocoa_msgSend_id(cocoa_msgSend_id(menuClass, "alloc"), "init");
+        cocoa_msgSend_void_ptr(appMenuItem, "setSubmenu:", appMenu);
+
+        var title = cocoa_copyStringByAppendingString("About ", appName);
+        cocoa_addMenuItem(appMenu, title, cocoa_sel("orderFrontStandardAboutPanel:"), "");
+        cocoa_releaseTemporaryString(title);
+
+        cocoa_addMenuSeparator(appMenu);
+
+        var servicesMenu = cocoa_msgSend_id(cocoa_msgSend_id(menuClass, "alloc"), "init");
+        cocoa_msgSend_void_ptr(app, "setServicesMenu:", servicesMenu);
+        var servicesItem = cocoa_addMenuItem(appMenu, "Services", 0, "");
+        cocoa_msgSend_void_ptr(servicesItem, "setSubmenu:", servicesMenu);
+        cocoa_msgSend_void(servicesMenu, "release");
+
+        cocoa_addMenuSeparator(appMenu);
+
+        title = cocoa_copyStringByAppendingString("Hide ", appName);
+        cocoa_addMenuItem(appMenu, title, cocoa_sel("hide:"), "h");
+        cocoa_releaseTemporaryString(title);
+
+        var hideOthersItem = cocoa_addMenuItem(appMenu, "Hide Others",
+            cocoa_sel("hideOtherApplications:"),
+            "h");
+        objc_msgSend_void_ulong(hideOthersItem,
+            cocoa_sel("setKeyEquivalentModifierMask:"),
+            NSEventModifierFlagOption | NSEventModifierFlagCommand);
+
+        cocoa_addMenuItem(appMenu, "Show All", cocoa_sel("unhideAllApplications:"), "");
+        cocoa_addMenuSeparator(appMenu);
+
+        title = cocoa_copyStringByAppendingString("Quit ", appName);
+        cocoa_addMenuItem(appMenu, title, cocoa_sel("terminate:"), "q");
+        cocoa_releaseTemporaryString(title);
+
+        var windowMenuItem = cocoa_addMenuItem(bar, "", 0, "");
+        cocoa_msgSend_void(bar, "release");
+
+        title = cocoa_stringFromUTF8("Window");
+        var windowMenu = objc_msgSend_id_ptr(cocoa_msgSend_id(menuClass, "alloc"),
+            cocoa_sel("initWithTitle:"),
+            title);
+        cocoa_releaseTemporaryString(title);
+
+        cocoa_msgSend_void_ptr(app, "setWindowsMenu:", windowMenu);
+        cocoa_msgSend_void_ptr(windowMenuItem, "setSubmenu:", windowMenu);
+
+        cocoa_addMenuItem(windowMenu, "Minimize", cocoa_sel("performMiniaturize:"), "m");
+        cocoa_addMenuItem(windowMenu, "Zoom", cocoa_sel("performZoom:"), "");
+        cocoa_addMenuSeparator(windowMenu);
+        cocoa_addMenuItem(windowMenu, "Bring All to Front", cocoa_sel("arrangeInFront:"), "");
+        cocoa_addMenuSeparator(windowMenu);
+
+        var fullscreenItem = cocoa_addMenuItem(windowMenu, "Enter Full Screen",
+            cocoa_sel("toggleFullScreen:"),
+            "f");
+        objc_msgSend_void_ulong(fullscreenItem,
+            cocoa_sel("setKeyEquivalentModifierMask:"),
+            NSEventModifierFlagControl | NSEventModifierFlagCommand);
+
+        var setAppleMenu = cocoa_sel("setAppleMenu:");
+        if (objc_msgSend_bool_nint(app, cocoa_sel("respondsToSelector:"), setAppleMenu) != 0)
+        {
+            objc_msgSend_void_nint_ptr(app,
+                cocoa_sel("performSelector:withObject:"),
+                setAppleMenu,
+                appMenu);
+        }
+
+        cocoa_releaseTemporaryString(appName);
+    }
+
     static void* cocoa_createCFStringASCII(string value)
     {
         var bytes = cocoa_ascii(value);
