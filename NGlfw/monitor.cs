@@ -71,6 +71,41 @@ public static unsafe partial class Glfw
         return monitor;
     }
 
+    static void _glfwFreeMonitor(_GLFWmonitor* monitor)
+    {
+        if (_glfw.platform.freeMonitor != null)
+            _glfw.platform.freeMonitor(monitor);
+        _glfw_free(monitor->modes);
+        _glfwFreeGammaArrays(&monitor->originalRamp);
+        _glfwFreeGammaArrays(&monitor->currentRamp);
+        _glfw_free(monitor);
+    }
+
+    static void _glfwAllocGammaArrays(GLFWgammaramp* ramp, uint size)
+    {
+        ramp->red = (ushort*)_glfw_calloc(size, sizeof(ushort));
+        ramp->green = (ushort*)_glfw_calloc(size, sizeof(ushort));
+        ramp->blue = (ushort*)_glfw_calloc(size, sizeof(ushort));
+        ramp->size = size;
+    }
+
+    static void _glfwFreeGammaArrays(GLFWgammaramp* ramp)
+    {
+        if (ramp == null)
+            return;
+
+        _glfw_free(ramp->red);
+        _glfw_free(ramp->green);
+        _glfw_free(ramp->blue);
+        *ramp = default;
+    }
+
+    static void _glfwInputMonitorWindow(_GLFWmonitor* monitor, _GLFWwindow* window)
+    {
+        if (monitor != null)
+            monitor->window = window;
+    }
+
     static int monitor_refreshVideoModes(_GLFWmonitor* monitor)
     {
         if (monitor->modes != null)

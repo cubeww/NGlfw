@@ -61,6 +61,64 @@ public static unsafe partial class Glfw
             window->callbacks.drop((GLFWwindow*)window, count, paths);
     }
 
+    static void _glfwCenterCursorInContentArea(_GLFWwindow* window)
+    {
+        var width = 0;
+        var height = 0;
+        if (_glfw.platform.getWindowSize != null)
+            _glfw.platform.getWindowSize(window, &width, &height);
+        if (_glfw.platform.setCursorPos != null)
+            _glfw.platform.setCursorPos(window, width / 2.0, height / 2.0);
+    }
+
+    static void _glfwInputKey(_GLFWwindow* window, int key, int scancode, int action, int mods)
+    {
+        if (key >= 0 && key <= GLFW_KEY_LAST)
+        {
+            var repeated = GLFW_FALSE;
+
+            if (action == GLFW_RELEASE && window->keys[key] == GLFW_RELEASE)
+                return;
+
+            if (action == GLFW_PRESS && window->keys[key] == GLFW_PRESS)
+                repeated = GLFW_TRUE;
+
+            if (action == GLFW_RELEASE && window->stickyKeys != 0)
+                window->keys[key] = _GLFW_STICK;
+            else
+                window->keys[key] = (byte)action;
+
+            if (repeated != 0)
+                action = GLFW_REPEAT;
+        }
+
+        if (window->lockKeyMods == 0)
+            mods &= ~(GLFW_MOD_CAPS_LOCK | GLFW_MOD_NUM_LOCK);
+
+        if (window->callbacks.key != null)
+            window->callbacks.key((GLFWwindow*)window, key, scancode, action, mods);
+    }
+
+    static void _glfwInputMouseClick(_GLFWwindow* window, int button, int action, int mods)
+    {
+        if (button < 0 || button > GLFW_MOUSE_BUTTON_LAST)
+            return;
+
+        if (window->lockKeyMods == 0)
+            mods &= ~(GLFW_MOD_CAPS_LOCK | GLFW_MOD_NUM_LOCK);
+
+        if (button >= 0 && button <= GLFW_MOUSE_BUTTON_LAST)
+        {
+            if (action == GLFW_RELEASE && window->stickyMouseButtons != 0)
+                window->mouseButtons[button] = _GLFW_STICK;
+            else
+                window->mouseButtons[button] = (byte)action;
+        }
+
+        if (window->callbacks.mouseButton != null)
+            window->callbacks.mouseButton((GLFWwindow*)window, button, action, mods);
+    }
+
     static int input_initJoysticks()
     {
         if (_glfw.joysticksInitialized == 0)

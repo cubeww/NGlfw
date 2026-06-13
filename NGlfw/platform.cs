@@ -57,6 +57,158 @@ public static unsafe partial class Glfw
         return GLFW_FALSE;
     }
 
+    static void _glfwPlatformInitTimer()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _glfwPlatformInitTimerPOSIX();
+            return;
+        }
+
+        ulong frequency;
+        QueryPerformanceFrequency(&frequency);
+        _glfw.timer.frequency = frequency;
+    }
+
+    static ulong _glfwPlatformGetTimerValue()
+    {
+        if (!OperatingSystem.IsWindows())
+            return _glfwPlatformGetTimerValuePOSIX();
+
+        ulong value;
+        QueryPerformanceCounter(&value);
+        return value;
+    }
+
+    static ulong _glfwPlatformGetTimerFrequency()
+    {
+        if (!OperatingSystem.IsWindows())
+            return _glfwPlatformGetTimerFrequencyPOSIX();
+
+        return _glfw.timer.frequency;
+    }
+
+    static int _glfwPlatformCreateTls(_GLFWtls* tls)
+    {
+        if (!OperatingSystem.IsWindows())
+            return _glfwPlatformCreateTlsPOSIX(tls);
+
+        tls->index = TlsAlloc();
+        if (tls->index == TLS_OUT_OF_INDEXES)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Win32: Failed to allocate TLS index");
+            return GLFW_FALSE;
+        }
+
+        tls->allocated = GLFW_TRUE;
+        return GLFW_TRUE;
+    }
+
+    static void _glfwPlatformDestroyTls(_GLFWtls* tls)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _glfwPlatformDestroyTlsPOSIX(tls);
+            return;
+        }
+
+        if (tls->allocated != 0)
+            TlsFree(tls->index);
+        *tls = default;
+    }
+
+    static void* _glfwPlatformGetTls(_GLFWtls* tls)
+    {
+        if (!OperatingSystem.IsWindows())
+            return _glfwPlatformGetTlsPOSIX(tls);
+
+        return TlsGetValue(tls->index);
+    }
+
+    static void _glfwPlatformSetTls(_GLFWtls* tls, void* value)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _glfwPlatformSetTlsPOSIX(tls, value);
+            return;
+        }
+
+        TlsSetValue(tls->index, value);
+    }
+
+    static int _glfwPlatformCreateMutex(_GLFWmutex* mutex)
+    {
+        if (!OperatingSystem.IsWindows())
+            return _glfwPlatformCreateMutexPOSIX(mutex);
+
+        InitializeCriticalSection(&mutex->section);
+        mutex->allocated = GLFW_TRUE;
+        return GLFW_TRUE;
+    }
+
+    static void _glfwPlatformDestroyMutex(_GLFWmutex* mutex)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _glfwPlatformDestroyMutexPOSIX(mutex);
+            return;
+        }
+
+        if (mutex->allocated != 0)
+            DeleteCriticalSection(&mutex->section);
+        *mutex = default;
+    }
+
+    static void _glfwPlatformLockMutex(_GLFWmutex* mutex)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _glfwPlatformLockMutexPOSIX(mutex);
+            return;
+        }
+
+        EnterCriticalSection(&mutex->section);
+    }
+
+    static void _glfwPlatformUnlockMutex(_GLFWmutex* mutex)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _glfwPlatformUnlockMutexPOSIX(mutex);
+            return;
+        }
+
+        LeaveCriticalSection(&mutex->section);
+    }
+
+    static void* _glfwPlatformLoadModule(byte* path)
+    {
+        if (!OperatingSystem.IsWindows())
+            return _glfwPlatformLoadModulePOSIX(path);
+
+        return (void*)LoadLibraryA(path);
+    }
+
+    static void _glfwPlatformFreeModule(void* module)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _glfwPlatformFreeModulePOSIX(module);
+            return;
+        }
+
+        if (module != null)
+            FreeLibrary((nint)module);
+    }
+
+    static void* _glfwPlatformGetModuleSymbol(void* module, byte* name)
+    {
+        if (!OperatingSystem.IsWindows())
+            return _glfwPlatformGetModuleSymbolPOSIX(module, name);
+
+        return GetProcAddress((nint)module, name);
+    }
+
     public static int glfwGetPlatform()
     {
         if (_glfw.initialized == 0)
