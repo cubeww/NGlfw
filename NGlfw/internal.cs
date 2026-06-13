@@ -38,6 +38,8 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwVkKHRWin32SurfaceExtensionName;
     static readonly byte* _glfwVkKHRXlibSurfaceExtensionName;
     static readonly byte* _glfwVkKHRXcbSurfaceExtensionName;
+    static readonly byte* _glfwVkMVKMacOSSurfaceExtensionName;
+    static readonly byte* _glfwVkEXTMetalSurfaceExtensionName;
     static readonly byte* _glfwX11InputStyleName;
     static readonly byte* _glfwX11ClientWindowName;
     static readonly byte* _glfwX11FocusWindowName;
@@ -46,11 +48,13 @@ public static unsafe partial class Glfw
 
     static Glfw()
     {
-        _glfwVersionString = _glfw_allocate_static_string("3.4.0 Win32 WGL X11 GLX Null EGL OSMesa");
+        _glfwVersionString = _glfw_allocate_static_string("3.4.0 Win32 WGL X11 GLX Cocoa NSGL Null EGL OSMesa");
         _glfwVkKHRSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_surface");
         _glfwVkKHRWin32SurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_win32_surface");
         _glfwVkKHRXlibSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_xlib_surface");
         _glfwVkKHRXcbSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_xcb_surface");
+        _glfwVkMVKMacOSSurfaceExtensionName = _glfw_allocate_static_string("VK_MVK_macos_surface");
+        _glfwVkEXTMetalSurfaceExtensionName = _glfw_allocate_static_string("VK_EXT_metal_surface");
         _glfwX11InputStyleName = _glfw_allocate_static_string("inputStyle");
         _glfwX11ClientWindowName = _glfw_allocate_static_string("clientWindow");
         _glfwX11FocusWindowName = _glfw_allocate_static_string("focusWindow");
@@ -219,6 +223,7 @@ public static unsafe partial class Glfw
         public _GLFWcontext_osmesa osmesa;
         public _GLFWcontext_wgl wgl;
         public _GLFWcontext_glx glx;
+        public _GLFWcontext_nsgl nsgl;
     }
 
     public struct _GLFWcontext_egl
@@ -248,6 +253,12 @@ public static unsafe partial class Glfw
     {
         public void* handle;
         public nuint window;
+    }
+
+    public struct _GLFWcontext_nsgl
+    {
+        public void* pixelFormat;
+        public void* @object;
     }
 
     public struct _GLFWwindow
@@ -290,6 +301,7 @@ public static unsafe partial class Glfw
         public _GLFWwindowNull @null;
         public _GLFWwindowWin32 win32;
         public _GLFWwindowX11 x11;
+        public _GLFWwindowNS ns;
     }
 
     public struct _GLFWwindow_callbacks
@@ -328,6 +340,7 @@ public static unsafe partial class Glfw
         public _GLFWmonitorNull @null;
         public _GLFWmonitorWin32 win32;
         public _GLFWmonitorX11 x11;
+        public _GLFWmonitorNS ns;
     }
 
     public struct _GLFWcursor
@@ -335,6 +348,7 @@ public static unsafe partial class Glfw
         public _GLFWcursor* next;
         public _GLFWcursorWin32 win32;
         public _GLFWcursorX11 x11;
+        public _GLFWcursorNS ns;
     }
 
     public struct _GLFWmapelement
@@ -380,6 +394,7 @@ public static unsafe partial class Glfw
         public fixed byte guid[33];
         public _GLFWmapping* mapping;
         public _GLFWjoystickWin32 win32;
+        public _GLFWjoystickNS ns;
     }
 
     [InlineArray(GLFW_JOYSTICK_LAST + 1)]
@@ -392,7 +407,7 @@ public static unsafe partial class Glfw
     {
         public int allocated;
         public uint index;
-        public uint key;
+        public nuint key;
     }
 
     public struct _GLFWmutex
@@ -512,6 +527,8 @@ public static unsafe partial class Glfw
         public _GLFWlibraryWin32 win32;
         public _GLFWlibraryX11 x11;
         public _GLFWlibraryGLX glx;
+        public _GLFWlibraryNS ns;
+        public _GLFWlibraryNSGL nsgl;
         public _GLFWlibraryLinuxJoystick linux_js;
     }
 

@@ -23,6 +23,9 @@ public static unsafe partial class Glfw
             if (OperatingSystem.IsWindows())
                 return _glfwConnectWin32(desiredID, platform);
 
+            if (OperatingSystem.IsMacOS())
+                return _glfwConnectCocoa(desiredID, platform);
+
             if (OperatingSystem.IsLinux() && _glfwConnectX11(desiredID, platform) != 0)
                 return GLFW_TRUE;
 
@@ -35,6 +38,15 @@ public static unsafe partial class Glfw
                 return _glfwConnectWin32(desiredID, platform);
 
             _glfwInputError(GLFW_PLATFORM_UNAVAILABLE, "Win32: Platform not available on this system");
+            return GLFW_FALSE;
+        }
+
+        if (desiredID == GLFW_PLATFORM_COCOA)
+        {
+            if (OperatingSystem.IsMacOS())
+                return _glfwConnectCocoa(desiredID, platform);
+
+            _glfwInputError(GLFW_PLATFORM_UNAVAILABLE, "Cocoa: Platform not available on this system");
             return GLFW_FALSE;
         }
 
@@ -72,6 +84,9 @@ public static unsafe partial class Glfw
             return GLFW_TRUE;
 
         if (platformID == GLFW_PLATFORM_WIN32 && OperatingSystem.IsWindows())
+            return GLFW_TRUE;
+
+        if (platformID == GLFW_PLATFORM_COCOA && OperatingSystem.IsMacOS())
             return GLFW_TRUE;
 
         if (platformID == GLFW_PLATFORM_X11 && OperatingSystem.IsLinux())

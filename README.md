@@ -71,34 +71,99 @@ Implemented or partially implemented:
 - X11 initialization and dynamic Xlib/X extension loading
 - X11 window creation and event loop
 - X11 keyboard/scancode tables and text input fallback
+- XKB detectable auto-repeat, keyboard state, and layout group tracking
+- XIM input contexts, UTF-8 lookup, focus handling, and filtered key events
 - X11 mouse, cursor, icons, window hints, opacity, frame extents, and work area
 - Xcursor custom and hidden cursors
 - XShape mouse passthrough
 - XRender transparent visual support
 - XI2 raw mouse motion
-- clipboard and primary selection basics, including several selection targets
+- clipboard and primary selection basics, including several selection targets and
+  INCR transfers
 - Xdnd file drop main path for `text/uri-list`
 - RandR monitor enumeration, video modes, gamma ramp, video mode switching,
   fullscreen monitor handling, and hotplug polling
 - GLX context creation, swapping, swap interval, extension lookup, and Vulkan
-  Xlib surface support
+  Xlib/XCB surface support
 
 Known remaining work:
 
-- deeper XKB support, including layout/group tracking and physical key names
-- XIM input method parity
-- INCR clipboard transfer support
+- full Linux joystick behavior, including `/dev/input/event*` enumeration,
+  device opening, event polling, mapping, and disconnect handling
+- real X11 cursor capture/disabled behavior through pointer grabs, ungrabs, and
+  confinement instead of only hiding, warping, and raw motion
+- X11 asynchronous error capture through `XSetErrorHandler` / `XSync`, plus
+  useful diagnostics from `_glfwInputErrorX11`
+- additional ICCCM/EWMH polish, including `_NET_WM_PID`,
+  `_NET_WM_WINDOW_TYPE_NORMAL`, `_NET_SUPPORTED` detection, screen saver
+  save/restore, `XSetWMHints`, and fullscreen fallback details
+- `ConfigureNotify` position correction for reparented windows by translating
+  coordinates back to the root window
+- X11 EGL platform selection in `_glfwGetEGLPlatformX11`
+- more complete XKB parity for physical key names and layout edge cases
+- XIM instantiate/destroy callbacks and input-method restart edge cases
 - full Xdnd edge-case coverage
-- more complete Linux joystick hotplug/input behavior
 - Linux runtime testing on real X11 environments
+
+### Cocoa / macOS Backend
+
+Started, but not yet functional:
+
+- Cocoa platform selection and support detection
+- Objective-C runtime helper layer for classes, selectors, messages, and
+  autorelease pools
+- Cocoa backend file skeletons for init, windows, monitors, cursors, clipboard,
+  joysticks, Vulkan surface hooks, and native accessors
+- basic runtime `GLFWWindow` subclass registration through the Objective-C
+  runtime
+- runtime `GLFWWindowDelegate` and `GLFWContentView` subclass registration with
+  object-to-GLFW-window routing
+- basic `NSWindow` / `NSView` creation for Cocoa windows
+- common Cocoa window operations, including title, position, size, visibility,
+  focus, opacity, style, limits, aspect ratio, and event polling
+- basic Cocoa window delegate callbacks for close, resize, move, iconify,
+  restore, focus, and framebuffer/content-scale changes
+- basic Cocoa view callbacks for damage, mouse buttons, cursor movement,
+  cursor enter/leave, scrolling, key presses/releases, modifier key changes,
+  and simple UTF-8 character input
+- basic CoreGraphics monitor enumeration, monitor position, full display mode
+  enumeration with duplicate filtering, current video mode, fullscreen video
+  mode switching/restoration, work area fallback, gamma ramp access, and the
+  Cocoa monitor native accessor
+- NSScreen mapping for localized monitor names, content scale, and visible
+  work area queries
+- standard Cocoa cursor creation for the public cursor shapes
+- hidden/disabled cursor mode hide/unhide plumbing
+- `NSPasteboard` clipboard string path
+- `NSEvent` application-defined wakeups for `postEmptyEvent`
+- basic NSGL initialization through the OpenGL framework bundle
+- NSGL pixel format attribute selection, native OpenGL context creation,
+  make-current, swap buffers, swap interval, function lookup, destroy path, and
+  native context accessor
+- POSIX runtime plumbing adjusted for macOS library names and pthread key sizes
+
+Known remaining work:
+
+- real NSApplication delegate/helper behavior, menu bar setup, resource
+  directory handling, and launch lifecycle parity
+- complete `NSView` / `NSTextInputClient` parity, including marked text,
+  IME composition, drag-and-drop, tracking areas, private cursor update details,
+  precise disabled-cursor motion, and cursor warping through CoreGraphics
+- full keyboard layout Unicode translation for scancode names
+- custom bitmap cursors and private resize cursor fallbacks
+- display reconfiguration callbacks, IOKit fallback monitor names, fade
+  transitions, and IOKit fallback refresh-rate lookup
+- NSGL runtime validation, occluded-window swap interval sleep simulation, and
+  edge-case parity for context hints unsupported by macOS
+- IOKit / HID joystick support
+- Metal-backed Vulkan surface creation and Cocoa EGL ANGLE platform attributes
+- runtime validation on macOS
 
 ### Other Backends
 
 Not implemented yet:
 
 - Wayland
-- Cocoa / macOS
-- NSGL
 - platform-specific native accessors beyond the currently translated paths
 
 ## Building
