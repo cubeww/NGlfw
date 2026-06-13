@@ -18,6 +18,10 @@ public static unsafe partial class Glfw
     const uint BTN_FORWARD = 0x115;
     const uint BTN_BACK = 0x116;
     const uint BTN_TASK = 0x117;
+    const uint XDG_TOPLEVEL_STATE_MAXIMIZED = 1;
+    const uint XDG_TOPLEVEL_STATE_FULLSCREEN = 2;
+    const uint XDG_TOPLEVEL_STATE_RESIZING = 3;
+    const uint XDG_TOPLEVEL_STATE_ACTIVATED = 4;
 
     struct VkWaylandSurfaceCreateInfoKHR
     {
@@ -27,6 +31,15 @@ public static unsafe partial class Glfw
         public void* display;
         public void* surface;
     }
+
+#pragma warning disable CS0649
+    struct wl_array
+    {
+        public nuint size;
+        public nuint alloc;
+        public void* data;
+    }
+#pragma warning restore CS0649
 
     struct wl_surface_listener
     {
@@ -641,6 +654,20 @@ public static unsafe partial class Glfw
         if (width <= 0 || height <= 0)
             return;
 
+        if (window->wl.maximized == 0 &&
+            window->wl.fullscreen == 0 &&
+            window->numer != GLFW_DONT_CARE &&
+            window->denom != GLFW_DONT_CARE)
+        {
+            var aspectRatio = (float)width / height;
+            var targetRatio = (float)window->numer / window->denom;
+
+            if (aspectRatio < targetRatio)
+                height = (int)(width / targetRatio);
+            else if (aspectRatio > targetRatio)
+                width = (int)(height * targetRatio);
+        }
+
         if (width == window->wl.width && height == window->wl.height)
             return;
 
@@ -665,6 +692,21 @@ public static unsafe partial class Glfw
         var window = (_GLFWwindow*)userData;
 
         wayland_xdgSurfaceAckConfigure(xdgSurface, serial);
+
+        if (window->wl.activated != window->wl.pending.activated)
+        {
+            window->wl.activated = window->wl.pending.activated;
+            if (window->wl.activated == 0 && window->monitor != null && window->autoIconify != 0)
+                wayland_xdgToplevelSetMinimized(window->wl.xdg.toplevel);
+        }
+
+        if (window->wl.maximized != window->wl.pending.maximized)
+        {
+            window->wl.maximized = window->wl.pending.maximized;
+            _glfwInputWindowMaximize(window, window->wl.maximized);
+        }
+
+        window->wl.fullscreen = window->wl.pending.fullscreen;
         wayland_applyPendingSize(window);
     }
 
@@ -676,6 +718,35 @@ public static unsafe partial class Glfw
                                                   void* states)
     {
         var window = (_GLFWwindow*)userData;
+
+        window->wl.pending.activated = GLFW_FALSE;
+        window->wl.pending.maximized = GLFW_FALSE;
+        window->wl.pending.fullscreen = GLFW_FALSE;
+
+        if (states != null)
+        {
+            var array = (wl_array*)states;
+            var state = (uint*)array->data;
+            var count = array->size / (nuint)sizeof(uint);
+
+            for (nuint i = 0; i < count; i++)
+            {
+                switch (state[i])
+                {
+                    case XDG_TOPLEVEL_STATE_MAXIMIZED:
+                        window->wl.pending.maximized = GLFW_TRUE;
+                        break;
+                    case XDG_TOPLEVEL_STATE_FULLSCREEN:
+                        window->wl.pending.fullscreen = GLFW_TRUE;
+                        break;
+                    case XDG_TOPLEVEL_STATE_RESIZING:
+                        break;
+                    case XDG_TOPLEVEL_STATE_ACTIVATED:
+                        window->wl.pending.activated = GLFW_TRUE;
+                        break;
+                }
+            }
+        }
 
         if (width > 0 && height > 0)
         {

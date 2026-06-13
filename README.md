@@ -228,6 +228,8 @@ Implemented or partially implemented:
 - initial `xdg_surface` / `xdg_toplevel` creation, configure ack, close
   callback, title/app-id, fullscreen, maximize, minimize, and size-limit
   requests
+- xdg toplevel configure state parsing for activation, maximize, fullscreen,
+  and aspect-ratio constrained configure sizes
 - initial `wl_surface` listener handling for output enter/leave and integer
   buffer scale updates
 - initial `wl_seat` capability handling and `wl_pointer` enter/leave, motion,
@@ -243,8 +245,7 @@ Known remaining work:
 - keyboard, data-device, cursor theme, and XKB event handling
 - advanced pointer events, disabled-cursor behavior, cursor surfaces, and
   interactive decoration move/resize paths
-- preferred buffer scale/transform and fractional-scale protocol handling, plus
-  complete xdg toplevel state parsing
+- preferred buffer scale/transform and fractional-scale protocol handling
 - protocol requests for regions, opaque/input regions, buffer scale, and
   fractional scaling
 - libdecor and fallback decoration support
