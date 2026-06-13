@@ -252,6 +252,9 @@ Implemented or partially implemented:
 - hand-written `wp_viewporter` and `wp_fractional_scale_v1` protocol tables,
   registry binding, viewport destination updates, preferred fractional-scale
   handling, framebuffer resize, and content-scale callbacks
+- hand-written `zxdg_decoration_manager_v1` protocol tables, registry
+  binding, xdg toplevel decoration objects, configure tracking, and
+  server/client decoration mode requests
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
@@ -270,10 +273,9 @@ Known remaining work:
 - libdecor fd integration in the Wayland event loop
 - advanced pointer events, full disabled-cursor behavior, and
   interactive decoration move/resize paths
-- preferred buffer scale/transform and fractional-scale protocol handling
 - additional viewport users such as fallback decorations and runtime
   fractional-scaling validation
-- libdecor and fallback decoration support
+- libdecor and client-side fallback decoration support
 - drag-and-drop action/finish edge cases
 - runtime validation on a Wayland compositor
 

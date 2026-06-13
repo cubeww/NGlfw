@@ -46,6 +46,8 @@ public static unsafe partial class Glfw
     const uint XDG_TOPLEVEL_STATE_FULLSCREEN = 2;
     const uint XDG_TOPLEVEL_STATE_RESIZING = 3;
     const uint XDG_TOPLEVEL_STATE_ACTIVATED = 4;
+    const uint ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE = 1;
+    const uint ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE = 2;
 
     struct VkWaylandSurfaceCreateInfoKHR
     {
@@ -152,6 +154,11 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, uint, void> preferred_scale;
     }
 
+    struct zxdg_toplevel_decoration_v1_listener
+    {
+        public delegate* unmanaged<void*, void*, uint, void> configure;
+    }
+
     struct ITIMERSPEC
     {
         public TIMESPEC it_interval;
@@ -177,6 +184,7 @@ public static unsafe partial class Glfw
     static wl_data_device_listener* _glfwWaylandDataDeviceListener;
     static wl_data_source_listener* _glfwWaylandDataSourceListener;
     static wp_fractional_scale_v1_listener* _glfwWaylandFractionalScaleListener;
+    static zxdg_toplevel_decoration_v1_listener* _glfwWaylandXdgDecorationListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
 
@@ -316,6 +324,19 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandFractionalScaleListener;
+    }
+
+    static zxdg_toplevel_decoration_v1_listener* wayland_getXdgDecorationListener()
+    {
+        if (_glfwWaylandXdgDecorationListener == null)
+        {
+            _glfwWaylandXdgDecorationListener =
+                (zxdg_toplevel_decoration_v1_listener*)_glfw_calloc(1, (nuint)sizeof(zxdg_toplevel_decoration_v1_listener));
+            if (_glfwWaylandXdgDecorationListener != null)
+                _glfwWaylandXdgDecorationListener->configure = &wayland_xdgDecorationHandleConfigure;
+        }
+
+        return _glfwWaylandXdgDecorationListener;
     }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
@@ -1815,6 +1836,45 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal(toplevel, XDG_TOPLEVEL_SET_MINIMIZED);
     }
 
+    static void* wayland_zxdgDecorationManagerGetToplevelDecoration(void* manager, void* toplevel)
+    {
+        if (manager == null ||
+            toplevel == null ||
+            _glfwWaylandZxdgToplevelDecorationV1Interface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object == null)
+        {
+            return null;
+        }
+
+        var decoration = _glfw.wl.client.proxy_marshal_constructor_object(manager,
+            ZXDG_DECORATION_MANAGER_GET_TOPLEVEL_DECORATION,
+            _glfwWaylandZxdgToplevelDecorationV1Interface,
+            null,
+            toplevel);
+
+        wayland_tagProxy(decoration);
+        return decoration;
+    }
+
+    static void wayland_zxdgToplevelDecorationSetMode(void* decoration, uint mode)
+    {
+        if (decoration != null && _glfw.wl.client.proxy_marshal_uint != null)
+            _glfw.wl.client.proxy_marshal_uint(decoration, ZXDG_TOPLEVEL_DECORATION_SET_MODE, mode);
+    }
+
+    static uint wayland_getDecorationMode(_GLFWwindow* window)
+    {
+        return window->decorated != 0
+            ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
+            : ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+    }
+
+    static void wayland_updateXdgDecorationMode(_GLFWwindow* window)
+    {
+        if (window->wl.xdg.decoration != null)
+            wayland_zxdgToplevelDecorationSetMode(window->wl.xdg.decoration, wayland_getDecorationMode(window));
+    }
+
     static void wayland_applyPendingSize(_GLFWwindow* window)
     {
         var width = window->wl.pending.width;
@@ -1936,6 +1996,16 @@ public static unsafe partial class Glfw
         _glfwInputWindowCloseRequest((_GLFWwindow*)userData);
     }
 
+    [UnmanagedCallersOnly]
+    static void wayland_xdgDecorationHandleConfigure(void* userData, void* decoration, uint mode)
+    {
+        var window = (_GLFWwindow*)userData;
+        if (window == null || decoration != window->wl.xdg.decoration)
+            return;
+
+        window->wl.xdg.decorationMode = mode;
+    }
+
     static int wayland_createXdgShellObjects(_GLFWwindow* window)
     {
         window->wl.xdg.surface = wayland_xdgWmBaseGetXdgSurface(_glfw.wl.wmBase, window->wl.surface);
@@ -1982,6 +2052,22 @@ public static unsafe partial class Glfw
         else if (window->wl.maximized != 0)
             wayland_xdgToplevelSetMaximized(window->wl.xdg.toplevel);
 
+        if (_glfw.wl.decorationManager != null)
+        {
+            window->wl.xdg.decoration =
+                wayland_zxdgDecorationManagerGetToplevelDecoration(_glfw.wl.decorationManager, window->wl.xdg.toplevel);
+            var decorationListener = wayland_getXdgDecorationListener();
+            if (window->wl.xdg.decoration == null ||
+                decorationListener == null ||
+                _glfw.wl.client.proxy_add_listener(window->wl.xdg.decoration, decorationListener, window) != 0)
+            {
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create xdg-decoration object");
+                return GLFW_FALSE;
+            }
+
+            wayland_updateXdgDecorationMode(window);
+        }
+
         wayland_surfaceCommit(window->wl.surface);
 
         if (_glfw.wl.client.display_roundtrip(_glfw.wl.display) < 0)
@@ -1996,6 +2082,7 @@ public static unsafe partial class Glfw
 
     static void wayland_destroyShellObjects(_GLFWwindow* window)
     {
+        wayland_proxyDestroyWithOpcode(window->wl.xdg.decoration, ZXDG_TOPLEVEL_DECORATION_DESTROY);
         wayland_proxyDestroyWithOpcode(window->wl.xdg.toplevel, XDG_TOPLEVEL_DESTROY);
         wayland_proxyDestroyWithOpcode(window->wl.xdg.surface, XDG_SURFACE_DESTROY);
 
@@ -2311,6 +2398,8 @@ public static unsafe partial class Glfw
             window->wl.fullscreen = GLFW_TRUE;
             wayland_xdgToplevelSetFullscreen(window->wl.xdg.toplevel, monitor->wl.output);
         }
+
+        wayland_updateXdgDecorationMode(window);
     }
 
     static int _glfwWindowFocusedWayland(_GLFWwindow* window)
@@ -2351,6 +2440,7 @@ public static unsafe partial class Glfw
     static void _glfwSetWindowDecoratedWayland(_GLFWwindow* window, int enabled)
     {
         window->decorated = enabled;
+        wayland_updateXdgDecorationMode(window);
     }
 
     static void _glfwSetWindowFloatingWayland(_GLFWwindow* window, int enabled)
