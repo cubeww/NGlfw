@@ -176,7 +176,18 @@ public static unsafe partial class Glfw
     public struct _GLFWjoystickNS
     {
         public void* device;
-        public void* elements;
+        public void* axes;
+        public void* buttons;
+        public void* hats;
+    }
+
+    public struct _GLFWjoyelementNS
+    {
+        public void* native;
+        public uint usage;
+        public int index;
+        public long minimum;
+        public long maximum;
     }
 
     public struct _GLFWlibraryNSGL

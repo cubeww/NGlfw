@@ -4,6 +4,32 @@ namespace NGlfw;
 
 public static unsafe partial class Glfw
 {
+    static void cocoa_freeJoystickElements(void* elements)
+    {
+        if (elements == null)
+            return;
+
+        var count = CFArrayGetCount(elements);
+        for (nint i = 0; i < count; i++)
+            _glfw_free(CFArrayGetValueAtIndex(elements, i));
+
+        CFRelease(elements);
+    }
+
+    static void cocoa_closeJoystick(_GLFWjoystick* js)
+    {
+        if (js == null)
+            return;
+
+        _glfwInputJoystick(js, GLFW_DISCONNECTED);
+
+        cocoa_freeJoystickElements(js->ns.axes);
+        cocoa_freeJoystickElements(js->ns.buttons);
+        cocoa_freeJoystickElements(js->ns.hats);
+
+        _glfwFreeJoystick(js);
+    }
+
     [UnmanagedCallersOnly]
     static void cocoa_joystickMatchCallback(void* context, int result, void* sender, void* device)
     {
@@ -12,6 +38,18 @@ public static unsafe partial class Glfw
     [UnmanagedCallersOnly]
     static void cocoa_joystickRemoveCallback(void* context, int result, void* sender, void* device)
     {
+        fixed (_GLFWlibrary* glfw = &_glfw)
+        {
+            for (var jid = 0; jid <= GLFW_JOYSTICK_LAST; jid++)
+            {
+                var js = &glfw->joysticks[jid];
+                if (js->connected != 0 && js->ns.device == device)
+                {
+                    cocoa_closeJoystick(js);
+                    break;
+                }
+            }
+        }
     }
 
     static void* cocoa_createJoystickMatchingDictionary(void* usagePageKey, void* usageKey, int usage)
@@ -101,6 +139,16 @@ public static unsafe partial class Glfw
 
     static void _glfwTerminateJoysticksCocoa()
     {
+        fixed (_GLFWlibrary* glfw = &_glfw)
+        {
+            for (var jid = 0; jid <= GLFW_JOYSTICK_LAST; jid++)
+            {
+                var js = &glfw->joysticks[jid];
+                if (js->connected != 0)
+                    cocoa_closeJoystick(js);
+            }
+        }
+
         if (_glfw.ns.hidManager != null)
         {
             CFRelease(_glfw.ns.hidManager);
