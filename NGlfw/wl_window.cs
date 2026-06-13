@@ -122,6 +122,21 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, int, int, void> repeat_info;
     }
 
+    struct wl_data_offer_listener
+    {
+        public delegate* unmanaged<void*, void*, byte*, void> offer;
+    }
+
+    struct wl_data_device_listener
+    {
+        public delegate* unmanaged<void*, void*, void*, void> data_offer;
+        public delegate* unmanaged<void*, void*, uint, void*, int, int, void*, void> enter;
+        public delegate* unmanaged<void*, void*, void> leave;
+        public delegate* unmanaged<void*, void*, uint, int, int, void> motion;
+        public delegate* unmanaged<void*, void*, void> drop;
+        public delegate* unmanaged<void*, void*, void*, void> selection;
+    }
+
     struct ITIMERSPEC
     {
         public TIMESPEC it_interval;
@@ -143,6 +158,8 @@ public static unsafe partial class Glfw
     static wl_seat_listener* _glfwWaylandSeatListener;
     static wl_pointer_listener* _glfwWaylandPointerListener;
     static wl_keyboard_listener* _glfwWaylandKeyboardListener;
+    static wl_data_offer_listener* _glfwWaylandDataOfferListener;
+    static wl_data_device_listener* _glfwWaylandDataDeviceListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
 
@@ -219,6 +236,37 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandKeyboardListener;
+    }
+
+    static wl_data_offer_listener* wayland_getDataOfferListener()
+    {
+        if (_glfwWaylandDataOfferListener == null)
+        {
+            _glfwWaylandDataOfferListener = (wl_data_offer_listener*)_glfw_calloc(1, (nuint)sizeof(wl_data_offer_listener));
+            if (_glfwWaylandDataOfferListener != null)
+                _glfwWaylandDataOfferListener->offer = &wayland_dataOfferHandleOffer;
+        }
+
+        return _glfwWaylandDataOfferListener;
+    }
+
+    static wl_data_device_listener* wayland_getDataDeviceListener()
+    {
+        if (_glfwWaylandDataDeviceListener == null)
+        {
+            _glfwWaylandDataDeviceListener = (wl_data_device_listener*)_glfw_calloc(1, (nuint)sizeof(wl_data_device_listener));
+            if (_glfwWaylandDataDeviceListener != null)
+            {
+                _glfwWaylandDataDeviceListener->data_offer = &wayland_dataDeviceHandleDataOffer;
+                _glfwWaylandDataDeviceListener->enter = &wayland_dataDeviceHandleEnter;
+                _glfwWaylandDataDeviceListener->leave = &wayland_dataDeviceHandleLeave;
+                _glfwWaylandDataDeviceListener->motion = &wayland_dataDeviceHandleMotion;
+                _glfwWaylandDataDeviceListener->drop = &wayland_dataDeviceHandleDrop;
+                _glfwWaylandDataDeviceListener->selection = &wayland_dataDeviceHandleSelection;
+            }
+        }
+
+        return _glfwWaylandDataDeviceListener;
     }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
@@ -1178,6 +1226,289 @@ public static unsafe partial class Glfw
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add seat listener");
         }
+    }
+
+    static void* wayland_dataDeviceManagerGetDataDevice(void* manager, void* seat)
+    {
+        if (manager == null ||
+            seat == null ||
+            _glfw.wl.client.dataDeviceInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object == null)
+        {
+            return null;
+        }
+
+        var device = _glfw.wl.client.proxy_marshal_constructor_object(manager,
+            WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE,
+            _glfw.wl.client.dataDeviceInterface,
+            null,
+            seat);
+
+        wayland_tagProxy(device);
+        return device;
+    }
+
+    static void wayland_dataDeviceDestroy(void* device)
+    {
+        if (device == null)
+            return;
+
+        if (_glfw.wl.client.proxy_get_version != null &&
+            _glfw.wl.client.proxy_get_version(device) >= WL_DATA_DEVICE_RELEASE_SINCE_VERSION)
+        {
+            wayland_proxyDestroyWithOpcode(device, WL_DATA_DEVICE_RELEASE);
+        }
+        else
+            wayland_proxyDestroy(device);
+    }
+
+    static void wayland_dataOfferAccept(void* offer, uint serial, byte* mimeType)
+    {
+        if (offer != null && _glfw.wl.client.proxy_marshal_uint_string != null)
+            _glfw.wl.client.proxy_marshal_uint_string(offer, WL_DATA_OFFER_ACCEPT, serial, mimeType);
+    }
+
+    static void wayland_dataOfferReceive(void* offer, byte* mimeType, int fd)
+    {
+        if (offer != null && _glfw.wl.client.proxy_marshal_string_int != null)
+            _glfw.wl.client.proxy_marshal_string_int(offer, WL_DATA_OFFER_RECEIVE, mimeType, fd);
+    }
+
+    static void wayland_dataOfferDestroy(void* offer)
+    {
+        wayland_proxyDestroyWithOpcode(offer, WL_DATA_OFFER_DESTROY);
+    }
+
+    static void _glfwAddDataDeviceListenerWayland(void* device)
+    {
+        if (device == null)
+            return;
+
+        var listener = wayland_getDataDeviceListener();
+        if (listener == null ||
+            _glfw.wl.client.proxy_add_listener(device, listener, null) != 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add data device listener");
+        }
+    }
+
+    static int wayland_offerIndex(void* offer)
+    {
+        for (uint i = 0; i < _glfw.wl.offerCount; i++)
+        {
+            if (_glfw.wl.offers[i].offer == offer)
+                return (int)i;
+        }
+
+        return -1;
+    }
+
+    static void wayland_removeOfferAt(uint index)
+    {
+        if (index >= _glfw.wl.offerCount)
+            return;
+
+        _glfw.wl.offers[index] = _glfw.wl.offers[_glfw.wl.offerCount - 1];
+        _glfw.wl.offerCount--;
+    }
+
+    static byte* wayland_readDataOfferAsString(void* offer, byte* mimeType)
+    {
+        int* fds = stackalloc int[2];
+        if (wayland_pipe2(fds, O_CLOEXEC) == -1)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create pipe for data offer");
+            return null;
+        }
+
+        wayland_dataOfferReceive(offer, mimeType, fds[1]);
+        wayland_flushDisplay();
+        wayland_close(fds[1]);
+
+        byte* @string = null;
+        nuint size = 0;
+        nuint length = 0;
+
+        for (;;)
+        {
+            const nuint readSize = 4096;
+            var requiredSize = length + readSize + 1;
+            if (requiredSize > size)
+            {
+                var longer = (byte*)_glfw_realloc(@string, requiredSize);
+                if (longer == null)
+                {
+                    _glfw_free(@string);
+                    wayland_close(fds[0]);
+                    _glfwInputError(GLFW_OUT_OF_MEMORY);
+                    return null;
+                }
+
+                @string = longer;
+                size = requiredSize;
+            }
+
+            var result = wayland_read(fds[0], @string + length, readSize);
+            if (result == 0)
+                break;
+            if (result == -1)
+            {
+                if (Marshal.GetLastPInvokeError() == EINTR)
+                    continue;
+
+                _glfw_free(@string);
+                wayland_close(fds[0]);
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to read from data offer pipe");
+                return null;
+            }
+
+            length += (nuint)result;
+        }
+
+        wayland_close(fds[0]);
+        @string[length] = 0;
+        return @string;
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataOfferHandleOffer(void* userData, void* offer, byte* mimeType)
+    {
+        var index = wayland_offerIndex(offer);
+        if (index < 0)
+            return;
+
+        if (wayland_stringEquals(mimeType, "text/plain;charset=utf-8") != 0)
+            _glfw.wl.offers[index].text_plain_utf8 = GLFW_TRUE;
+        else if (wayland_stringEquals(mimeType, "text/uri-list") != 0)
+            _glfw.wl.offers[index].text_uri_list = GLFW_TRUE;
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataDeviceHandleDataOffer(void* userData, void* device, void* offer)
+    {
+        var offers = (_GLFWofferWayland*)_glfw_realloc(_glfw.wl.offers,
+            (nuint)((_glfw.wl.offerCount + 1) * (uint)sizeof(_GLFWofferWayland)));
+        if (offers == null)
+        {
+            _glfwInputError(GLFW_OUT_OF_MEMORY);
+            return;
+        }
+
+        _glfw.wl.offers = offers;
+        _glfw.wl.offers[_glfw.wl.offerCount++] = new _GLFWofferWayland { offer = offer };
+
+        var listener = wayland_getDataOfferListener();
+        if (listener == null ||
+            _glfw.wl.client.proxy_add_listener(offer, listener, null) != 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add data offer listener");
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataDeviceHandleEnter(void* userData,
+                                             void* device,
+                                             uint serial,
+                                             void* surface,
+                                             int x,
+                                             int y,
+                                             void* offer)
+    {
+        if (_glfw.wl.dragOffer != null)
+        {
+            wayland_dataOfferDestroy(_glfw.wl.dragOffer);
+            _glfw.wl.dragOffer = null;
+            _glfw.wl.dragFocus = null;
+        }
+
+        var index = wayland_offerIndex(offer);
+        if (index >= 0)
+        {
+            _GLFWwindow* window = null;
+            if (surface != null && wayland_proxyHasTag(surface) != 0 && _glfw.wl.client.proxy_get_user_data != null)
+                window = (_GLFWwindow*)_glfw.wl.client.proxy_get_user_data(surface);
+
+            if (window != null &&
+                surface == window->wl.surface &&
+                _glfw.wl.offers[index].text_uri_list != 0)
+            {
+                _glfw.wl.dragOffer = offer;
+                _glfw.wl.dragFocus = window;
+                _glfw.wl.dragSerial = serial;
+            }
+
+            wayland_removeOfferAt((uint)index);
+        }
+
+        if (surface == null || wayland_proxyHasTag(surface) == 0)
+            return;
+
+        if (_glfw.wl.dragOffer != null)
+            wayland_dataOfferAccept(offer, serial, _glfwWaylandTextUriList);
+        else
+        {
+            wayland_dataOfferAccept(offer, serial, null);
+            wayland_dataOfferDestroy(offer);
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataDeviceHandleLeave(void* userData, void* device)
+    {
+        if (_glfw.wl.dragOffer != null)
+        {
+            wayland_dataOfferDestroy(_glfw.wl.dragOffer);
+            _glfw.wl.dragOffer = null;
+            _glfw.wl.dragFocus = null;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataDeviceHandleMotion(void* userData, void* device, uint time, int x, int y)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataDeviceHandleDrop(void* userData, void* device)
+    {
+        if (_glfw.wl.dragOffer == null || _glfw.wl.dragFocus == null)
+            return;
+
+        var @string = wayland_readDataOfferAsString(_glfw.wl.dragOffer, _glfwWaylandTextUriList);
+        if (@string != null)
+        {
+            var count = 0;
+            var paths = _glfwParseUriList(@string, &count);
+            if (paths != null)
+                _glfwInputDrop(_glfw.wl.dragFocus, count, paths);
+
+            for (var i = 0; i < count; i++)
+                _glfw_free(paths[i]);
+            _glfw_free(paths);
+        }
+
+        _glfw_free(@string);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataDeviceHandleSelection(void* userData, void* device, void* offer)
+    {
+        if (_glfw.wl.selectionOffer != null)
+        {
+            wayland_dataOfferDestroy(_glfw.wl.selectionOffer);
+            _glfw.wl.selectionOffer = null;
+        }
+
+        var index = wayland_offerIndex(offer);
+        if (index < 0)
+            return;
+
+        if (_glfw.wl.offers[index].text_plain_utf8 != 0)
+            _glfw.wl.selectionOffer = offer;
+        else
+            wayland_dataOfferDestroy(offer);
+
+        wayland_removeOfferAt((uint)index);
     }
 
     static void* wayland_xdgWmBaseGetXdgSurface(void* wmBase, void* surface)
@@ -2369,4 +2700,7 @@ public static unsafe partial class Glfw
 
     [DllImport("libc", EntryPoint = "timerfd_settime", SetLastError = true)]
     static extern int wayland_timerfd_settime(int fd, int flags, ITIMERSPEC* newValue, ITIMERSPEC* oldValue);
+
+    [DllImport("libc", EntryPoint = "pipe2", SetLastError = true)]
+    static extern int wayland_pipe2(int* pipefd, int flags);
 }

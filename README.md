@@ -242,6 +242,8 @@ Implemented or partially implemented:
 - Wayland scancode name lookup through XKB layout/keysyms and UTF-8 encoding
 - basic Wayland event loop using `wl_display_prepare_read`, display-fd polling,
   `wl_display_read_events`, pending dispatch, and `wl_display.sync` wakeups
+- initial Wayland data-device setup with data offer tracking, selection offer
+  filtering, URI-list drag-and-drop receive, and `_glfwInputDrop` dispatch
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
@@ -255,16 +257,15 @@ Known remaining work:
 
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
-- data-device event handling
-- keyboard repeat timers, animated cursor timers, and libdecor fd integration in
-  the Wayland event loop
+- Wayland clipboard source/selection transfer parity
+- animated cursor timers and libdecor fd integration in the Wayland event loop
 - advanced pointer events, full disabled-cursor behavior, and
   interactive decoration move/resize paths
 - preferred buffer scale/transform and fractional-scale protocol handling
 - protocol requests for regions, opaque/input regions, buffer scale, and
   fractional scaling
 - libdecor and fallback decoration support
-- clipboard and drag-and-drop data transfer
+- drag-and-drop action/finish edge cases
 - runtime validation on a Wayland compositor
 
 Not implemented yet:
