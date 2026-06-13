@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace NGlfw;
 
@@ -9,6 +10,8 @@ public static unsafe partial class Glfw
     const uint WL_REGISTRY_BIND = 0;
     const uint WL_COMPOSITOR_CREATE_SURFACE = 0;
     const uint WL_SURFACE_DESTROY = 0;
+    const uint WL_SURFACE_ATTACH = 1;
+    const uint WL_SURFACE_DAMAGE = 2;
     const uint WL_SURFACE_COMMIT = 6;
     const uint WL_SURFACE_SET_BUFFER_SCALE = 8;
     const uint WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION = 3;
@@ -18,6 +21,7 @@ public static unsafe partial class Glfw
     const uint WL_SEAT_RELEASE_SINCE_VERSION = 5;
     const uint WL_POINTER_RELEASE = 1;
     const uint WL_POINTER_RELEASE_SINCE_VERSION = 3;
+    const uint WL_BUFFER_DESTROY = 0;
     const uint WL_MARSHAL_FLAG_DESTROY = 1;
     const uint XDG_WM_BASE_DESTROY = 0;
     const uint XDG_WM_BASE_GET_XDG_SURFACE = 2;
@@ -252,6 +256,50 @@ public static unsafe partial class Glfw
         _glfwWaylandXdgSurfaceInterface = surface;
         _glfwWaylandXdgToplevelInterface = toplevel;
         _glfwWaylandXdgPopupInterface = popup;
+
+        return GLFW_TRUE;
+    }
+
+    static int wayland_loadCursorTheme()
+    {
+        if (_glfw.wl.cursor.handle == null ||
+            _glfw.wl.cursor.theme_load == null ||
+            _glfw.wl.cursor.theme_destroy == null ||
+            _glfw.wl.cursor.theme_get_cursor == null ||
+            _glfw.wl.cursor.image_get_buffer == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to load libwayland-cursor entry point");
+            return GLFW_FALSE;
+        }
+
+        var cursorSize = 16;
+        var sizeString = Environment.GetEnvironmentVariable("XCURSOR_SIZE");
+        if (int.TryParse(sizeString, out var parsedSize) && parsedSize > 0)
+            cursorSize = parsedSize;
+
+        var themeString = Environment.GetEnvironmentVariable("XCURSOR_THEME");
+        var themeBytes = string.IsNullOrEmpty(themeString)
+            ? null
+            : Encoding.UTF8.GetBytes(themeString + '\0');
+
+        fixed (byte* themeName = themeBytes)
+        {
+            _glfw.wl.cursorTheme = _glfw.wl.cursor.theme_load(themeName, cursorSize, _glfw.wl.shm);
+            if (_glfw.wl.cursorTheme == null)
+            {
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to load default cursor theme");
+                return GLFW_FALSE;
+            }
+
+            _glfw.wl.cursorThemeHiDPI = _glfw.wl.cursor.theme_load(themeName, cursorSize * 2, _glfw.wl.shm);
+        }
+
+        _glfw.wl.cursorSurface = wayland_compositorCreateSurface();
+        if (_glfw.wl.cursorSurface == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create cursor surface");
+            return GLFW_FALSE;
+        }
 
         return GLFW_TRUE;
     }
@@ -567,6 +615,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_object =
             (delegate* unmanaged<void*, uint, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
+        _glfw.wl.client.proxy_marshal_object_int_int =
+            (delegate* unmanaged<void*, uint, void*, int, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_uint_object_int_int =
             (delegate* unmanaged<void*, uint, uint, void*, int, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_int_int =
@@ -620,6 +670,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal_uint == null ||
             _glfw.wl.client.proxy_marshal_int == null ||
             _glfw.wl.client.proxy_marshal_object == null ||
+            _glfw.wl.client.proxy_marshal_object_int_int == null ||
             _glfw.wl.client.proxy_marshal_uint_object_int_int == null ||
             _glfw.wl.client.proxy_marshal_int_int == null ||
             _glfw.wl.client.proxy_marshal_int_int_int_int == null ||
@@ -719,6 +770,9 @@ public static unsafe partial class Glfw
             return GLFW_FALSE;
         }
 
+        if (wayland_loadCursorTheme() == 0)
+            return GLFW_FALSE;
+
         return GLFW_TRUE;
     }
 
@@ -743,6 +797,7 @@ public static unsafe partial class Glfw
         wayland_proxyDestroy(_glfw.wl.dataDeviceManager);
         wayland_seatDestroy(_glfw.wl.seat);
         wayland_proxyDestroy(_glfw.wl.shm);
+        wayland_proxyDestroyWithOpcode(_glfw.wl.cursorSurface, WL_SURFACE_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.subcompositor, 0);
         wayland_proxyDestroy(_glfw.wl.compositor);
         wayland_proxyDestroy(_glfw.wl.registry);

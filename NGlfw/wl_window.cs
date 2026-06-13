@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace NGlfw;
 
@@ -39,6 +40,24 @@ public static unsafe partial class Glfw
         public nuint size;
         public nuint alloc;
         public void* data;
+    }
+#pragma warning restore CS0649
+
+#pragma warning disable CS0649
+    struct wl_cursor_image
+    {
+        public uint width;
+        public uint height;
+        public uint hotspot_x;
+        public uint hotspot_y;
+        public uint delay;
+    }
+
+    struct wl_cursor
+    {
+        public uint image_count;
+        public wl_cursor_image** images;
+        public byte* name;
     }
 #pragma warning restore CS0649
 
@@ -193,7 +212,7 @@ public static unsafe partial class Glfw
             return;
 
         window->wl.bufferScale = scale;
-        _glfw.wl.client.proxy_marshal_int(window->wl.surface, WL_SURFACE_SET_BUFFER_SCALE, scale);
+        wayland_surfaceSetBufferScale(window->wl.surface, scale);
 
         window->wl.fbWidth = window->wl.width * scale;
         window->wl.fbHeight = window->wl.height * scale;
@@ -209,6 +228,31 @@ public static unsafe partial class Glfw
     {
         if (surface != null && _glfw.wl.client.proxy_marshal != null)
             _glfw.wl.client.proxy_marshal(surface, WL_SURFACE_COMMIT);
+    }
+
+    static void wayland_surfaceAttach(void* surface, void* buffer, int x, int y)
+    {
+        if (surface != null && _glfw.wl.client.proxy_marshal_object_int_int != null)
+            _glfw.wl.client.proxy_marshal_object_int_int(surface, WL_SURFACE_ATTACH, buffer, x, y);
+    }
+
+    static void wayland_surfaceDamage(void* surface, int x, int y, int width, int height)
+    {
+        if (surface != null && _glfw.wl.client.proxy_marshal_int_int_int_int != null)
+            _glfw.wl.client.proxy_marshal_int_int_int_int(surface, WL_SURFACE_DAMAGE, x, y, width, height);
+    }
+
+    static void wayland_surfaceSetBufferScale(void* surface, int scale)
+    {
+        if (surface == null ||
+            _glfw.wl.client.proxy_marshal_int == null ||
+            _glfw.wl.client.proxy_get_version == null ||
+            _glfw.wl.client.proxy_get_version(surface) < WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION)
+        {
+            return;
+        }
+
+        _glfw.wl.client.proxy_marshal_int(surface, WL_SURFACE_SET_BUFFER_SCALE, scale);
     }
 
     static int wayland_proxyHasTag(void* proxy)
@@ -314,6 +358,16 @@ public static unsafe partial class Glfw
             return (int)(button - BTN_LEFT);
 
         return -1;
+    }
+
+    static void* wayland_themeGetCursor(void* theme, string name)
+    {
+        if (theme == null || _glfw.wl.cursor.theme_get_cursor == null)
+            return null;
+
+        var bytes = Encoding.UTF8.GetBytes(name + '\0');
+        fixed (byte* cursorName = bytes)
+            return _glfw.wl.cursor.theme_get_cursor(theme, cursorName);
     }
 
     static void wayland_pointerSetCursor(void* pointer, uint serial, void* surface, int xhot, int yhot)
@@ -1263,16 +1317,138 @@ public static unsafe partial class Glfw
         return GLFW_TRUE;
     }
 
+    static string? wayland_getXdgCursorName(int shape)
+    {
+        return shape switch
+        {
+            GLFW_ARROW_CURSOR => "default",
+            GLFW_IBEAM_CURSOR => "text",
+            GLFW_CROSSHAIR_CURSOR => "crosshair",
+            GLFW_POINTING_HAND_CURSOR => "pointer",
+            GLFW_RESIZE_EW_CURSOR => "ew-resize",
+            GLFW_RESIZE_NS_CURSOR => "ns-resize",
+            GLFW_RESIZE_NWSE_CURSOR => "nwse-resize",
+            GLFW_RESIZE_NESW_CURSOR => "nesw-resize",
+            GLFW_RESIZE_ALL_CURSOR => "all-scroll",
+            GLFW_NOT_ALLOWED_CURSOR => "not-allowed",
+            _ => null
+        };
+    }
+
+    static string? wayland_getCoreCursorName(int shape)
+    {
+        return shape switch
+        {
+            GLFW_ARROW_CURSOR => "left_ptr",
+            GLFW_IBEAM_CURSOR => "xterm",
+            GLFW_CROSSHAIR_CURSOR => "crosshair",
+            GLFW_POINTING_HAND_CURSOR => "hand2",
+            GLFW_RESIZE_EW_CURSOR => "sb_h_double_arrow",
+            GLFW_RESIZE_NS_CURSOR => "sb_v_double_arrow",
+            GLFW_RESIZE_ALL_CURSOR => "fleur",
+            _ => null
+        };
+    }
+
     static int _glfwCreateStandardCursorWayland(_GLFWcursor* cursor, int shape)
     {
+        var name = wayland_getXdgCursorName(shape);
+        if (name == null)
+        {
+            _glfwInputError(GLFW_CURSOR_UNAVAILABLE, "Wayland: Standard cursor shape unavailable");
+            return GLFW_FALSE;
+        }
+
+        cursor->wl.cursor = wayland_themeGetCursor(_glfw.wl.cursorTheme, name);
+        if (_glfw.wl.cursorThemeHiDPI != null)
+            cursor->wl.cursorHiDPI = wayland_themeGetCursor(_glfw.wl.cursorThemeHiDPI, name);
+
+        if (cursor->wl.cursor == null)
+        {
+            name = wayland_getCoreCursorName(shape);
+            if (name == null)
+            {
+                _glfwInputError(GLFW_CURSOR_UNAVAILABLE, "Wayland: Standard cursor shape unavailable");
+                return GLFW_FALSE;
+            }
+
+            cursor->wl.cursor = wayland_themeGetCursor(_glfw.wl.cursorTheme, name);
+            if (cursor->wl.cursor == null)
+            {
+                _glfwInputError(GLFW_CURSOR_UNAVAILABLE, "Wayland: Failed to create standard cursor \"{0}\"", name);
+                return GLFW_FALSE;
+            }
+
+            if (_glfw.wl.cursorThemeHiDPI != null && cursor->wl.cursorHiDPI == null)
+                cursor->wl.cursorHiDPI = wayland_themeGetCursor(_glfw.wl.cursorThemeHiDPI, name);
+        }
+
         return GLFW_TRUE;
     }
 
     static void _glfwDestroyCursorWayland(_GLFWcursor* cursor)
     {
-        if (cursor->wl.buffer != null && _glfw.wl.client.proxy_destroy != null)
-            _glfw.wl.client.proxy_destroy(cursor->wl.buffer);
+        if (cursor->wl.cursor != null)
+            return;
+
+        if (cursor->wl.buffer != null)
+            wayland_proxyDestroyWithOpcode(cursor->wl.buffer, WL_BUFFER_DESTROY);
         cursor->wl = default;
+    }
+
+    static void wayland_setCursorImage(_GLFWwindow* window, _GLFWcursorWayland* cursorWayland)
+    {
+        if (_glfw.wl.pointer == null || _glfw.wl.cursorSurface == null)
+            return;
+
+        if (cursorWayland->cursor != null)
+        {
+            var cursor = (wl_cursor*)cursorWayland->cursor;
+            var scale = 1;
+
+            if (window->wl.bufferScale > 1 && cursorWayland->cursorHiDPI != null)
+            {
+                cursor = (wl_cursor*)cursorWayland->cursorHiDPI;
+                scale = 2;
+            }
+
+            if (cursor == null || cursor->image_count == 0 || cursor->images == null)
+                return;
+
+            var image = cursor->images[0];
+            if (image == null)
+                return;
+
+            var buffer = _glfw.wl.cursor.image_get_buffer != null
+                ? _glfw.wl.cursor.image_get_buffer(image)
+                : null;
+            if (buffer == null)
+                return;
+
+            wayland_pointerSetCursor(_glfw.wl.pointer,
+                _glfw.wl.pointerEnterSerial,
+                _glfw.wl.cursorSurface,
+                (int)(image->hotspot_x / scale),
+                (int)(image->hotspot_y / scale));
+            wayland_surfaceSetBufferScale(_glfw.wl.cursorSurface, scale);
+            wayland_surfaceAttach(_glfw.wl.cursorSurface, buffer, 0, 0);
+            wayland_surfaceDamage(_glfw.wl.cursorSurface, 0, 0, (int)image->width, (int)image->height);
+            wayland_surfaceCommit(_glfw.wl.cursorSurface);
+            return;
+        }
+
+        if (cursorWayland->buffer != null)
+        {
+            wayland_pointerSetCursor(_glfw.wl.pointer,
+                _glfw.wl.pointerEnterSerial,
+                _glfw.wl.cursorSurface,
+                cursorWayland->xhot,
+                cursorWayland->yhot);
+            wayland_surfaceSetBufferScale(_glfw.wl.cursorSurface, 1);
+            wayland_surfaceAttach(_glfw.wl.cursorSurface, cursorWayland->buffer, 0, 0);
+            wayland_surfaceDamage(_glfw.wl.cursorSurface, 0, 0, cursorWayland->width, cursorWayland->height);
+            wayland_surfaceCommit(_glfw.wl.cursorSurface);
+        }
     }
 
     static void _glfwSetCursorWayland(_GLFWwindow* window, _GLFWcursor* cursor)
@@ -1286,6 +1462,23 @@ public static unsafe partial class Glfw
             window->cursorMode == GLFW_CURSOR_DISABLED)
         {
             wayland_pointerSetCursor(_glfw.wl.pointer, _glfw.wl.pointerEnterSerial, null, 0, 0);
+        }
+        else
+        {
+            if (cursor != null)
+                wayland_setCursorImage(window, &cursor->wl);
+            else
+            {
+                _GLFWcursorWayland defaultCursor = default;
+                defaultCursor.cursor = wayland_themeGetCursor(_glfw.wl.cursorTheme, "left_ptr");
+                if (_glfw.wl.cursorThemeHiDPI != null)
+                    defaultCursor.cursorHiDPI = wayland_themeGetCursor(_glfw.wl.cursorThemeHiDPI, "left_ptr");
+
+                if (defaultCursor.cursor == null)
+                    _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Standard cursor not found");
+                else
+                    wayland_setCursorImage(window, &defaultCursor);
+            }
         }
     }
 
