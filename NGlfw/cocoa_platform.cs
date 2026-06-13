@@ -34,6 +34,12 @@ public static unsafe partial class Glfw
     const long NSEventTypeApplicationDefined = 15;
     const ulong NSBitmapFormatAlphaNonpremultiplied = 1;
     const ulong NSDragOperationGeneric = 4;
+    const ulong NSTrackingMouseEnteredAndExited = 1;
+    const ulong NSTrackingCursorUpdate = 1 << 2;
+    const ulong NSTrackingActiveInKeyWindow = 1 << 5;
+    const ulong NSTrackingAssumeInside = 1 << 8;
+    const ulong NSTrackingInVisibleRect = 1 << 9;
+    const ulong NSTrackingEnabledDuringMouseDrag = 1 << 10;
 
     static readonly byte* _glfwCocoaMappingName = _glfw_allocate_static_string("Mac OS X");
     static readonly byte* _glfwCocoaPasteboardTypeString = _glfw_allocate_static_string("public.utf8-plain-text");
@@ -73,6 +79,7 @@ public static unsafe partial class Glfw
         public void* view;
         public void* layer;
         public void* markedText;
+        public void* trackingArea;
         public int maximized;
         public int iconified;
         public int visible;
@@ -591,6 +598,9 @@ public static unsafe partial class Glfw
                 class_addMethod(cls, cocoa_sel("drawRect:"),
                     (void*)(delegate* unmanaged<void*, nint, NSRect, void>)&cocoa_viewDrawRect,
                     drawRectTypesPtr);
+                class_addMethod(cls, cocoa_sel("updateTrackingAreas"),
+                    (void*)(delegate* unmanaged<void*, nint, void>)&cocoa_viewUpdateTrackingAreas,
+                    voidTypesPtr);
                 class_addMethod(cls, cocoa_sel("mouseDown:"),
                     (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_viewMouseDown,
                     eventVoidTypesPtr);
@@ -911,6 +921,41 @@ public static unsafe partial class Glfw
         var window = cocoa_getObjectWindow(self);
         if (window != null)
             _glfwInputWindowDamage(window);
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_viewUpdateTrackingAreas(void* self, nint cmd)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null)
+            return;
+
+        if (window->ns.trackingArea != null)
+        {
+            cocoa_msgSend_void_ptr(self, "removeTrackingArea:", window->ns.trackingArea);
+            cocoa_msgSend_void(window->ns.trackingArea, "release");
+            window->ns.trackingArea = null;
+        }
+
+        var options = NSTrackingMouseEnteredAndExited |
+                      NSTrackingActiveInKeyWindow |
+                      NSTrackingEnabledDuringMouseDrag |
+                      NSTrackingCursorUpdate |
+                      NSTrackingInVisibleRect |
+                      NSTrackingAssumeInside;
+
+        var allocated = cocoa_msgSend_id(cocoa_getClass("NSTrackingArea"), "alloc");
+        if (allocated == null)
+            return;
+
+        window->ns.trackingArea = objc_msgSend_id_rect_ulong_ptr_ptr(allocated,
+            cocoa_sel("initWithRect:options:owner:userInfo:"),
+            objc_msgSend_rect(self, cocoa_sel("bounds")),
+            options,
+            self,
+            null);
+        if (window->ns.trackingArea != null)
+            cocoa_msgSend_void_ptr(self, "addTrackingArea:", window->ns.trackingArea);
     }
 
     static int cocoa_eventMods(void* eventObject)
@@ -1401,6 +1446,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void* objc_msgSend_id_rect(void* receiver, nint selector, NSRect rect);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void* objc_msgSend_id_rect_ulong_ptr_ptr(void* receiver, nint selector, NSRect rect, ulong value1, void* value2, void* value3);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void* objc_msgSend_id_rect_ulong_long_bool(void* receiver, nint selector, NSRect rect, ulong value1, long value2, byte value3);

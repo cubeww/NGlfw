@@ -132,6 +132,7 @@ public static unsafe partial class Glfw
         cocoa_setObjectWindow(window->ns.view, window);
 
         window->ns.markedText = cocoa_msgSend_id(cocoa_msgSend_id(cocoa_getClass("NSMutableAttributedString"), "alloc"), "init");
+        cocoa_msgSend_void(window->ns.view, "updateTrackingAreas");
 
         var urlType = cocoa_stringFromUTF8(_glfwCocoaPasteboardTypeURL);
         var draggedTypes = cocoa_msgSend_id_ptr(cocoa_getClass("NSArray"), "arrayWithObject:", urlType);
@@ -296,6 +297,13 @@ public static unsafe partial class Glfw
         cocoa_clearObjectWindow(window->ns.delegateObject);
         cocoa_msgSend_void(window->ns.delegateObject, "release");
         window->ns.delegateObject = null;
+
+        if (window->ns.trackingArea != null)
+        {
+            cocoa_msgSend_void_ptr(window->ns.view, "removeTrackingArea:", window->ns.trackingArea);
+            cocoa_msgSend_void(window->ns.trackingArea, "release");
+            window->ns.trackingArea = null;
+        }
 
         cocoa_clearObjectWindow(window->ns.view);
         cocoa_msgSend_void(window->ns.view, "release");
