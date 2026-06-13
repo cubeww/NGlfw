@@ -3870,13 +3870,8 @@ public static unsafe partial class Glfw
         if (window->wl.libdecor.frame != null)
             wayland_commitLibdecorFrame(window, null, window->wl.width, window->wl.height);
 
-        _glfwInputWindowSize(window, window->wl.width, window->wl.height);
-
         if (window->wl.visible != 0)
-        {
-            wayland_surfaceCommit(window->wl.surface);
             _glfwInputWindowDamage(window);
-        }
     }
 
     static void _glfwSetWindowSizeLimitsWayland(_GLFWwindow* window,
@@ -3929,10 +3924,7 @@ public static unsafe partial class Glfw
         _glfwInputWindowSize(window, window->wl.width, window->wl.height);
 
         if (window->wl.visible != 0)
-        {
-            wayland_surfaceCommit(window->wl.surface);
             _glfwInputWindowDamage(window);
-        }
     }
 
     static void _glfwGetFramebufferSizeWayland(_GLFWwindow* window, int* width, int* height)
