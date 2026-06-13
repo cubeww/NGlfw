@@ -46,6 +46,9 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwX11ClientWindowName;
     static readonly byte* _glfwX11FocusWindowName;
     static readonly byte* _glfwX11FilterEventsName;
+    static readonly byte* _glfwX11QueryInputStyleName;
+    static readonly byte* _glfwX11DestroyCallbackName;
+    static readonly byte* _glfwX11EmptyString;
     static readonly byte* _glfwWin32MappingName;
 
     static Glfw()
@@ -61,6 +64,9 @@ public static unsafe partial class Glfw
         _glfwX11ClientWindowName = _glfw_allocate_static_string("clientWindow");
         _glfwX11FocusWindowName = _glfw_allocate_static_string("focusWindow");
         _glfwX11FilterEventsName = _glfw_allocate_static_string("filterEvents");
+        _glfwX11QueryInputStyleName = _glfw_allocate_static_string("queryInputStyle");
+        _glfwX11DestroyCallbackName = _glfw_allocate_static_string("destroyCallback");
+        _glfwX11EmptyString = _glfw_allocate_static_string("");
         _glfwWin32MappingName = _glfw_allocate_static_string("Windows");
         _glfwInitHints = default;
         _glfwInitHints.hatButtons = GLFW_TRUE;
@@ -702,11 +708,17 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, nuint, byte*, byte*, byte**, int, void*, void*, void*, void> Xutf8SetWMProperties;
         public delegate* unmanaged<void*, void*, byte*, byte*, void*> XOpenIM;
         public delegate* unmanaged<void*, int> XCloseIM;
-        public delegate* unmanaged<void*, byte*, nuint, byte*, nuint, byte*, nuint, void*, void*> XCreateIC;
+        public delegate* unmanaged<void*, byte*, nuint, byte*, nuint, byte*, nuint, byte*, XIMCallback*, void*, void*> XCreateIC;
         public delegate* unmanaged<void*, void> XDestroyIC;
+        public delegate* unmanaged<void*, byte*, XIMStyles**, void*, byte*> XGetIMValues;
+        public delegate* unmanaged<void*, byte*, XIMCallback*, void*, byte*> XSetIMValues;
         public delegate* unmanaged<void*, byte*, ulong*, void*, byte*> XGetICValues;
         public delegate* unmanaged<void*, void> XSetICFocus;
         public delegate* unmanaged<void*, void> XUnsetICFocus;
+        public delegate* unmanaged<void*, void*, byte*, byte*, delegate* unmanaged<void*, void*, void*, void>, void*, int> XRegisterIMInstantiateCallback;
+        public delegate* unmanaged<void*, void*, byte*, byte*, delegate* unmanaged<void*, void*, void*, void>, void*, int> XUnregisterIMInstantiateCallback;
+        public delegate* unmanaged<int> XSupportsLocale;
+        public delegate* unmanaged<byte*, byte*> XSetLocaleModifiers;
         public delegate* unmanaged<void*, XEvent*, byte*, int, nuint*, int*, int> Xutf8LookupString;
         public delegate* unmanaged<XEvent*, nuint, int> XFilterEvent;
         public delegate* unmanaged<void*, nuint, nuint, nuint, int, int, byte*, int, int> XChangeProperty;
@@ -1062,6 +1074,18 @@ public static unsafe partial class Glfw
         public byte error_code;
         public byte request_code;
         public byte minor_code;
+    }
+
+    public struct XIMStyles
+    {
+        public ushort count_styles;
+        public nuint* supported_styles;
+    }
+
+    public struct XIMCallback
+    {
+        public void* client_data;
+        public void* callback;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 192)]

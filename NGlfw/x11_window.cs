@@ -1403,6 +1403,10 @@ public static unsafe partial class Glfw
         if (_glfw.x11.im == null || _glfw.x11.XCreateIC == null)
             return;
 
+        XIMCallback callback = default;
+        callback.client_data = window;
+        callback.callback = (void*)(delegate* unmanaged<void*, void*, void*, void>)&x11_inputContextDestroyCallback;
+
         window->x11.ic = _glfw.x11.XCreateIC(_glfw.x11.im,
             _glfwX11InputStyleName,
             (nuint)(XIMPreeditNothing | XIMStatusNothing),
@@ -1410,6 +1414,8 @@ public static unsafe partial class Glfw
             window->x11.handle,
             _glfwX11FocusWindowName,
             window->x11.handle,
+            _glfwX11DestroyCallbackName,
+            &callback,
             null);
 
         if (window->x11.ic != null &&
@@ -1427,6 +1433,14 @@ public static unsafe partial class Glfw
                     (nint)(GLFW_X11_WINDOW_EVENT_MASK | (long)filter));
             }
         }
+    }
+
+    [UnmanagedCallersOnly]
+    static void x11_inputContextDestroyCallback(void* ic, void* clientData, void* callData)
+    {
+        var window = (_GLFWwindow*)clientData;
+        if (window != null && window->x11.ic == ic)
+            window->x11.ic = null;
     }
 
     static void x11_destroyInputContext(_GLFWwindow* window)

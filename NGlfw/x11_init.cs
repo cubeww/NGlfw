@@ -390,12 +390,104 @@ public static unsafe partial class Glfw
         _glfw.x11.x11xcbConnection = _glfw.x11.XGetXCBConnection(_glfw.x11.display);
     }
 
-    static void x11_initXIM()
+    static int x11_hasUsableInputMethodStyle()
     {
-        if (_glfw.x11.XOpenIM == null)
+        if (_glfw.x11.im == null || _glfw.x11.XGetIMValues == null)
+            return GLFW_TRUE;
+
+        XIMStyles* styles = null;
+        if (_glfw.x11.XGetIMValues(_glfw.x11.im,
+                _glfwX11QueryInputStyleName,
+                &styles,
+                null) != null)
+        {
+            return GLFW_FALSE;
+        }
+
+        var found = GLFW_FALSE;
+        if (styles != null)
+        {
+            for (var i = 0; i < styles->count_styles; i++)
+            {
+                if (styles->supported_styles[i] == (XIMPreeditNothing | XIMStatusNothing))
+                {
+                    found = GLFW_TRUE;
+                    break;
+                }
+            }
+
+            if (_glfw.x11.XFree != null)
+                _glfw.x11.XFree(styles);
+        }
+
+        return found;
+    }
+
+    [UnmanagedCallersOnly]
+    static void x11_inputMethodDestroyCallback(void* im, void* clientData, void* callData)
+    {
+        if (_glfw.x11.im == im)
+            _glfw.x11.im = null;
+    }
+
+    static void x11_instantiateInputMethod()
+    {
+        if (_glfw.x11.im != null || _glfw.x11.XOpenIM == null)
             return;
 
         _glfw.x11.im = _glfw.x11.XOpenIM(_glfw.x11.display, null, null, null);
+        if (_glfw.x11.im != null && x11_hasUsableInputMethodStyle() == 0)
+        {
+            if (_glfw.x11.XCloseIM != null)
+                _glfw.x11.XCloseIM(_glfw.x11.im);
+            _glfw.x11.im = null;
+        }
+
+        if (_glfw.x11.im == null)
+            return;
+
+        if (_glfw.x11.XSetIMValues != null)
+        {
+            XIMCallback callback = default;
+            callback.callback = (void*)(delegate* unmanaged<void*, void*, void*, void>)&x11_inputMethodDestroyCallback;
+            _glfw.x11.XSetIMValues(_glfw.x11.im, _glfwX11DestroyCallbackName, &callback, null);
+        }
+
+        for (var window = _glfw.windowListHead; window != null; window = window->next)
+            x11_createInputContext(window);
+    }
+
+    [UnmanagedCallersOnly]
+    static void x11_inputMethodInstantiateCallback(void* display, void* clientData, void* callData)
+    {
+        x11_instantiateInputMethod();
+    }
+
+    static void x11_initXIM()
+    {
+        if (_glfw.x11.XOpenIM == null ||
+            _glfw.x11.Xutf8LookupString == null ||
+            (_glfw.x11.XSupportsLocale != null && _glfw.x11.XSupportsLocale() == 0))
+        {
+            return;
+        }
+
+        if (_glfw.x11.XSetLocaleModifiers != null)
+            _glfw.x11.XSetLocaleModifiers(_glfwX11EmptyString);
+
+        if (_glfw.x11.XRegisterIMInstantiateCallback != null)
+        {
+            _glfw.x11.XRegisterIMInstantiateCallback(_glfw.x11.display,
+                null,
+                null,
+                null,
+                &x11_inputMethodInstantiateCallback,
+                null);
+        }
+        else
+        {
+            x11_instantiateInputMethod();
+        }
     }
 
     static void x11_initXShape()
@@ -745,15 +837,27 @@ public static unsafe partial class Glfw
         _glfw.x11.XCloseIM =
             (delegate* unmanaged<void*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XCloseIM");
         _glfw.x11.XCreateIC =
-            (delegate* unmanaged<void*, byte*, nuint, byte*, nuint, byte*, nuint, void*, void*>)x11_getModuleSymbol(_glfw.x11.handle, "XCreateIC");
+            (delegate* unmanaged<void*, byte*, nuint, byte*, nuint, byte*, nuint, byte*, XIMCallback*, void*, void*>)x11_getModuleSymbol(_glfw.x11.handle, "XCreateIC");
         _glfw.x11.XDestroyIC =
             (delegate* unmanaged<void*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XDestroyIC");
+        _glfw.x11.XGetIMValues =
+            (delegate* unmanaged<void*, byte*, XIMStyles**, void*, byte*>)x11_getModuleSymbol(_glfw.x11.handle, "XGetIMValues");
+        _glfw.x11.XSetIMValues =
+            (delegate* unmanaged<void*, byte*, XIMCallback*, void*, byte*>)x11_getModuleSymbol(_glfw.x11.handle, "XSetIMValues");
         _glfw.x11.XGetICValues =
             (delegate* unmanaged<void*, byte*, ulong*, void*, byte*>)x11_getModuleSymbol(_glfw.x11.handle, "XGetICValues");
         _glfw.x11.XSetICFocus =
             (delegate* unmanaged<void*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XSetICFocus");
         _glfw.x11.XUnsetICFocus =
             (delegate* unmanaged<void*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XUnsetICFocus");
+        _glfw.x11.XRegisterIMInstantiateCallback =
+            (delegate* unmanaged<void*, void*, byte*, byte*, delegate* unmanaged<void*, void*, void*, void>, void*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XRegisterIMInstantiateCallback");
+        _glfw.x11.XUnregisterIMInstantiateCallback =
+            (delegate* unmanaged<void*, void*, byte*, byte*, delegate* unmanaged<void*, void*, void*, void>, void*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XUnregisterIMInstantiateCallback");
+        _glfw.x11.XSupportsLocale =
+            (delegate* unmanaged<int>)x11_getModuleSymbol(_glfw.x11.handle, "XSupportsLocale");
+        _glfw.x11.XSetLocaleModifiers =
+            (delegate* unmanaged<byte*, byte*>)x11_getModuleSymbol(_glfw.x11.handle, "XSetLocaleModifiers");
         _glfw.x11.Xutf8LookupString =
             (delegate* unmanaged<void*, XEvent*, byte*, int, nuint*, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "Xutf8LookupString");
         _glfw.x11.XFilterEvent =
@@ -946,6 +1050,16 @@ public static unsafe partial class Glfw
             _glfw.x11.XGetSelectionOwner(_glfw.x11.display, _glfw.x11.CLIPBOARD) == _glfw.x11.helperWindowHandle)
         {
             _glfwPushSelectionToManagerX11();
+        }
+
+        if (_glfw.x11.display != null && _glfw.x11.XUnregisterIMInstantiateCallback != null)
+        {
+            _glfw.x11.XUnregisterIMInstantiateCallback(_glfw.x11.display,
+                null,
+                null,
+                null,
+                &x11_inputMethodInstantiateCallback,
+                null);
         }
 
         if (_glfw.x11.im != null && _glfw.x11.XCloseIM != null)
