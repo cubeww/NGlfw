@@ -80,6 +80,27 @@ public static unsafe partial class Glfw
         return GLFW_TRUE;
     }
 
+    static void cocoa_registerUserDefaults()
+    {
+        var defaults = cocoa_msgSend_id(cocoa_getClass("NSUserDefaults"), "standardUserDefaults");
+        if (defaults == null)
+            return;
+
+        var key = cocoa_stringFromUTF8("ApplePressAndHoldEnabled");
+        if (key == null)
+            return;
+
+        var value = cocoa_msgSend_id_bool(cocoa_getClass("NSNumber"), "numberWithBool:", GLFW_FALSE);
+        var dictionary = objc_msgSend_id_ptr_ptr(cocoa_getClass("NSDictionary"),
+            cocoa_sel("dictionaryWithObject:forKey:"),
+            value,
+            key);
+        if (dictionary != null)
+            cocoa_msgSend_void_ptr(defaults, "registerDefaults:", dictionary);
+
+        cocoa_releaseTemporaryString(key);
+    }
+
     static void cocoa_createKeyTables()
     {
         fixed (short* keycodes = _glfw.ns.keycodes)
@@ -261,6 +282,7 @@ public static unsafe partial class Glfw
 
         cocoa_msgSend_void_ptr(app, "setDelegate:", _glfw.ns.delegateObject);
 
+        cocoa_registerUserDefaults();
         cocoa_createKeyTables();
         _glfwPollMonitorsCocoa();
         return GLFW_TRUE;
