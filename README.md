@@ -228,6 +228,8 @@ Implemented or partially implemented:
 - initial `xdg_surface` / `xdg_toplevel` creation, configure ack, close
   callback, title/app-id, fullscreen, maximize, minimize, and size-limit
   requests
+- initial `wl_surface` listener handling for output enter/leave and integer
+  buffer scale updates
 - Wayland EGL native window creation and EGL/OSMesa context creation path
 - basic Wayland monitor/window/native accessor entry points
 - Wayland EGL and Vulkan extension plumbing entry points
@@ -237,8 +239,8 @@ Known remaining work:
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
 - seat, pointer, keyboard, data-device, cursor theme, and XKB event handling
-- full `wl_surface` listeners for enter/leave/preferred scale, plus complete
-  xdg toplevel state parsing
+- preferred buffer scale/transform and fractional-scale protocol handling, plus
+  complete xdg toplevel state parsing
 - protocol requests for regions, opaque/input regions, buffer scale, and
   fractional scaling
 - libdecor and fallback decoration support

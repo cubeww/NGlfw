@@ -10,6 +10,8 @@ public static unsafe partial class Glfw
     const uint WL_COMPOSITOR_CREATE_SURFACE = 0;
     const uint WL_SURFACE_DESTROY = 0;
     const uint WL_SURFACE_COMMIT = 6;
+    const uint WL_SURFACE_SET_BUFFER_SCALE = 8;
+    const uint WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION = 3;
     const uint WL_OUTPUT_RELEASE = 0;
     const uint WL_MARSHAL_FLAG_DESTROY = 1;
     const uint XDG_WM_BASE_DESTROY = 0;
@@ -555,6 +557,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, byte*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_uint =
             (delegate* unmanaged<void*, uint, uint, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
+        _glfw.wl.client.proxy_marshal_int =
+            (delegate* unmanaged<void*, uint, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_object =
             (delegate* unmanaged<void*, uint, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_int_int =
@@ -605,6 +609,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal == null ||
             _glfw.wl.client.proxy_marshal_string == null ||
             _glfw.wl.client.proxy_marshal_uint == null ||
+            _glfw.wl.client.proxy_marshal_int == null ||
             _glfw.wl.client.proxy_marshal_object == null ||
             _glfw.wl.client.proxy_marshal_int_int == null ||
             _glfw.wl.client.proxy_marshal_int_int_int_int == null ||
@@ -739,11 +744,13 @@ public static unsafe partial class Glfw
         _glfw_free(_glfw.wl.offers);
         _glfw_free(_glfwWaylandRegistryListener);
         _glfw_free(_glfwWaylandOutputListener);
+        _glfw_free(_glfwWaylandSurfaceListener);
         _glfw_free(_glfwWaylandXdgWmBaseListener);
         _glfw_free(_glfwWaylandXdgSurfaceListener);
         _glfw_free(_glfwWaylandXdgToplevelListener);
         _glfwWaylandRegistryListener = null;
         _glfwWaylandOutputListener = null;
+        _glfwWaylandSurfaceListener = null;
         _glfwWaylandXdgWmBaseListener = null;
         _glfwWaylandXdgSurfaceListener = null;
         _glfwWaylandXdgToplevelListener = null;

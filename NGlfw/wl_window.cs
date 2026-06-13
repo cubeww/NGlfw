@@ -15,6 +15,14 @@ public static unsafe partial class Glfw
         public void* surface;
     }
 
+    struct wl_surface_listener
+    {
+        public delegate* unmanaged<void*, void*, void*, void> enter;
+        public delegate* unmanaged<void*, void*, void*, void> leave;
+        public delegate* unmanaged<void*, void*, int, void> preferred_buffer_scale;
+        public delegate* unmanaged<void*, void*, uint, void> preferred_buffer_transform;
+    }
+
     struct xdg_surface_listener
     {
         public delegate* unmanaged<void*, void*, uint, void> configure;
@@ -26,8 +34,26 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, void> close;
     }
 
+    static wl_surface_listener* _glfwWaylandSurfaceListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
+
+    static wl_surface_listener* wayland_getSurfaceListener()
+    {
+        if (_glfwWaylandSurfaceListener == null)
+        {
+            _glfwWaylandSurfaceListener = (wl_surface_listener*)_glfw_calloc(1, (nuint)sizeof(wl_surface_listener));
+            if (_glfwWaylandSurfaceListener != null)
+            {
+                _glfwWaylandSurfaceListener->enter = &wayland_surfaceHandleEnter;
+                _glfwWaylandSurfaceListener->leave = &wayland_surfaceHandleLeave;
+                _glfwWaylandSurfaceListener->preferred_buffer_scale = &wayland_surfaceHandlePreferredBufferScale;
+                _glfwWaylandSurfaceListener->preferred_buffer_transform = &wayland_surfaceHandlePreferredBufferTransform;
+            }
+        }
+
+        return _glfwWaylandSurfaceListener;
+    }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
     {
@@ -58,18 +84,28 @@ public static unsafe partial class Glfw
 
     static void _glfwUpdateBufferScaleFromOutputsWayland(_GLFWwindow* window)
     {
+        if (window->wl.surface == null ||
+            _glfw.wl.client.proxy_marshal_int == null ||
+            _glfw.wl.client.proxy_get_version == null ||
+            _glfw.wl.client.proxy_get_version(window->wl.surface) < WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION)
+        {
+            return;
+        }
+
         var scale = 1;
 
         for (nuint i = 0; i < window->wl.outputScaleCount; i++)
             scale = _glfw_max(scale, window->wl.outputScales[i].factor);
 
-        if (window->wl.scaleFramebuffer == 0)
-            scale = 1;
+        if (window->wl.scaleFramebuffer == 0 || window->wl.fractionalScale != null)
+            return;
 
         if (window->wl.bufferScale == scale)
             return;
 
         window->wl.bufferScale = scale;
+        _glfw.wl.client.proxy_marshal_int(window->wl.surface, WL_SURFACE_SET_BUFFER_SCALE, scale);
+
         window->wl.fbWidth = window->wl.width * scale;
         window->wl.fbHeight = window->wl.height * scale;
 
@@ -84,6 +120,98 @@ public static unsafe partial class Glfw
     {
         if (surface != null && _glfw.wl.client.proxy_marshal != null)
             _glfw.wl.client.proxy_marshal(surface, WL_SURFACE_COMMIT);
+    }
+
+    static int wayland_proxyHasTag(void* proxy)
+    {
+        if (proxy == null || _glfw.wl.client.proxy_get_tag == null)
+            return GLFW_FALSE;
+
+        fixed (_GLFWlibrary* glfw = &_glfw)
+            return _glfw.wl.client.proxy_get_tag(proxy) == &glfw->wl.tag ? GLFW_TRUE : GLFW_FALSE;
+    }
+
+    static void wayland_surfaceAddOutputScale(_GLFWwindow* window, void* output, int factor)
+    {
+        if (window == null || output == null)
+            return;
+
+        for (nuint i = 0; i < window->wl.outputScaleCount; i++)
+        {
+            if (window->wl.outputScales[i].output == output)
+                return;
+        }
+
+        if (window->wl.outputScaleCount + 1 > window->wl.outputScaleSize)
+        {
+            var size = window->wl.outputScaleSize + 1;
+            var scales = (_GLFWscaleWayland*)_glfw_realloc(window->wl.outputScales,
+                (nuint)(size * (nuint)sizeof(_GLFWscaleWayland)));
+            if (scales == null)
+                return;
+
+            window->wl.outputScales = scales;
+            window->wl.outputScaleSize = size;
+        }
+
+        window->wl.outputScales[window->wl.outputScaleCount++] = new _GLFWscaleWayland
+        {
+            output = output,
+            factor = factor
+        };
+
+        _glfwUpdateBufferScaleFromOutputsWayland(window);
+    }
+
+    static void wayland_surfaceRemoveOutputScale(_GLFWwindow* window, void* output)
+    {
+        if (window == null || output == null)
+            return;
+
+        for (nuint i = 0; i < window->wl.outputScaleCount; i++)
+        {
+            if (window->wl.outputScales[i].output == output)
+            {
+                window->wl.outputScales[i] = window->wl.outputScales[window->wl.outputScaleCount - 1];
+                window->wl.outputScaleCount--;
+                break;
+            }
+        }
+
+        _glfwUpdateBufferScaleFromOutputsWayland(window);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_surfaceHandleEnter(void* userData, void* surface, void* output)
+    {
+        if (wayland_proxyHasTag(output) == 0 || _glfw.wl.client.proxy_get_user_data == null)
+            return;
+
+        var window = (_GLFWwindow*)userData;
+        var monitor = (_GLFWmonitor*)_glfw.wl.client.proxy_get_user_data(output);
+        if (window == null || monitor == null)
+            return;
+
+        wayland_surfaceAddOutputScale(window, output, monitor->wl.scale != 0 ? monitor->wl.scale : 1);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_surfaceHandleLeave(void* userData, void* surface, void* output)
+    {
+        if (wayland_proxyHasTag(output) == 0)
+            return;
+
+        wayland_surfaceRemoveOutputScale((_GLFWwindow*)userData, output);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_surfaceHandlePreferredBufferScale(void* userData, void* surface, int factor)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_surfaceHandlePreferredBufferTransform(void* userData, void* surface, uint transform)
+    {
     }
 
     static void* wayland_xdgWmBaseGetXdgSurface(void* wmBase, void* surface)
@@ -344,6 +472,14 @@ public static unsafe partial class Glfw
         if (window->wl.surface == null)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create window surface");
+            return GLFW_FALSE;
+        }
+
+        var surfaceListener = wayland_getSurfaceListener();
+        if (surfaceListener == null ||
+            _glfw.wl.client.proxy_add_listener(window->wl.surface, surfaceListener, window) != 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add surface listener");
             return GLFW_FALSE;
         }
 
