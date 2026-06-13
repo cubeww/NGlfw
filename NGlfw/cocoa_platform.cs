@@ -62,6 +62,7 @@ public static unsafe partial class Glfw
         public void* windowClass;
         public void* contentViewClass;
         public void* windowDelegateClass;
+        public void* applicationDelegateClass;
         public byte* clipboardString;
         public _GLFWwindow* disabledCursorWindow;
         public int cursorHidden;
@@ -531,6 +532,58 @@ public static unsafe partial class Glfw
         }
     }
 
+    static void* cocoa_registerApplicationDelegateClass()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return null;
+
+        if (_glfw.ns.applicationDelegateClass != null)
+            return _glfw.ns.applicationDelegateClass;
+
+        var existing = cocoa_lookUpClass("GLFWApplicationDelegate");
+        if (existing != null)
+        {
+            _glfw.ns.applicationDelegateClass = existing;
+            return existing;
+        }
+
+        var superclass = cocoa_getClass("NSObject");
+        var name = cocoa_ascii("GLFWApplicationDelegate");
+        fixed (byte* namePtr = name)
+        {
+            var cls = objc_allocateClassPair(superclass, namePtr, 0);
+            if (cls == null)
+                return null;
+
+            var applicationDelegateProtocol = cocoa_getProtocol("NSApplicationDelegate");
+            if (applicationDelegateProtocol != null)
+                class_addProtocol(cls, applicationDelegateProtocol);
+
+            var terminateTypes = cocoa_ascii("q@:@");
+            var voidTypes = cocoa_ascii("v@:@");
+            fixed (byte* terminateTypesPtr = terminateTypes)
+            fixed (byte* voidTypesPtr = voidTypes)
+            {
+                class_addMethod(cls, cocoa_sel("applicationShouldTerminate:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, long>)&cocoa_applicationShouldTerminate,
+                    terminateTypesPtr);
+                class_addMethod(cls, cocoa_sel("applicationDidChangeScreenParameters:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_applicationDidChangeScreenParameters,
+                    voidTypesPtr);
+                class_addMethod(cls, cocoa_sel("applicationDidFinishLaunching:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_applicationDidFinishLaunching,
+                    voidTypesPtr);
+                class_addMethod(cls, cocoa_sel("applicationDidHide:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_applicationDidHide,
+                    voidTypesPtr);
+            }
+
+            objc_registerClassPair(cls);
+            _glfw.ns.applicationDelegateClass = cls;
+            return cls;
+        }
+    }
+
     static void* cocoa_registerContentViewClass()
     {
         if (!OperatingSystem.IsMacOS())
@@ -874,6 +927,44 @@ public static unsafe partial class Glfw
         window->ns.occluded = (state & NSWindowOcclusionStateVisible) != 0
             ? GLFW_FALSE
             : GLFW_TRUE;
+    }
+
+    [UnmanagedCallersOnly]
+    static long cocoa_applicationShouldTerminate(void* self, nint cmd, void* sender)
+    {
+        for (var window = _glfw.windowListHead; window != null; window = window->next)
+            _glfwInputWindowCloseRequest(window);
+
+        return 0;
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_applicationDidChangeScreenParameters(void* self, nint cmd, void* notification)
+    {
+        for (var window = _glfw.windowListHead; window != null; window = window->next)
+        {
+            if (window->context.client != GLFW_NO_API &&
+                window->context.nsgl.@object != null)
+            {
+                cocoa_msgSend_void(window->context.nsgl.@object, "update");
+            }
+        }
+
+        _glfwPollMonitorsCocoa();
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_applicationDidFinishLaunching(void* self, nint cmd, void* notification)
+    {
+        _glfwPostEmptyEventCocoa();
+        cocoa_msgSend_void_ptr(cocoa_getNSApp(), "stop:", null);
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_applicationDidHide(void* self, nint cmd, void* notification)
+    {
+        for (var i = 0; i < _glfw.monitorCount; i++)
+            _glfwRestoreVideoModeCocoa(_glfw.monitors[i]);
     }
 
     [UnmanagedCallersOnly]

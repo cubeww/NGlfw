@@ -244,7 +244,22 @@ public static unsafe partial class Glfw
             return GLFW_FALSE;
         }
 
-        cocoa_getNSApp();
+        var app = cocoa_getNSApp();
+        var appDelegateClass = cocoa_registerApplicationDelegateClass();
+        if (app == null || appDelegateClass == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to initialize application delegate class");
+            return GLFW_FALSE;
+        }
+
+        _glfw.ns.delegateObject = cocoa_msgSend_id(cocoa_msgSend_id(appDelegateClass, "alloc"), "init");
+        if (_glfw.ns.delegateObject == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to create application delegate");
+            return GLFW_FALSE;
+        }
+
+        cocoa_msgSend_void_ptr(app, "setDelegate:", _glfw.ns.delegateObject);
 
         cocoa_createKeyTables();
         _glfwPollMonitorsCocoa();
@@ -258,6 +273,11 @@ public static unsafe partial class Glfw
 
         _glfw_free(_glfw.ns.clipboardString);
         _glfw.ns.clipboardString = null;
+
+        var app = cocoa_getNSApp();
+        cocoa_msgSend_void_ptr(app, "setDelegate:", null);
+        cocoa_msgSend_void(_glfw.ns.delegateObject, "release");
+        _glfw.ns.delegateObject = null;
 
         cocoa_drainAutoreleasePool(_glfw.ns.autoreleasePool);
         _glfw.ns.autoreleasePool = null;

@@ -112,6 +112,8 @@ Started, but not yet functional:
 - Cocoa platform selection and support detection
 - Objective-C runtime helper layer for classes, selectors, messages, and
   autorelease pools
+- basic `NSApplicationDelegate` registration for terminate requests, screen
+  parameter changes, finish-launch wakeup, and app hide video-mode restoration
 - Cocoa backend file skeletons for init, windows, monitors, cursors, clipboard,
   joysticks, Vulkan surface hooks, and native accessors
 - basic runtime `GLFWWindow` subclass registration through the Objective-C
@@ -156,8 +158,8 @@ Started, but not yet functional:
 
 Known remaining work:
 
-- real NSApplication delegate/helper behavior, menu bar setup, resource
-  directory handling, and launch lifecycle parity
+- full NSApplication helper behavior, menu bar setup, resource directory
+  handling, key-up monitor, press-and-hold defaults, and launch lifecycle parity
 - complete `NSView` / `NSTextInputClient` parity, including IME and
   drag-and-drop edge-case validation
 - full keyboard layout Unicode translation for scancode names
