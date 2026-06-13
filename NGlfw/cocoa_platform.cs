@@ -30,6 +30,7 @@ public static unsafe partial class Glfw
     const ulong NSEventModifierFlagOption = 1 << 19;
     const ulong NSEventModifierFlagCommand = 1 << 20;
     const ulong NSEventModifierFlagDeviceIndependentFlagsMask = 0xffff0000;
+    const ulong NSEventMaskKeyUp = 1 << 11;
     const ulong NSEventMaskAny = ulong.MaxValue;
     const long NSEventTypeApplicationDefined = 15;
     const ulong NSBitmapFormatAlphaNonpremultiplied = 1;
@@ -82,6 +83,8 @@ public static unsafe partial class Glfw
     const uint kCFStringEncodingUTF8 = 0x08000100;
     const uint kIODisplayOnlyPreferredName = 0x00000100;
     const int _GLFW_COCOA_KEYNAME_LENGTH = 17;
+    const int BLOCK_IS_GLOBAL = 1 << 28;
+    const int BLOCK_HAS_SIGNATURE = 1 << 30;
 
     static readonly byte* _glfwCocoaMappingName = _glfw_allocate_static_string("Mac OS X");
     static readonly byte* _glfwCocoaPasteboardTypeString = _glfw_allocate_static_string("public.utf8-plain-text");
@@ -89,6 +92,7 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwCocoaRunLoopDefaultMode = _glfw_allocate_static_string("kCFRunLoopDefaultMode");
     static readonly byte* _glfwCocoaOpenGLBundleID = _glfw_allocate_static_string("com.apple.opengl");
     static readonly byte* _glfwCocoaHIToolboxBundleID = _glfw_allocate_static_string("com.apple.HIToolbox");
+    static readonly byte* _glfwCocoaEventBlockSignature = _glfw_allocate_static_string("@?@");
     static readonly object cocoaObjectMapLock = new();
     static readonly Dictionary<nint, nint> cocoaObjectWindows = new();
 
@@ -102,6 +106,8 @@ public static unsafe partial class Glfw
         public void* hidManager;
         public void* cursor;
         public void* keyUpMonitor;
+        public void* keyUpMonitorBlock;
+        public void* keyUpMonitorBlockDescriptor;
         public void* nibObjects;
         public void* windowClass;
         public void* contentViewClass;
@@ -192,6 +198,22 @@ public static unsafe partial class Glfw
     {
         public nint location;
         public nint length;
+    }
+
+    public struct ObjCBlockDescriptor
+    {
+        public nuint reserved;
+        public nuint size;
+        public void* signature;
+    }
+
+    public struct ObjCBlockLiteral
+    {
+        public void* isa;
+        public int flags;
+        public int reserved;
+        public delegate* unmanaged<void*, void*, void*> invoke;
+        public ObjCBlockDescriptor* descriptor;
     }
 
     public struct _GLFWmonitorNS
@@ -1738,6 +1760,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void* objc_msgSend_id_ulong(void* receiver, nint selector, ulong value);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void* objc_msgSend_id_ulong_ptr(void* receiver, nint selector, ulong value1, void* value2);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void* objc_msgSend_id_nint(void* receiver, nint selector, nint value);

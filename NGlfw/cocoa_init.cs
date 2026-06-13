@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace NGlfw;
 
 public static unsafe partial class Glfw
@@ -448,6 +450,78 @@ public static unsafe partial class Glfw
         cocoa_releaseTemporaryString(name);
     }
 
+    [UnmanagedCallersOnly]
+    static void* cocoa_keyUpMonitorBlockInvoke(void* block, void* eventObject)
+    {
+        if (eventObject != null &&
+            ((ulong)objc_msgSend_ulong(eventObject, cocoa_sel("modifierFlags")) & NSEventModifierFlagCommand) != 0)
+        {
+            var app = cocoa_getNSApp();
+            var keyWindow = cocoa_msgSend_id(app, "keyWindow");
+            cocoa_msgSend_void_ptr(keyWindow, "sendEvent:", eventObject);
+        }
+
+        return eventObject;
+    }
+
+    static void* cocoa_getNSConcreteGlobalBlock()
+    {
+        if (!NativeLibrary.TryLoad("/usr/lib/libSystem.B.dylib", out var handle))
+            return null;
+
+        return NativeLibrary.TryGetExport(handle, "_NSConcreteGlobalBlock", out var symbol)
+            ? (void*)symbol
+            : null;
+    }
+
+    static void cocoa_createKeyUpMonitor()
+    {
+        var blockClass = cocoa_getNSConcreteGlobalBlock();
+        if (blockClass == null)
+            return;
+
+        var descriptor = (ObjCBlockDescriptor*)NativeMemory.AllocZeroed((nuint)sizeof(ObjCBlockDescriptor));
+        var block = (ObjCBlockLiteral*)NativeMemory.AllocZeroed((nuint)sizeof(ObjCBlockLiteral));
+        if (descriptor == null || block == null)
+        {
+            NativeMemory.Free(descriptor);
+            NativeMemory.Free(block);
+            return;
+        }
+
+        descriptor->reserved = 0;
+        descriptor->size = (nuint)sizeof(ObjCBlockLiteral);
+        descriptor->signature = _glfwCocoaEventBlockSignature;
+
+        block->isa = blockClass;
+        block->flags = BLOCK_IS_GLOBAL | BLOCK_HAS_SIGNATURE;
+        block->reserved = 0;
+        block->invoke = &cocoa_keyUpMonitorBlockInvoke;
+        block->descriptor = descriptor;
+
+        _glfw.ns.keyUpMonitorBlock = block;
+        _glfw.ns.keyUpMonitorBlockDescriptor = descriptor;
+
+        _glfw.ns.keyUpMonitor = objc_msgSend_id_ulong_ptr(cocoa_getClass("NSEvent"),
+            cocoa_sel("addLocalMonitorForEventsMatchingMask:handler:"),
+            NSEventMaskKeyUp,
+            block);
+    }
+
+    static void cocoa_destroyKeyUpMonitor()
+    {
+        if (_glfw.ns.keyUpMonitor != null)
+        {
+            cocoa_msgSend_void_ptr(cocoa_getClass("NSEvent"), "removeMonitor:", _glfw.ns.keyUpMonitor);
+            _glfw.ns.keyUpMonitor = null;
+        }
+
+        NativeMemory.Free(_glfw.ns.keyUpMonitorBlock);
+        NativeMemory.Free(_glfw.ns.keyUpMonitorBlockDescriptor);
+        _glfw.ns.keyUpMonitorBlock = null;
+        _glfw.ns.keyUpMonitorBlockDescriptor = null;
+    }
+
     static void cocoa_removeKeyboardInputSourceObserver()
     {
         if (_glfw.ns.helper == null)
@@ -668,6 +742,7 @@ public static unsafe partial class Glfw
         }
 
         cocoa_msgSend_void_ptr(app, "setDelegate:", _glfw.ns.delegateObject);
+        cocoa_createKeyUpMonitor();
 
         if (_glfw.hints.init.ns.chdir != 0)
             cocoa_changeToResourcesDirectory();
@@ -710,6 +785,8 @@ public static unsafe partial class Glfw
         _glfw.ns.clipboardString = null;
 
         var app = cocoa_getNSApp();
+        cocoa_destroyKeyUpMonitor();
+
         cocoa_msgSend_void_ptr(app, "setDelegate:", null);
         cocoa_msgSend_void(_glfw.ns.delegateObject, "release");
         _glfw.ns.delegateObject = null;

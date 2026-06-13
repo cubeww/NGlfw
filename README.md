@@ -178,8 +178,7 @@ unverified on real macOS:
 
 Known remaining work:
 
-- remaining NSApplication behavior, including key-up monitor and launch
-  lifecycle validation
+- remaining NSApplication launch lifecycle validation
 - complete `NSView` / `NSTextInputClient` parity, including IME and
   drag-and-drop edge-case validation
 - NSGL runtime validation and edge-case parity for context hints unsupported by
