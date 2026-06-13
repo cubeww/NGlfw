@@ -247,6 +247,8 @@ Implemented or partially implemented:
 - clipboard string retrieval from Wayland selection offers
 - clipboard string ownership through `wl_data_source`, MIME offering, and
   compositor-requested data writes
+- `wl_region` creation, surface opaque-region hints for non-transparent
+  windows, and input-region updates for mouse passthrough
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
@@ -265,8 +267,7 @@ Known remaining work:
 - advanced pointer events, full disabled-cursor behavior, and
   interactive decoration move/resize paths
 - preferred buffer scale/transform and fractional-scale protocol handling
-- protocol requests for regions, opaque/input regions, buffer scale, and
-  fractional scaling
+- protocol requests for fractional scaling and related viewport plumbing
 - libdecor and fallback decoration support
 - drag-and-drop action/finish edge cases
 - runtime validation on a Wayland compositor

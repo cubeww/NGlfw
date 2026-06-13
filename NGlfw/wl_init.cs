@@ -10,12 +10,17 @@ public static unsafe partial class Glfw
     const uint WL_DISPLAY_GET_REGISTRY = 1;
     const uint WL_REGISTRY_BIND = 0;
     const uint WL_COMPOSITOR_CREATE_SURFACE = 0;
+    const uint WL_COMPOSITOR_CREATE_REGION = 1;
     const uint WL_SURFACE_DESTROY = 0;
     const uint WL_SURFACE_ATTACH = 1;
     const uint WL_SURFACE_DAMAGE = 2;
+    const uint WL_SURFACE_SET_OPAQUE_REGION = 4;
+    const uint WL_SURFACE_SET_INPUT_REGION = 5;
     const uint WL_SURFACE_COMMIT = 6;
     const uint WL_SURFACE_SET_BUFFER_SCALE = 8;
     const uint WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION = 3;
+    const uint WL_REGION_DESTROY = 0;
+    const uint WL_REGION_ADD = 1;
     const uint WL_OUTPUT_RELEASE = 0;
     const uint WL_SEAT_GET_POINTER = 0;
     const uint WL_SEAT_GET_KEYBOARD = 1;
@@ -1031,6 +1036,7 @@ public static unsafe partial class Glfw
         _glfw.wl.client.shmInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_shm_interface");
         _glfw.wl.client.shmPoolInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_shm_pool_interface");
         _glfw.wl.client.bufferInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_buffer_interface");
+        _glfw.wl.client.regionInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_region_interface");
         _glfw.wl.client.seatInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_seat_interface");
         _glfw.wl.client.pointerInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_pointer_interface");
         _glfw.wl.client.keyboardInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_keyboard_interface");
@@ -1080,6 +1086,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.shmInterface == null ||
             _glfw.wl.client.shmPoolInterface == null ||
             _glfw.wl.client.bufferInterface == null ||
+            _glfw.wl.client.regionInterface == null ||
             _glfw.wl.client.seatInterface == null ||
             _glfw.wl.client.pointerInterface == null ||
             _glfw.wl.client.keyboardInterface == null ||

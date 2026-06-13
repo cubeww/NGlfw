@@ -391,6 +391,61 @@ public static unsafe partial class Glfw
         _glfw.wl.client.proxy_marshal_int(surface, WL_SURFACE_SET_BUFFER_SCALE, scale);
     }
 
+    static void wayland_surfaceSetOpaqueRegion(void* surface, void* region)
+    {
+        if (surface != null && _glfw.wl.client.proxy_marshal_object != null)
+            _glfw.wl.client.proxy_marshal_object(surface, WL_SURFACE_SET_OPAQUE_REGION, region);
+    }
+
+    static void wayland_surfaceSetInputRegion(void* surface, void* region)
+    {
+        if (surface != null && _glfw.wl.client.proxy_marshal_object != null)
+            _glfw.wl.client.proxy_marshal_object(surface, WL_SURFACE_SET_INPUT_REGION, region);
+    }
+
+    static void* wayland_compositorCreateRegion()
+    {
+        if (_glfw.wl.compositor == null ||
+            _glfw.wl.client.regionInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor == null)
+        {
+            return null;
+        }
+
+        var region = _glfw.wl.client.proxy_marshal_constructor(_glfw.wl.compositor,
+            WL_COMPOSITOR_CREATE_REGION,
+            _glfw.wl.client.regionInterface,
+            null);
+
+        wayland_tagProxy(region);
+        return region;
+    }
+
+    static void wayland_regionAdd(void* region, int x, int y, int width, int height)
+    {
+        if (region != null && _glfw.wl.client.proxy_marshal_int_int_int_int != null)
+            _glfw.wl.client.proxy_marshal_int_int_int_int(region, WL_REGION_ADD, x, y, width, height);
+    }
+
+    static void wayland_regionDestroy(void* region)
+    {
+        wayland_proxyDestroyWithOpcode(region, WL_REGION_DESTROY);
+    }
+
+    static void wayland_setContentAreaOpaque(_GLFWwindow* window)
+    {
+        if (window == null || window->wl.surface == null)
+            return;
+
+        var region = wayland_compositorCreateRegion();
+        if (region == null)
+            return;
+
+        wayland_regionAdd(region, 0, 0, window->wl.width, window->wl.height);
+        wayland_surfaceSetOpaqueRegion(window->wl.surface, region);
+        wayland_regionDestroy(region);
+    }
+
     static void* wayland_shmCreatePool(int fd, int size)
     {
         if (_glfw.wl.shm == null ||
@@ -1672,6 +1727,9 @@ public static unsafe partial class Glfw
         if (window->wl.egl.window != null && _glfw.wl.egl.window_resize != null)
             _glfw.wl.egl.window_resize(window->wl.egl.window, window->wl.fbWidth, window->wl.fbHeight, 0, 0);
 
+        if (window->wl.transparent == 0)
+            wayland_setContentAreaOpaque(window);
+
         wayland_xdgSurfaceSetWindowGeometry(window->wl.xdg.surface, 0, 0, width, height);
         wayland_surfaceCommit(window->wl.surface);
 
@@ -1905,6 +1963,9 @@ public static unsafe partial class Glfw
                 return GLFW_FALSE;
         }
 
+        if (window->wl.transparent == 0)
+            wayland_setContentAreaOpaque(window);
+
         if (wndconfig->mousePassthrough != 0)
             _glfwSetWindowMousePassthroughWayland(window, GLFW_TRUE);
 
@@ -1981,6 +2042,9 @@ public static unsafe partial class Glfw
 
         if (window->wl.egl.window != null && _glfw.wl.egl.window_resize != null)
             _glfw.wl.egl.window_resize(window->wl.egl.window, window->wl.fbWidth, window->wl.fbHeight, 0, 0);
+
+        if (window->wl.transparent == 0)
+            wayland_setContentAreaOpaque(window);
 
         _glfwInputWindowSize(window, width, height);
         _glfwInputFramebufferSize(window, window->wl.fbWidth, window->wl.fbHeight);
@@ -2161,6 +2225,18 @@ public static unsafe partial class Glfw
     static void _glfwSetWindowMousePassthroughWayland(_GLFWwindow* window, int enabled)
     {
         window->mousePassthrough = enabled;
+
+        if (window->wl.surface == null)
+            return;
+
+        if (enabled != 0)
+        {
+            var region = wayland_compositorCreateRegion();
+            wayland_surfaceSetInputRegion(window->wl.surface, region);
+            wayland_regionDestroy(region);
+        }
+        else
+            wayland_surfaceSetInputRegion(window->wl.surface, null);
     }
 
     static float _glfwGetWindowOpacityWayland(_GLFWwindow* window)

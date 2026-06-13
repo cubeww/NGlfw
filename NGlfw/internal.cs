@@ -763,6 +763,7 @@ public static unsafe partial class Glfw
         public void* shmInterface;
         public void* shmPoolInterface;
         public void* bufferInterface;
+        public void* regionInterface;
         public void* seatInterface;
         public void* pointerInterface;
         public void* keyboardInterface;
