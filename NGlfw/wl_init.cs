@@ -1137,6 +1137,122 @@ public static unsafe partial class Glfw
         return GLFW_TRUE;
     }
 
+    static void wayland_loadLibdecor()
+    {
+        if (_glfw.hints.init.wl.libdecorMode != GLFW_WAYLAND_PREFER_LIBDECOR)
+            return;
+
+        _glfw.wl.libdecor.handle = wayland_loadModule("libdecor-0.so.0");
+        if (_glfw.wl.libdecor.handle == null)
+            return;
+
+        _glfw.wl.libdecor.libdecor_new =
+            (delegate* unmanaged<void*, void*, void*>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_new");
+        _glfw.wl.libdecor.libdecor_unref =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_unref");
+        _glfw.wl.libdecor.libdecor_get_fd =
+            (delegate* unmanaged<void*, int>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_get_fd");
+        _glfw.wl.libdecor.libdecor_dispatch =
+            (delegate* unmanaged<void*, int, int>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_dispatch");
+        _glfw.wl.libdecor.libdecor_decorate =
+            (delegate* unmanaged<void*, void*, void*, void*, void*>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_decorate");
+        _glfw.wl.libdecor.libdecor_frame_unref =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_unref");
+        _glfw.wl.libdecor.libdecor_frame_set_app_id =
+            (delegate* unmanaged<void*, byte*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_app_id");
+        _glfw.wl.libdecor.libdecor_frame_set_title =
+            (delegate* unmanaged<void*, byte*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_title");
+        _glfw.wl.libdecor.libdecor_frame_set_minimized =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_minimized");
+        _glfw.wl.libdecor.libdecor_frame_set_fullscreen =
+            (delegate* unmanaged<void*, void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_fullscreen");
+        _glfw.wl.libdecor.libdecor_frame_unset_fullscreen =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_unset_fullscreen");
+        _glfw.wl.libdecor.libdecor_frame_map =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_map");
+        _glfw.wl.libdecor.libdecor_frame_commit =
+            (delegate* unmanaged<void*, void*, void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_commit");
+        _glfw.wl.libdecor.libdecor_frame_set_min_content_size =
+            (delegate* unmanaged<void*, int, int, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_min_content_size");
+        _glfw.wl.libdecor.libdecor_frame_set_max_content_size =
+            (delegate* unmanaged<void*, int, int, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_max_content_size");
+        _glfw.wl.libdecor.libdecor_frame_set_maximized =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_maximized");
+        _glfw.wl.libdecor.libdecor_frame_unset_maximized =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_unset_maximized");
+        _glfw.wl.libdecor.libdecor_frame_set_capabilities =
+            (delegate* unmanaged<void*, uint, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_capabilities");
+        _glfw.wl.libdecor.libdecor_frame_unset_capabilities =
+            (delegate* unmanaged<void*, uint, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_unset_capabilities");
+        _glfw.wl.libdecor.libdecor_frame_set_visibility =
+            (delegate* unmanaged<void*, byte, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_set_visibility");
+        _glfw.wl.libdecor.libdecor_frame_get_xdg_toplevel =
+            (delegate* unmanaged<void*, void*>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_frame_get_xdg_toplevel");
+        _glfw.wl.libdecor.libdecor_configuration_get_content_size =
+            (delegate* unmanaged<void*, void*, int*, int*, byte>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_configuration_get_content_size");
+        _glfw.wl.libdecor.libdecor_configuration_get_window_state =
+            (delegate* unmanaged<void*, uint*, byte>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_configuration_get_window_state");
+        _glfw.wl.libdecor.libdecor_state_new =
+            (delegate* unmanaged<int, int, void*>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_state_new");
+        _glfw.wl.libdecor.libdecor_state_free =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.libdecor.handle, "libdecor_state_free");
+
+        if (_glfw.wl.libdecor.libdecor_new == null ||
+            _glfw.wl.libdecor.libdecor_unref == null ||
+            _glfw.wl.libdecor.libdecor_get_fd == null ||
+            _glfw.wl.libdecor.libdecor_dispatch == null ||
+            _glfw.wl.libdecor.libdecor_decorate == null ||
+            _glfw.wl.libdecor.libdecor_frame_unref == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_app_id == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_title == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_minimized == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_fullscreen == null ||
+            _glfw.wl.libdecor.libdecor_frame_unset_fullscreen == null ||
+            _glfw.wl.libdecor.libdecor_frame_map == null ||
+            _glfw.wl.libdecor.libdecor_frame_commit == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_min_content_size == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_max_content_size == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_maximized == null ||
+            _glfw.wl.libdecor.libdecor_frame_unset_maximized == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_capabilities == null ||
+            _glfw.wl.libdecor.libdecor_frame_unset_capabilities == null ||
+            _glfw.wl.libdecor.libdecor_frame_set_visibility == null ||
+            _glfw.wl.libdecor.libdecor_frame_get_xdg_toplevel == null ||
+            _glfw.wl.libdecor.libdecor_configuration_get_content_size == null ||
+            _glfw.wl.libdecor.libdecor_configuration_get_window_state == null ||
+            _glfw.wl.libdecor.libdecor_state_new == null ||
+            _glfw.wl.libdecor.libdecor_state_free == null)
+        {
+            _glfwPlatformFreeModule(_glfw.wl.libdecor.handle);
+            _glfw.wl.libdecor = default;
+        }
+    }
+
+    static void wayland_initLibdecorContext()
+    {
+        if (_glfw.wl.libdecor.handle == null || _glfw.wl.libdecor.libdecor_new == null)
+            return;
+
+        var libdecorInterface = wayland_getLibdecorInterface();
+        if (libdecorInterface == null)
+            return;
+
+        _glfw.wl.libdecor.context = _glfw.wl.libdecor.libdecor_new(_glfw.wl.display, libdecorInterface);
+        if (_glfw.wl.libdecor.context == null)
+            return;
+
+        _glfw.wl.libdecor.libdecor_dispatch(_glfw.wl.libdecor.context, 0);
+
+        _glfw.wl.libdecor.callback = wayland_displaySyncCallback();
+        var readyListener = wayland_getLibdecorReadyListener();
+        if (_glfw.wl.libdecor.callback != null &&
+            readyListener != null &&
+            _glfw.wl.client.proxy_add_listener != null)
+        {
+            _glfw.wl.client.proxy_add_listener(_glfw.wl.libdecor.callback, readyListener, null);
+        }
+    }
+
     static wl_registry_listener* wayland_getRegistryListener()
     {
         if (_glfwWaylandRegistryListener == null)
@@ -1689,6 +1805,8 @@ public static unsafe partial class Glfw
         if (wayland_loadXkb() == 0)
             return GLFW_FALSE;
 
+        wayland_loadLibdecor();
+
         if (wayland_initXdgShellInterfaces() == 0)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize xdg-shell protocol tables");
@@ -1741,6 +1859,8 @@ public static unsafe partial class Glfw
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to process initial registry events");
             return GLFW_FALSE;
         }
+
+        wayland_initLibdecorContext();
 
         if (_glfw.wl.seat != null &&
             _glfw.wl.client.proxy_get_version != null &&
@@ -1816,6 +1936,22 @@ public static unsafe partial class Glfw
         if (_glfw.wl.selectionSource != null)
             wayland_dataSourceDestroy(_glfw.wl.selectionSource);
 
+        if (_glfw.wl.libdecor.callback != null)
+        {
+            wayland_proxyDestroy(_glfw.wl.libdecor.callback);
+            _glfw.wl.libdecor.callback = null;
+        }
+        if (_glfw.wl.libdecor.context != null && _glfw.wl.libdecor.libdecor_unref != null)
+        {
+            _glfw.wl.libdecor.libdecor_unref(_glfw.wl.libdecor.context);
+            _glfw.wl.libdecor.context = null;
+        }
+        if (_glfw.wl.libdecor.handle != null)
+        {
+            _glfwPlatformFreeModule(_glfw.wl.libdecor.handle);
+            _glfw.wl.libdecor.handle = null;
+        }
+
         wayland_proxyDestroyWithOpcode(_glfw.wl.wmBase, XDG_WM_BASE_DESTROY);
         wayland_pointerDestroy(_glfw.wl.pointer);
         wayland_keyboardDestroy(_glfw.wl.keyboard);
@@ -1856,6 +1992,8 @@ public static unsafe partial class Glfw
         _glfw_free(_glfwWaylandDataOfferListener);
         _glfw_free(_glfwWaylandDataDeviceListener);
         _glfw_free(_glfwWaylandDataSourceListener);
+        _glfw_free(_glfwWaylandLibdecorReadyListener);
+        _glfw_free(_glfwWaylandLibdecorInterface);
         _glfw_free(_glfwWaylandFractionalScaleListener);
         _glfw_free(_glfwWaylandXdgDecorationListener);
         _glfw_free(_glfwWaylandXdgActivationListener);
@@ -1874,6 +2012,8 @@ public static unsafe partial class Glfw
         _glfwWaylandDataOfferListener = null;
         _glfwWaylandDataDeviceListener = null;
         _glfwWaylandDataSourceListener = null;
+        _glfwWaylandLibdecorReadyListener = null;
+        _glfwWaylandLibdecorInterface = null;
         _glfwWaylandFractionalScaleListener = null;
         _glfwWaylandXdgDecorationListener = null;
         _glfwWaylandXdgActivationListener = null;

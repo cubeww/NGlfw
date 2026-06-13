@@ -163,6 +163,16 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, uint, void> action;
     }
 
+    struct wl_callback_listener
+    {
+        public delegate* unmanaged<void*, void*, uint, void> done;
+    }
+
+    struct libdecor_interface
+    {
+        public delegate* unmanaged<void*, uint, byte*, void> error;
+    }
+
     struct wp_fractional_scale_v1_listener
     {
         public delegate* unmanaged<void*, void*, uint, void> preferred_scale;
@@ -219,6 +229,8 @@ public static unsafe partial class Glfw
     static wl_data_offer_listener* _glfwWaylandDataOfferListener;
     static wl_data_device_listener* _glfwWaylandDataDeviceListener;
     static wl_data_source_listener* _glfwWaylandDataSourceListener;
+    static wl_callback_listener* _glfwWaylandLibdecorReadyListener;
+    static libdecor_interface* _glfwWaylandLibdecorInterface;
     static wp_fractional_scale_v1_listener* _glfwWaylandFractionalScaleListener;
     static zxdg_toplevel_decoration_v1_listener* _glfwWaylandXdgDecorationListener;
     static xdg_activation_token_v1_listener* _glfwWaylandXdgActivationListener;
@@ -355,6 +367,32 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandDataSourceListener;
+    }
+
+    static wl_callback_listener* wayland_getLibdecorReadyListener()
+    {
+        if (_glfwWaylandLibdecorReadyListener == null)
+        {
+            _glfwWaylandLibdecorReadyListener =
+                (wl_callback_listener*)_glfw_calloc(1, (nuint)sizeof(wl_callback_listener));
+            if (_glfwWaylandLibdecorReadyListener != null)
+                _glfwWaylandLibdecorReadyListener->done = &wayland_libdecorReadyCallback;
+        }
+
+        return _glfwWaylandLibdecorReadyListener;
+    }
+
+    static libdecor_interface* wayland_getLibdecorInterface()
+    {
+        if (_glfwWaylandLibdecorInterface == null)
+        {
+            _glfwWaylandLibdecorInterface =
+                (libdecor_interface*)_glfw_calloc(1, (nuint)sizeof(libdecor_interface));
+            if (_glfwWaylandLibdecorInterface != null)
+                _glfwWaylandLibdecorInterface->error = &wayland_libdecorHandleError;
+        }
+
+        return _glfwWaylandLibdecorInterface;
     }
 
     static wp_fractional_scale_v1_listener* wayland_getFractionalScaleListener()
@@ -1093,6 +1131,21 @@ public static unsafe partial class Glfw
 
         if (window->wl.visible != 0)
             _glfwInputWindowDamage(window);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_libdecorHandleError(void* context, uint error, byte* message)
+    {
+        _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: libdecor error {0}", error);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_libdecorReadyCallback(void* userData, void* callback, uint callbackData)
+    {
+        _glfw.wl.libdecor.ready = GLFW_TRUE;
+        wayland_proxyDestroy(callback);
+        if (_glfw.wl.libdecor.callback == callback)
+            _glfw.wl.libdecor.callback = null;
     }
 
     static double wayland_fixedToDouble(int value)
@@ -3562,7 +3615,8 @@ public static unsafe partial class Glfw
         const int DISPLAY_FD = 0;
         const int KEYREPEAT_FD = 1;
         const int CURSOR_FD = 2;
-        POLLFD* fds = stackalloc POLLFD[3];
+        const int LIBDECOR_FD = 3;
+        POLLFD* fds = stackalloc POLLFD[4];
         fds[DISPLAY_FD] = new POLLFD
         {
             fd = _glfw.wl.client.display_get_fd(_glfw.wl.display),
@@ -3576,6 +3630,11 @@ public static unsafe partial class Glfw
         fds[CURSOR_FD] = new POLLFD
         {
             fd = _glfw.wl.cursorTimerfd,
+            events = POLLIN
+        };
+        fds[LIBDECOR_FD] = new POLLFD
+        {
+            fd = -1,
             events = POLLIN
         };
 
@@ -3599,7 +3658,13 @@ public static unsafe partial class Glfw
             fds[KEYREPEAT_FD].revents = 0;
             fds[CURSOR_FD].fd = _glfw.wl.cursorTimerfd;
             fds[CURSOR_FD].revents = 0;
-            if (_glfwPollPOSIX(fds, 3, timeout) == 0)
+            fds[LIBDECOR_FD].fd = _glfw.wl.libdecor.context != null &&
+                _glfw.wl.libdecor.libdecor_get_fd != null
+                    ? _glfw.wl.libdecor.libdecor_get_fd(_glfw.wl.libdecor.context)
+                    : -1;
+            fds[LIBDECOR_FD].revents = 0;
+
+            if (_glfwPollPOSIX(fds, 4, timeout) == 0)
             {
                 _glfw.wl.client.display_cancel_read(_glfw.wl.display);
                 return;
@@ -3625,22 +3690,38 @@ public static unsafe partial class Glfw
                 wayland_dispatchCursorTimer();
                 @event = GLFW_TRUE;
             }
+
+            if ((fds[LIBDECOR_FD].revents & POLLIN) != 0 &&
+                _glfw.wl.libdecor.context != null &&
+                _glfw.wl.libdecor.libdecor_dispatch != null)
+            {
+                if (_glfw.wl.libdecor.libdecor_dispatch(_glfw.wl.libdecor.context, 0) > 0)
+                    @event = GLFW_TRUE;
+            }
         }
     }
 
-    static void wayland_displaySync()
+    static void* wayland_displaySyncCallback()
     {
         if (_glfw.wl.display == null ||
             _glfw.wl.client.callbackInterface == null ||
             _glfw.wl.client.proxy_marshal_constructor == null)
         {
-            return;
+            return null;
         }
 
-        _glfw.wl.client.proxy_marshal_constructor(_glfw.wl.display,
+        var callback = _glfw.wl.client.proxy_marshal_constructor(_glfw.wl.display,
             WL_DISPLAY_SYNC,
             _glfw.wl.client.callbackInterface,
             null);
+
+        wayland_tagProxy(callback);
+        return callback;
+    }
+
+    static void wayland_displaySync()
+    {
+        wayland_displaySyncCallback();
     }
 
     static void _glfwPollEventsWayland()

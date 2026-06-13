@@ -845,6 +845,31 @@ public static unsafe partial class Glfw
         public void* context;
         public void* callback;
         public int ready;
+        public delegate* unmanaged<void*, void*, void*> libdecor_new;
+        public delegate* unmanaged<void*, void> libdecor_unref;
+        public delegate* unmanaged<void*, int> libdecor_get_fd;
+        public delegate* unmanaged<void*, int, int> libdecor_dispatch;
+        public delegate* unmanaged<void*, void*, void*, void*, void*> libdecor_decorate;
+        public delegate* unmanaged<void*, void> libdecor_frame_unref;
+        public delegate* unmanaged<void*, byte*, void> libdecor_frame_set_app_id;
+        public delegate* unmanaged<void*, byte*, void> libdecor_frame_set_title;
+        public delegate* unmanaged<void*, void> libdecor_frame_set_minimized;
+        public delegate* unmanaged<void*, void*, void> libdecor_frame_set_fullscreen;
+        public delegate* unmanaged<void*, void> libdecor_frame_unset_fullscreen;
+        public delegate* unmanaged<void*, void> libdecor_frame_map;
+        public delegate* unmanaged<void*, void*, void*, void> libdecor_frame_commit;
+        public delegate* unmanaged<void*, int, int, void> libdecor_frame_set_min_content_size;
+        public delegate* unmanaged<void*, int, int, void> libdecor_frame_set_max_content_size;
+        public delegate* unmanaged<void*, void> libdecor_frame_set_maximized;
+        public delegate* unmanaged<void*, void> libdecor_frame_unset_maximized;
+        public delegate* unmanaged<void*, uint, void> libdecor_frame_set_capabilities;
+        public delegate* unmanaged<void*, uint, void> libdecor_frame_unset_capabilities;
+        public delegate* unmanaged<void*, byte, void> libdecor_frame_set_visibility;
+        public delegate* unmanaged<void*, void*> libdecor_frame_get_xdg_toplevel;
+        public delegate* unmanaged<void*, void*, int*, int*, byte> libdecor_configuration_get_content_size;
+        public delegate* unmanaged<void*, uint*, byte> libdecor_configuration_get_window_state;
+        public delegate* unmanaged<int, int, void*> libdecor_state_new;
+        public delegate* unmanaged<void*, void> libdecor_state_free;
     }
 
     public struct _GLFWlibraryX11
