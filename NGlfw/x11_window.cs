@@ -664,7 +664,10 @@ public static unsafe partial class Glfw
             _glfw.x11.xdndFormat = 0;
 
             if (_glfw.x11.xdndVersion > (int)_GLFW_XDND_VERSION)
+            {
+                _glfw.x11.xdndSource = 0;
                 return;
+            }
 
             var list = ((ulong)@event->clientData1 & 1UL) != 0;
             byte* data = null;
@@ -699,8 +702,11 @@ public static unsafe partial class Glfw
         }
         else if (@event->clientMessageType == _glfw.x11.XdndDrop)
         {
-            if (_glfw.x11.xdndVersion > (int)_GLFW_XDND_VERSION)
+            if (_glfw.x11.xdndSource == 0 ||
+                _glfw.x11.xdndVersion > (int)_GLFW_XDND_VERSION)
+            {
                 return;
+            }
 
             if (_glfw.x11.xdndFormat != 0 && _glfw.x11.XConvertSelection != null)
             {
@@ -722,7 +728,8 @@ public static unsafe partial class Glfw
         }
         else if (@event->clientMessageType == _glfw.x11.XdndPosition)
         {
-            if (_glfw.x11.xdndVersion > (int)_GLFW_XDND_VERSION ||
+            if (_glfw.x11.xdndSource == 0 ||
+                _glfw.x11.xdndVersion > (int)_GLFW_XDND_VERSION ||
                 _glfw.x11.XSendEvent == null)
             {
                 return;
@@ -776,10 +783,16 @@ public static unsafe partial class Glfw
 
     static void x11_processXdndSelection(_GLFWwindow* window, XEvent* @event)
     {
-        if (@event->selectionNotifyProperty != _glfw.x11.XdndSelection)
+        if (@event->selectionNotifyProperty == 0 ||
+            @event->selectionNotifyProperty != _glfw.x11.XdndSelection)
+        {
+            x11_sendXdndFinished(window, GLFW_FALSE);
+            _glfw.x11.xdndSource = 0;
+            _glfw.x11.xdndFormat = 0;
             return;
+        }
 
-        byte* data;
+        byte* data = null;
         var result = x11_getWindowProperty(@event->selectionNotifyRequestor,
             @event->selectionNotifyProperty,
             @event->selectionNotifyTarget,
@@ -792,7 +805,8 @@ public static unsafe partial class Glfw
             var paths = _glfwParseUriList(data, &count);
             if (paths != null)
             {
-                _glfwInputDrop(window, count, paths);
+                if (count > 0)
+                    _glfwInputDrop(window, count, paths);
 
                 for (var i = 0; i < count; i++)
                     _glfw_free(paths[i]);
@@ -803,7 +817,12 @@ public static unsafe partial class Glfw
         if (data != null && _glfw.x11.XFree != null)
             _glfw.x11.XFree(data);
 
+        if (_glfw.x11.XDeleteProperty != null)
+            _glfw.x11.XDeleteProperty(_glfw.x11.display, window->x11.handle, _glfw.x11.XdndSelection);
+
         x11_sendXdndFinished(window, result != 0 ? GLFW_TRUE : GLFW_FALSE);
+        _glfw.x11.xdndSource = 0;
+        _glfw.x11.xdndFormat = 0;
     }
 
     static void x11_setXIMask(byte* mask, int eventType)
