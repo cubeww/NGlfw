@@ -42,14 +42,18 @@ public static unsafe partial class Glfw
     const ulong NSTrackingEnabledDuringMouseDrag = 1 << 10;
     const ulong NSWindowOcclusionStateVisible = 1 << 1;
     const int kCFNumberIntType = 9;
+    const int kUCKeyActionDisplay = 3;
+    const uint kUCKeyTranslateNoDeadKeysBit = 0;
     const uint kCFStringEncodingUTF8 = 0x08000100;
     const uint kIODisplayOnlyPreferredName = 0x00000100;
+    const int _GLFW_COCOA_KEYNAME_LENGTH = 17;
 
     static readonly byte* _glfwCocoaMappingName = _glfw_allocate_static_string("Mac OS X");
     static readonly byte* _glfwCocoaPasteboardTypeString = _glfw_allocate_static_string("public.utf8-plain-text");
     static readonly byte* _glfwCocoaPasteboardTypeURL = _glfw_allocate_static_string("public.url");
     static readonly byte* _glfwCocoaRunLoopDefaultMode = _glfw_allocate_static_string("kCFRunLoopDefaultMode");
     static readonly byte* _glfwCocoaOpenGLBundleID = _glfw_allocate_static_string("com.apple.opengl");
+    static readonly byte* _glfwCocoaHIToolboxBundleID = _glfw_allocate_static_string("com.apple.HIToolbox");
     static readonly object cocoaObjectMapLock = new();
     static readonly Dictionary<nint, nint> cocoaObjectWindows = new();
 
@@ -59,6 +63,7 @@ public static unsafe partial class Glfw
         public void* app;
         public void* delegateObject;
         public void* helper;
+        public void* helperClass;
         public void* cursor;
         public void* keyUpMonitor;
         public void* nibObjects;
@@ -71,10 +76,23 @@ public static unsafe partial class Glfw
         public int cursorHidden;
         public double restoreCursorPosX;
         public double restoreCursorPosY;
+        public void* inputSource;
+        public void* unicodeData;
         public NSPoint cascadePoint;
+        public _GLFWlibraryNS_tis tis;
         public fixed short keycodes[256];
         public fixed short scancodes[GLFW_KEY_LAST + 1];
-        public fixed byte keynames[512];
+        public fixed byte keynames[(GLFW_KEY_LAST + 1) * _GLFW_COCOA_KEYNAME_LENGTH];
+    }
+
+    public struct _GLFWlibraryNS_tis
+    {
+        public void* bundle;
+        public void* kPropertyUnicodeKeyLayoutData;
+        public delegate* unmanaged<void*> CopyCurrentKeyboardLayoutInputSource;
+        public delegate* unmanaged<void*, void*, void*> GetInputSourceProperty;
+        public delegate* unmanaged<byte> GetKbdType;
+        public delegate* unmanaged<byte*, ushort, ushort, uint, uint, uint, uint*, uint, uint*, ushort*, int> UCKeyTranslate;
     }
 
     public struct _GLFWwindowNS
@@ -535,6 +553,46 @@ public static unsafe partial class Glfw
         }
     }
 
+    static void* cocoa_registerHelperClass()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return null;
+
+        if (_glfw.ns.helperClass != null)
+            return _glfw.ns.helperClass;
+
+        var existing = cocoa_lookUpClass("GLFWHelper");
+        if (existing != null)
+        {
+            _glfw.ns.helperClass = existing;
+            return existing;
+        }
+
+        var superclass = cocoa_getClass("NSObject");
+        var name = cocoa_ascii("GLFWHelper");
+        fixed (byte* namePtr = name)
+        {
+            var cls = objc_allocateClassPair(superclass, namePtr, 0);
+            if (cls == null)
+                return null;
+
+            var voidTypes = cocoa_ascii("v@:@");
+            fixed (byte* voidTypesPtr = voidTypes)
+            {
+                class_addMethod(cls, cocoa_sel("selectedKeyboardInputSourceChanged:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_selectedKeyboardInputSourceChanged,
+                    voidTypesPtr);
+                class_addMethod(cls, cocoa_sel("doNothing:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_doNothing,
+                    voidTypesPtr);
+            }
+
+            objc_registerClassPair(cls);
+            _glfw.ns.helperClass = cls;
+            return cls;
+        }
+    }
+
     static void* cocoa_registerApplicationDelegateClass()
     {
         if (!OperatingSystem.IsMacOS())
@@ -778,6 +836,17 @@ public static unsafe partial class Glfw
     static byte cocoa_canBecomeMainWindow(void* self, nint cmd)
     {
         return 1;
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_selectedKeyboardInputSourceChanged(void* self, nint cmd, void* notification)
+    {
+        cocoa_updateUnicodeData();
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_doNothing(void* self, nint cmd, void* @object)
+    {
     }
 
     static void cocoa_windowUpdateSizes(_GLFWwindow* window)
@@ -1540,6 +1609,15 @@ public static unsafe partial class Glfw
     static extern void objc_msgSend_void_ptr_long(void* receiver, nint selector, void* value, long value2);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void objc_msgSend_void_nint_ptr_ptr(void* receiver, nint selector, nint value1, void* value2, void* value3);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void objc_msgSend_void_ptr_nint_ptr_ptr(void* receiver, nint selector, void* value1, nint value2, void* value3, void* value4);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void objc_msgSend_void_ptr_ptr_ptr(void* receiver, nint selector, void* value1, void* value2, void* value3);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void* objc_msgSend_id_bool(void* receiver, nint selector, byte value);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
@@ -1738,6 +1816,9 @@ public static unsafe partial class Glfw
     static extern void* CFStringCreateWithCString(void* allocator, byte* cStr, uint encoding);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void* CFStringCreateWithCharacters(void* allocator, ushort* chars, nint numChars);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void CFRelease(void* value);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
@@ -1769,6 +1850,9 @@ public static unsafe partial class Glfw
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFBundleGetFunctionPointerForName(void* bundle, void* functionName);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void* CFBundleGetDataPointerForName(void* bundle, void* symbolName);
 
     [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
     static extern void* IOServiceMatching(byte* name);

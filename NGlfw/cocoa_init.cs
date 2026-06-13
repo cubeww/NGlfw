@@ -132,6 +132,160 @@ public static unsafe partial class Glfw
             objc_msgSend_bool_ptr(fileManager, cocoa_sel("changeCurrentDirectoryPath:"), resourcesPath);
     }
 
+    static void* cocoa_createCFStringASCII(string value)
+    {
+        var bytes = cocoa_ascii(value);
+        fixed (byte* p = bytes)
+            return CFStringCreateWithCString(null, p, kCFStringEncodingASCII);
+    }
+
+    static void* cocoa_getBundleFunctionPointer(void* bundle, string symbol)
+    {
+        var symbolName = cocoa_createCFStringASCII(symbol);
+        if (symbolName == null)
+            return null;
+
+        var pointer = CFBundleGetFunctionPointerForName(bundle, symbolName);
+        CFRelease(symbolName);
+        return pointer;
+    }
+
+    static void* cocoa_getBundleDataPointer(void* bundle, string symbol)
+    {
+        var symbolName = cocoa_createCFStringASCII(symbol);
+        if (symbolName == null)
+            return null;
+
+        var pointer = CFBundleGetDataPointerForName(bundle, symbolName);
+        CFRelease(symbolName);
+        return pointer;
+    }
+
+    static int cocoa_updateUnicodeData()
+    {
+        if (_glfw.ns.inputSource != null)
+        {
+            CFRelease(_glfw.ns.inputSource);
+            _glfw.ns.inputSource = null;
+            _glfw.ns.unicodeData = null;
+        }
+
+        if (_glfw.ns.tis.CopyCurrentKeyboardLayoutInputSource == null ||
+            _glfw.ns.tis.GetInputSourceProperty == null ||
+            _glfw.ns.tis.kPropertyUnicodeKeyLayoutData == null)
+        {
+            return GLFW_FALSE;
+        }
+
+        _glfw.ns.inputSource = _glfw.ns.tis.CopyCurrentKeyboardLayoutInputSource();
+        if (_glfw.ns.inputSource == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to retrieve keyboard layout input source");
+            return GLFW_FALSE;
+        }
+
+        _glfw.ns.unicodeData = _glfw.ns.tis.GetInputSourceProperty(_glfw.ns.inputSource,
+            _glfw.ns.tis.kPropertyUnicodeKeyLayoutData);
+        if (_glfw.ns.unicodeData == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to retrieve keyboard layout Unicode data");
+            return GLFW_FALSE;
+        }
+
+        return GLFW_TRUE;
+    }
+
+    static int cocoa_initializeTIS()
+    {
+        if (_glfw.ns.tis.bundle == null)
+        {
+            var bundleID = CFStringCreateWithCString(null, _glfwCocoaHIToolboxBundleID, kCFStringEncodingASCII);
+            if (bundleID == null)
+            {
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to create HIToolbox framework bundle identifier");
+                return GLFW_FALSE;
+            }
+
+            _glfw.ns.tis.bundle = CFBundleGetBundleWithIdentifier(bundleID);
+            CFRelease(bundleID);
+        }
+
+        if (_glfw.ns.tis.bundle == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to load HIToolbox.framework");
+            return GLFW_FALSE;
+        }
+
+        var keyLayoutData = (void**)cocoa_getBundleDataPointer(_glfw.ns.tis.bundle,
+            "kTISPropertyUnicodeKeyLayoutData");
+        _glfw.ns.tis.CopyCurrentKeyboardLayoutInputSource =
+            (delegate* unmanaged<void*>)cocoa_getBundleFunctionPointer(_glfw.ns.tis.bundle,
+                "TISCopyCurrentKeyboardLayoutInputSource");
+        _glfw.ns.tis.GetInputSourceProperty =
+            (delegate* unmanaged<void*, void*, void*>)cocoa_getBundleFunctionPointer(_glfw.ns.tis.bundle,
+                "TISGetInputSourceProperty");
+        _glfw.ns.tis.GetKbdType =
+            (delegate* unmanaged<byte>)cocoa_getBundleFunctionPointer(_glfw.ns.tis.bundle,
+                "LMGetKbdType");
+        _glfw.ns.tis.UCKeyTranslate =
+            (delegate* unmanaged<byte*, ushort, ushort, uint, uint, uint, uint*, uint, uint*, ushort*, int>)
+            cocoa_getBundleFunctionPointer(_glfw.ns.tis.bundle,
+                "UCKeyTranslate");
+
+        if (keyLayoutData == null ||
+            _glfw.ns.tis.CopyCurrentKeyboardLayoutInputSource == null ||
+            _glfw.ns.tis.GetInputSourceProperty == null ||
+            _glfw.ns.tis.GetKbdType == null ||
+            _glfw.ns.tis.UCKeyTranslate == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to load TIS API symbols");
+            return GLFW_FALSE;
+        }
+
+        _glfw.ns.tis.kPropertyUnicodeKeyLayoutData = *keyLayoutData;
+        return cocoa_updateUnicodeData();
+    }
+
+    static void cocoa_observeKeyboardInputSourceChanges()
+    {
+        if (_glfw.ns.helper == null)
+            return;
+
+        var center = cocoa_msgSend_id(cocoa_getClass("NSNotificationCenter"), "defaultCenter");
+        var name = cocoa_stringFromUTF8("NSTextInputContextKeyboardSelectionDidChangeNotification");
+        if (center != null && name != null)
+        {
+            objc_msgSend_void_ptr_nint_ptr_ptr(center,
+                cocoa_sel("addObserver:selector:name:object:"),
+                _glfw.ns.helper,
+                cocoa_sel("selectedKeyboardInputSourceChanged:"),
+                name,
+                null);
+        }
+
+        cocoa_releaseTemporaryString(name);
+    }
+
+    static void cocoa_removeKeyboardInputSourceObserver()
+    {
+        if (_glfw.ns.helper == null)
+            return;
+
+        var center = cocoa_msgSend_id(cocoa_getClass("NSNotificationCenter"), "defaultCenter");
+        var name = cocoa_stringFromUTF8("NSTextInputContextKeyboardSelectionDidChangeNotification");
+        if (center != null && name != null)
+        {
+            objc_msgSend_void_ptr_ptr_ptr(center,
+                cocoa_sel("removeObserver:name:object:"),
+                _glfw.ns.helper,
+                name,
+                null);
+            cocoa_msgSend_void_ptr(center, "removeObserver:", _glfw.ns.helper);
+        }
+
+        cocoa_releaseTemporaryString(name);
+    }
+
     static void cocoa_createKeyTables()
     {
         fixed (short* keycodes = _glfw.ns.keycodes)
@@ -296,6 +450,26 @@ public static unsafe partial class Glfw
             return GLFW_FALSE;
         }
 
+        var helperClass = cocoa_registerHelperClass();
+        if (helperClass == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to register helper class");
+            return GLFW_FALSE;
+        }
+
+        _glfw.ns.helper = cocoa_msgSend_id(cocoa_msgSend_id(helperClass, "alloc"), "init");
+        if (_glfw.ns.helper == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to create helper object");
+            return GLFW_FALSE;
+        }
+
+        objc_msgSend_void_nint_ptr_ptr(cocoa_getClass("NSThread"),
+            cocoa_sel("detachNewThreadSelector:toTarget:withObject:"),
+            cocoa_sel("doNothing:"),
+            _glfw.ns.helper,
+            null);
+
         var app = cocoa_getNSApp();
         var appDelegateClass = cocoa_registerApplicationDelegateClass();
         if (app == null || appDelegateClass == null)
@@ -317,7 +491,12 @@ public static unsafe partial class Glfw
             cocoa_changeToResourcesDirectory();
 
         cocoa_registerUserDefaults();
+        cocoa_observeKeyboardInputSourceChanges();
         cocoa_createKeyTables();
+
+        if (cocoa_initializeTIS() == 0)
+            return GLFW_FALSE;
+
         _glfwPollMonitorsCocoa();
         return GLFW_TRUE;
     }
@@ -327,6 +506,13 @@ public static unsafe partial class Glfw
         cocoa_showCursor();
         _glfwTerminateNSGL();
 
+        if (_glfw.ns.inputSource != null)
+        {
+            CFRelease(_glfw.ns.inputSource);
+            _glfw.ns.inputSource = null;
+            _glfw.ns.unicodeData = null;
+        }
+
         _glfw_free(_glfw.ns.clipboardString);
         _glfw.ns.clipboardString = null;
 
@@ -335,6 +521,14 @@ public static unsafe partial class Glfw
         cocoa_msgSend_void(_glfw.ns.delegateObject, "release");
         _glfw.ns.delegateObject = null;
 
+        if (_glfw.ns.helper != null)
+        {
+            cocoa_removeKeyboardInputSourceObserver();
+            cocoa_msgSend_void(_glfw.ns.helper, "release");
+            _glfw.ns.helper = null;
+        }
+
+        _glfw.ns.tis = default;
         cocoa_drainAutoreleasePool(_glfw.ns.autoreleasePool);
         _glfw.ns.autoreleasePool = null;
     }

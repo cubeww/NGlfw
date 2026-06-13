@@ -133,6 +133,8 @@ Started, but not yet functional:
   cursor enter/leave, precise scrolling, key presses/releases, modifier key
   changes, `interpretKeyEvents` text input, and basic `NSTextInputClient`
   marked-text handling
+- Cocoa HIToolbox/TIS keyboard layout loading, input-source change
+  notifications, and Unicode scancode names for `glfwGetKeyName`
 - Cocoa `NSTrackingArea` setup for cursor enter/leave and cursor update events
 - Cocoa file drag-and-drop through URL pasteboard objects and `_glfwInputDrop`
 - basic CoreGraphics monitor enumeration, monitor position, full display mode
@@ -165,11 +167,10 @@ Started, but not yet functional:
 
 Known remaining work:
 
-- full NSApplication helper behavior, menu bar setup, key-up monitor, and
-  launch lifecycle parity
+- remaining NSApplication behavior, including menu bar setup, key-up monitor,
+  and launch lifecycle parity
 - complete `NSView` / `NSTextInputClient` parity, including IME and
   drag-and-drop edge-case validation
-- full keyboard layout Unicode translation for scancode names
 - NSGL runtime validation and edge-case parity for context hints unsupported by
   macOS
 - IOKit / HID joystick support

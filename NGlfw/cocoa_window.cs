@@ -1093,7 +1093,72 @@ public static unsafe partial class Glfw
 
     static byte* _glfwGetScancodeNameCocoa(int scancode)
     {
-        return null;
+        if (scancode < 0 || scancode > 0xff)
+        {
+            _glfwInputError(GLFW_INVALID_VALUE, "Invalid scancode {0}", scancode);
+            return null;
+        }
+
+        int key;
+        fixed (short* keycodes = _glfw.ns.keycodes)
+            key = keycodes[scancode];
+
+        if (key == GLFW_KEY_UNKNOWN)
+            return null;
+
+        if (_glfw.ns.unicodeData == null ||
+            _glfw.ns.tis.GetKbdType == null ||
+            _glfw.ns.tis.UCKeyTranslate == null)
+        {
+            return null;
+        }
+
+        var keyLayout = objc_msgSend_bytes(_glfw.ns.unicodeData, cocoa_sel("bytes"));
+        if (keyLayout == null)
+            return null;
+
+        uint deadKeyState = 0;
+        var characters = stackalloc ushort[4];
+        uint characterCount = 0;
+
+        if (_glfw.ns.tis.UCKeyTranslate(keyLayout,
+                (ushort)scancode,
+                kUCKeyActionDisplay,
+                0,
+                _glfw.ns.tis.GetKbdType(),
+                kUCKeyTranslateNoDeadKeysBit,
+                &deadKeyState,
+                4,
+                &characterCount,
+                characters) != 0)
+        {
+            return null;
+        }
+
+        if (characterCount == 0)
+            return null;
+
+        var stringObject = CFStringCreateWithCharacters(null, characters, (nint)characterCount);
+        if (stringObject == null)
+            return null;
+
+        fixed (byte* keynames = _glfw.ns.keynames)
+        {
+            var buffer = keynames + key * _GLFW_COCOA_KEYNAME_LENGTH;
+            buffer[0] = 0;
+
+            if (CFStringGetCString(stringObject,
+                    buffer,
+                    _GLFW_COCOA_KEYNAME_LENGTH,
+                    kCFStringEncodingUTF8) == 0)
+            {
+                CFRelease(stringObject);
+                return null;
+            }
+
+            CFRelease(stringObject);
+            return buffer;
+        }
     }
 
     static int _glfwGetKeyScancodeCocoa(int key)
