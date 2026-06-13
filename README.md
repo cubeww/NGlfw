@@ -259,6 +259,8 @@ Implemented or partially implemented:
   server/client decoration mode requests
 - hand-written `zwp_idle_inhibit_manager_v1` protocol tables, registry
   binding, and fullscreen idle inhibitor creation/destruction
+- hand-written `xdg_activation_v1` protocol tables, registry binding,
+  activation-token listener handling, focus requests, and attention requests
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment

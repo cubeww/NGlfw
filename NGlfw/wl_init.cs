@@ -72,6 +72,14 @@ public static unsafe partial class Glfw
     const uint ZWP_IDLE_INHIBIT_MANAGER_DESTROY = 0;
     const uint ZWP_IDLE_INHIBIT_MANAGER_CREATE_INHIBITOR = 1;
     const uint ZWP_IDLE_INHIBITOR_DESTROY = 0;
+    const uint XDG_ACTIVATION_DESTROY = 0;
+    const uint XDG_ACTIVATION_GET_ACTIVATION_TOKEN = 1;
+    const uint XDG_ACTIVATION_ACTIVATE = 2;
+    const uint XDG_ACTIVATION_TOKEN_SET_SERIAL = 0;
+    const uint XDG_ACTIVATION_TOKEN_SET_APP_ID = 1;
+    const uint XDG_ACTIVATION_TOKEN_SET_SURFACE = 2;
+    const uint XDG_ACTIVATION_TOKEN_COMMIT = 3;
+    const uint XDG_ACTIVATION_TOKEN_DESTROY = 4;
     const uint WP_VIEWPORTER_DESTROY = 0;
     const uint WP_VIEWPORTER_GET_VIEWPORT = 1;
     const uint WP_VIEWPORT_DESTROY = 0;
@@ -89,6 +97,7 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwWaylandXdgWmBase = _glfw_allocate_static_string("xdg_wm_base");
     static readonly byte* _glfwWaylandZxdgDecorationManagerV1 = _glfw_allocate_static_string("zxdg_decoration_manager_v1");
     static readonly byte* _glfwWaylandZwpIdleInhibitManagerV1 = _glfw_allocate_static_string("zwp_idle_inhibit_manager_v1");
+    static readonly byte* _glfwWaylandXdgActivationV1 = _glfw_allocate_static_string("xdg_activation_v1");
     static readonly byte* _glfwWaylandWpViewporter = _glfw_allocate_static_string("wp_viewporter");
     static readonly byte* _glfwWaylandWpFractionalScaleManagerV1 = _glfw_allocate_static_string("wp_fractional_scale_manager_v1");
     static readonly byte* _glfwWaylandXkbControl = _glfw_allocate_static_string("Control");
@@ -139,6 +148,8 @@ public static unsafe partial class Glfw
     static wl_interface* _glfwWaylandZxdgToplevelDecorationV1Interface;
     static wl_interface* _glfwWaylandZwpIdleInhibitManagerV1Interface;
     static wl_interface* _glfwWaylandZwpIdleInhibitorV1Interface;
+    static wl_interface* _glfwWaylandXdgActivationV1Interface;
+    static wl_interface* _glfwWaylandXdgActivationTokenV1Interface;
     static wl_interface* _glfwWaylandWpViewporterInterface;
     static wl_interface* _glfwWaylandWpViewportInterface;
     static wl_interface* _glfwWaylandWpFractionalScaleManagerInterface;
@@ -417,6 +428,67 @@ public static unsafe partial class Glfw
 
         _glfwWaylandZwpIdleInhibitManagerV1Interface = manager;
         _glfwWaylandZwpIdleInhibitorV1Interface = inhibitor;
+        return GLFW_TRUE;
+    }
+
+    static int wayland_initXdgActivationInterfaces()
+    {
+        if (_glfwWaylandXdgActivationV1Interface != null)
+            return GLFW_TRUE;
+
+        var activation = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var token = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        if (activation == null || token == null)
+            return GLFW_FALSE;
+
+        var activationMethods = wayland_allocMessages(3);
+        var tokenMethods = wayland_allocMessages(5);
+        var tokenEvents = wayland_allocMessages(1);
+        if (activationMethods == null || tokenMethods == null || tokenEvents == null)
+            return GLFW_FALSE;
+
+        var getTokenTypes = wayland_allocTypes(1);
+        var activateTypes = wayland_allocTypes(2);
+        var setSerialTypes = wayland_allocTypes(2);
+        var setSurfaceTypes = wayland_allocTypes(1);
+        if (getTokenTypes == null || activateTypes == null || setSerialTypes == null || setSurfaceTypes == null)
+            return GLFW_FALSE;
+
+        getTokenTypes[0] = token;
+        activateTypes[1] = (wl_interface*)_glfw.wl.client.surfaceInterface;
+        setSerialTypes[1] = (wl_interface*)_glfw.wl.client.seatInterface;
+        setSurfaceTypes[0] = (wl_interface*)_glfw.wl.client.surfaceInterface;
+
+        wayland_setMessage(activationMethods, 0, "destroy", "", null);
+        wayland_setMessage(activationMethods, 1, "get_activation_token", "n", getTokenTypes);
+        wayland_setMessage(activationMethods, 2, "activate", "so", activateTypes);
+
+        wayland_setMessage(tokenMethods, 0, "set_serial", "uo", setSerialTypes);
+        wayland_setMessage(tokenMethods, 1, "set_app_id", "s", null);
+        wayland_setMessage(tokenMethods, 2, "set_surface", "o", setSurfaceTypes);
+        wayland_setMessage(tokenMethods, 3, "commit", "", null);
+        wayland_setMessage(tokenMethods, 4, "destroy", "", null);
+        wayland_setMessage(tokenEvents, 0, "done", "s", null);
+
+        *activation = new wl_interface
+        {
+            name = _glfwWaylandXdgActivationV1,
+            version = 1,
+            method_count = 3,
+            methods = activationMethods
+        };
+        *token = new wl_interface
+        {
+            name = _glfw_allocate_static_string("xdg_activation_token_v1"),
+            version = 1,
+            method_count = 5,
+            methods = tokenMethods,
+            event_count = 1,
+            events = tokenEvents
+        };
+
+        _glfwWaylandXdgActivationV1Interface = activation;
+        _glfwWaylandXdgActivationTokenV1Interface = token;
         return GLFW_TRUE;
     }
 
@@ -1137,6 +1209,17 @@ public static unsafe partial class Glfw
                     1);
             }
         }
+        else if (wayland_stringEquals(interfaceName, "xdg_activation_v1") != 0)
+        {
+            if (_glfw.wl.activationManager == null && _glfwWaylandXdgActivationV1Interface != null)
+            {
+                _glfw.wl.activationManager = wayland_registryBind(registry,
+                    name,
+                    _glfwWaylandXdgActivationV1Interface,
+                    _glfwWaylandXdgActivationV1,
+                    1);
+            }
+        }
         else if (wayland_stringEquals(interfaceName, "wp_fractional_scale_manager_v1") != 0)
         {
             if (_glfw.wl.fractionalScaleManager == null && _glfwWaylandWpFractionalScaleManagerInterface != null)
@@ -1241,12 +1324,16 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, byte*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_uint =
             (delegate* unmanaged<void*, uint, uint, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
+        _glfw.wl.client.proxy_marshal_uint_object =
+            (delegate* unmanaged<void*, uint, uint, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_uint_string =
             (delegate* unmanaged<void*, uint, uint, byte*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_int =
             (delegate* unmanaged<void*, uint, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_string_int =
             (delegate* unmanaged<void*, uint, byte*, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
+        _glfw.wl.client.proxy_marshal_string_object =
+            (delegate* unmanaged<void*, uint, byte*, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_object =
             (delegate* unmanaged<void*, uint, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_object_uint =
@@ -1316,9 +1403,11 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal == null ||
             _glfw.wl.client.proxy_marshal_string == null ||
             _glfw.wl.client.proxy_marshal_uint == null ||
+            _glfw.wl.client.proxy_marshal_uint_object == null ||
             _glfw.wl.client.proxy_marshal_uint_string == null ||
             _glfw.wl.client.proxy_marshal_int == null ||
             _glfw.wl.client.proxy_marshal_string_int == null ||
+            _glfw.wl.client.proxy_marshal_string_object == null ||
             _glfw.wl.client.proxy_marshal_object == null ||
             _glfw.wl.client.proxy_marshal_object_uint == null ||
             _glfw.wl.client.proxy_marshal_object_int_int == null ||
@@ -1399,6 +1488,11 @@ public static unsafe partial class Glfw
         if (wayland_initIdleInhibitInterfaces() == 0)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize idle-inhibit protocol tables");
+            return GLFW_FALSE;
+        }
+        if (wayland_initXdgActivationInterfaces() == 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize xdg-activation protocol tables");
             return GLFW_FALSE;
         }
         if (wayland_initViewporterInterfaces() == 0)
@@ -1514,6 +1608,7 @@ public static unsafe partial class Glfw
         wayland_proxyDestroyWithOpcode(_glfw.wl.viewporter, WP_VIEWPORTER_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.decorationManager, ZXDG_DECORATION_MANAGER_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.idleInhibitManager, ZWP_IDLE_INHIBIT_MANAGER_DESTROY);
+        wayland_proxyDestroyWithOpcode(_glfw.wl.activationManager, XDG_ACTIVATION_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.cursorSurface, WL_SURFACE_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.subcompositor, 0);
         wayland_proxyDestroy(_glfw.wl.compositor);
@@ -1542,6 +1637,7 @@ public static unsafe partial class Glfw
         _glfw_free(_glfwWaylandDataSourceListener);
         _glfw_free(_glfwWaylandFractionalScaleListener);
         _glfw_free(_glfwWaylandXdgDecorationListener);
+        _glfw_free(_glfwWaylandXdgActivationListener);
         _glfw_free(_glfwWaylandXdgWmBaseListener);
         _glfw_free(_glfwWaylandXdgSurfaceListener);
         _glfw_free(_glfwWaylandXdgToplevelListener);
@@ -1556,6 +1652,7 @@ public static unsafe partial class Glfw
         _glfwWaylandDataSourceListener = null;
         _glfwWaylandFractionalScaleListener = null;
         _glfwWaylandXdgDecorationListener = null;
+        _glfwWaylandXdgActivationListener = null;
         _glfwWaylandXdgWmBaseListener = null;
         _glfwWaylandXdgSurfaceListener = null;
         _glfwWaylandXdgToplevelListener = null;

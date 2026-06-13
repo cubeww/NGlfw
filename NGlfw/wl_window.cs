@@ -159,6 +159,11 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, uint, void> configure;
     }
 
+    struct xdg_activation_token_v1_listener
+    {
+        public delegate* unmanaged<void*, void*, byte*, void> done;
+    }
+
     struct ITIMERSPEC
     {
         public TIMESPEC it_interval;
@@ -185,6 +190,7 @@ public static unsafe partial class Glfw
     static wl_data_source_listener* _glfwWaylandDataSourceListener;
     static wp_fractional_scale_v1_listener* _glfwWaylandFractionalScaleListener;
     static zxdg_toplevel_decoration_v1_listener* _glfwWaylandXdgDecorationListener;
+    static xdg_activation_token_v1_listener* _glfwWaylandXdgActivationListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
 
@@ -337,6 +343,19 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandXdgDecorationListener;
+    }
+
+    static xdg_activation_token_v1_listener* wayland_getXdgActivationListener()
+    {
+        if (_glfwWaylandXdgActivationListener == null)
+        {
+            _glfwWaylandXdgActivationListener =
+                (xdg_activation_token_v1_listener*)_glfw_calloc(1, (nuint)sizeof(xdg_activation_token_v1_listener));
+            if (_glfwWaylandXdgActivationListener != null)
+                _glfwWaylandXdgActivationListener->done = &wayland_xdgActivationHandleDone;
+        }
+
+        return _glfwWaylandXdgActivationListener;
     }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
@@ -1916,6 +1935,81 @@ public static unsafe partial class Glfw
         }
     }
 
+    static void* wayland_xdgActivationGetActivationToken(void* activation)
+    {
+        if (activation == null ||
+            _glfwWaylandXdgActivationTokenV1Interface == null ||
+            _glfw.wl.client.proxy_marshal_constructor == null)
+        {
+            return null;
+        }
+
+        var token = _glfw.wl.client.proxy_marshal_constructor(activation,
+            XDG_ACTIVATION_GET_ACTIVATION_TOKEN,
+            _glfwWaylandXdgActivationTokenV1Interface,
+            null);
+
+        wayland_tagProxy(token);
+        return token;
+    }
+
+    static void wayland_xdgActivationActivate(void* activation, byte* token, void* surface)
+    {
+        if (activation != null && token != null && surface != null && _glfw.wl.client.proxy_marshal_string_object != null)
+            _glfw.wl.client.proxy_marshal_string_object(activation, XDG_ACTIVATION_ACTIVATE, token, surface);
+    }
+
+    static void wayland_xdgActivationTokenSetSerial(void* token, uint serial, void* seat)
+    {
+        if (token != null && seat != null && _glfw.wl.client.proxy_marshal_uint_object != null)
+            _glfw.wl.client.proxy_marshal_uint_object(token, XDG_ACTIVATION_TOKEN_SET_SERIAL, serial, seat);
+    }
+
+    static void wayland_xdgActivationTokenSetAppId(void* token, byte* appId)
+    {
+        if (token != null && appId != null && _glfw.wl.client.proxy_marshal_string != null)
+            _glfw.wl.client.proxy_marshal_string(token, XDG_ACTIVATION_TOKEN_SET_APP_ID, appId);
+    }
+
+    static void wayland_xdgActivationTokenSetSurface(void* token, void* surface)
+    {
+        if (token != null && surface != null && _glfw.wl.client.proxy_marshal_object != null)
+            _glfw.wl.client.proxy_marshal_object(token, XDG_ACTIVATION_TOKEN_SET_SURFACE, surface);
+    }
+
+    static void wayland_xdgActivationTokenCommit(void* token)
+    {
+        if (token != null && _glfw.wl.client.proxy_marshal != null)
+            _glfw.wl.client.proxy_marshal(token, XDG_ACTIVATION_TOKEN_COMMIT);
+    }
+
+    static void wayland_xdgActivationTokenDestroy(void* token)
+    {
+        wayland_proxyDestroyWithOpcode(token, XDG_ACTIVATION_TOKEN_DESTROY);
+    }
+
+    static int wayland_startActivationToken(_GLFWwindow* window)
+    {
+        if (_glfw.wl.activationManager == null)
+            return GLFW_FALSE;
+
+        if (window->wl.activationToken != null)
+            wayland_xdgActivationTokenDestroy(window->wl.activationToken);
+
+        window->wl.activationToken = wayland_xdgActivationGetActivationToken(_glfw.wl.activationManager);
+        var listener = wayland_getXdgActivationListener();
+        if (window->wl.activationToken == null ||
+            listener == null ||
+            _glfw.wl.client.proxy_add_listener(window->wl.activationToken, listener, window) != 0)
+        {
+            wayland_xdgActivationTokenDestroy(window->wl.activationToken);
+            window->wl.activationToken = null;
+            return GLFW_FALSE;
+        }
+
+        return GLFW_TRUE;
+    }
+
     static void wayland_updateXdgSizeLimits(_GLFWwindow* window)
     {
         if (window->wl.xdg.toplevel == null)
@@ -2096,6 +2190,18 @@ public static unsafe partial class Glfw
             return;
 
         window->wl.xdg.decorationMode = mode;
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_xdgActivationHandleDone(void* userData, void* activationToken, byte* token)
+    {
+        var window = (_GLFWwindow*)userData;
+        if (window == null || activationToken != window->wl.activationToken)
+            return;
+
+        wayland_xdgActivationActivate(_glfw.wl.activationManager, token, window->wl.surface);
+        wayland_xdgActivationTokenDestroy(window->wl.activationToken);
+        window->wl.activationToken = null;
     }
 
     static int wayland_createXdgShellObjects(_GLFWwindow* window)
@@ -2318,6 +2424,8 @@ public static unsafe partial class Glfw
         if (window->wl.egl.window != null && _glfw.wl.egl.window_destroy != null)
             _glfw.wl.egl.window_destroy(window->wl.egl.window);
 
+        wayland_xdgActivationTokenDestroy(window->wl.activationToken);
+        window->wl.activationToken = null;
         wayland_setIdleInhibitor(window, GLFW_FALSE);
         wayland_fractionalScaleDestroy(window->wl.fractionalScale);
         wayland_viewportDestroy(window->wl.scalingViewport);
@@ -2493,11 +2601,29 @@ public static unsafe partial class Glfw
 
     static void _glfwRequestWindowAttentionWayland(_GLFWwindow* window)
     {
+        if (wayland_startActivationToken(window) == 0)
+            return;
+
+        wayland_xdgActivationTokenCommit(window->wl.activationToken);
     }
 
     static void _glfwFocusWindowWayland(_GLFWwindow* window)
     {
-        _glfwInputError(GLFW_FEATURE_UNAVAILABLE, "Wayland: The platform does not support setting the input focus");
+        if (wayland_startActivationToken(window) == 0)
+            return;
+
+        wayland_xdgActivationTokenSetSerial(window->wl.activationToken, _glfw.wl.serial, _glfw.wl.seat);
+
+        var requester = _glfw.wl.keyboardFocus;
+        if (requester != null)
+        {
+            wayland_xdgActivationTokenSetSurface(window->wl.activationToken, requester->wl.surface);
+
+            if (requester->wl.appId != null)
+                wayland_xdgActivationTokenSetAppId(window->wl.activationToken, requester->wl.appId);
+        }
+
+        wayland_xdgActivationTokenCommit(window->wl.activationToken);
     }
 
     static void _glfwSetWindowMonitorWayland(_GLFWwindow* window,
