@@ -2506,26 +2506,23 @@ public static unsafe partial class Glfw
         }
 
         var index = wayland_offerIndex(offer);
-        if (index >= 0)
+        if (index < 0)
+            return;
+
+        _GLFWwindow* window = null;
+        if (surface != null && wayland_proxyHasTag(surface) != 0 && _glfw.wl.client.proxy_get_user_data != null)
+            window = (_GLFWwindow*)_glfw.wl.client.proxy_get_user_data(surface);
+
+        if (window != null &&
+            surface == window->wl.surface &&
+            _glfw.wl.offers[index].text_uri_list != 0)
         {
-            _GLFWwindow* window = null;
-            if (surface != null && wayland_proxyHasTag(surface) != 0 && _glfw.wl.client.proxy_get_user_data != null)
-                window = (_GLFWwindow*)_glfw.wl.client.proxy_get_user_data(surface);
-
-            if (window != null &&
-                surface == window->wl.surface &&
-                _glfw.wl.offers[index].text_uri_list != 0)
-            {
-                _glfw.wl.dragOffer = offer;
-                _glfw.wl.dragFocus = window;
-                _glfw.wl.dragSerial = serial;
-            }
-
-            wayland_removeOfferAt((uint)index);
+            _glfw.wl.dragOffer = offer;
+            _glfw.wl.dragFocus = window;
+            _glfw.wl.dragSerial = serial;
         }
 
-        if (surface == null || wayland_proxyHasTag(surface) == 0)
-            return;
+        wayland_removeOfferAt((uint)index);
 
         if (_glfw.wl.dragOffer != null)
         {
