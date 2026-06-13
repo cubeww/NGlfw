@@ -140,6 +140,7 @@ Started, but not yet functional:
 - custom bitmap cursor creation through `NSBitmapImageRep`, `NSImage`, and
   `NSCursor`
 - hidden/disabled cursor mode hide/unhide plumbing
+- CoreGraphics cursor warping and disabled-cursor mouse/cursor disassociation
 - `NSPasteboard` clipboard string path
 - `NSEvent` application-defined wakeups for `postEmptyEvent`
 - basic NSGL initialization through the OpenGL framework bundle
@@ -156,15 +157,13 @@ Known remaining work:
 - real NSApplication delegate/helper behavior, menu bar setup, resource
   directory handling, and launch lifecycle parity
 - complete `NSView` / `NSTextInputClient` parity, including IME and
-  drag-and-drop edge-case validation, precise disabled-cursor motion, and
-  cursor warping through CoreGraphics
+  drag-and-drop edge-case validation
 - full keyboard layout Unicode translation for scancode names
 - display reconfiguration callbacks, IOKit fallback monitor names, fade
   transitions, and IOKit fallback refresh-rate lookup
 - NSGL runtime validation, occluded-window swap interval sleep simulation, and
   edge-case parity for context hints unsupported by macOS
 - IOKit / HID joystick support
-- Metal-backed Vulkan surface creation and Cocoa EGL ANGLE platform attributes
 - runtime validation on macOS
 
 ### Other Backends

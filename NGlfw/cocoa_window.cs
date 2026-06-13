@@ -882,23 +882,80 @@ public static unsafe partial class Glfw
             *ypos = window->virtualCursorPosY;
     }
 
+    static void cocoa_updateCursorMode(_GLFWwindow* window)
+    {
+        if (window->cursorMode == GLFW_CURSOR_DISABLED)
+        {
+            _glfw.ns.disabledCursorWindow = window;
+            double restoreX;
+            double restoreY;
+            _glfwGetCursorPosCocoa(window, &restoreX, &restoreY);
+            _glfw.ns.restoreCursorPosX = restoreX;
+            _glfw.ns.restoreCursorPosY = restoreY;
+            _glfwCenterCursorInContentArea(window);
+            CGAssociateMouseAndMouseCursorPosition(0);
+        }
+        else if (_glfw.ns.disabledCursorWindow == window)
+        {
+            _glfw.ns.disabledCursorWindow = null;
+            _glfwSetCursorPosCocoa(window,
+                _glfw.ns.restoreCursorPosX,
+                _glfw.ns.restoreCursorPosY);
+        }
+
+        if (cocoa_cursorInContentArea(window) != 0)
+            cocoa_updateCursorImage(window);
+    }
+
     static void _glfwSetCursorPosCocoa(_GLFWwindow* window, double x, double y)
     {
+        cocoa_updateCursorImage(window);
+
+        if (window->ns.@object != null && window->ns.view != null)
+        {
+            var contentRect = objc_msgSend_rect(window->ns.view, cocoa_sel("frame"));
+            var pos = objc_msgSend_point(window->ns.@object, cocoa_sel("mouseLocationOutsideOfEventStream"));
+
+            window->ns.cursorWarpDeltaX += x - pos.x;
+            window->ns.cursorWarpDeltaY += y - contentRect.size.height + pos.y;
+
+            if (window->monitor != null)
+            {
+                CGDisplayMoveCursorToPoint(window->monitor->ns.displayID,
+                    new NSPoint { x = x, y = y });
+            }
+            else
+            {
+                var localRect = cocoa_makeRect(x, contentRect.size.height - y - 1, 0, 0);
+                var globalRect = objc_msgSend_rect_rect(window->ns.@object,
+                    cocoa_sel("convertRectToScreen:"),
+                    localRect);
+
+                CGWarpMouseCursorPosition(new NSPoint
+                {
+                    x = globalRect.origin.x,
+                    y = cocoa_transformY(globalRect.origin.y)
+                });
+            }
+
+            if (window->cursorMode != GLFW_CURSOR_DISABLED)
+                CGAssociateMouseAndMouseCursorPosition(1);
+        }
+
         window->virtualCursorPosX = x;
         window->virtualCursorPosY = y;
     }
 
     static void _glfwSetCursorModeCocoa(_GLFWwindow* window, int mode)
     {
-        if (mode == GLFW_CURSOR_DISABLED)
-            _glfw.ns.disabledCursorWindow = window;
-        else if (_glfw.ns.disabledCursorWindow == window)
-            _glfw.ns.disabledCursorWindow = null;
+        if (mode == GLFW_CURSOR_CAPTURED)
+        {
+            _glfwInputError(GLFW_FEATURE_UNIMPLEMENTED,
+                "Cocoa: Captured cursor mode not yet implemented");
+        }
 
-        if (mode == GLFW_CURSOR_HIDDEN || mode == GLFW_CURSOR_DISABLED)
-            cocoa_hideCursor();
-        else
-            cocoa_showCursor();
+        if (_glfwWindowFocusedCocoa(window) != 0)
+            cocoa_updateCursorMode(window);
     }
 
     static void _glfwSetRawMouseMotionCocoa(_GLFWwindow* window, int enabled)

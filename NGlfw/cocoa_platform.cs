@@ -411,6 +411,18 @@ public static unsafe partial class Glfw
             cocoa_hideCursor();
     }
 
+    static int cocoa_cursorInContentArea(_GLFWwindow* window)
+    {
+        if (window == null || window->ns.@object == null || window->ns.view == null)
+            return GLFW_FALSE;
+
+        var pos = objc_msgSend_point(window->ns.@object, cocoa_sel("mouseLocationOutsideOfEventStream"));
+        var rect = objc_msgSend_rect(window->ns.view, cocoa_sel("frame"));
+        return objc_msgSend_bool_point_rect(window->ns.view, cocoa_sel("mouse:inRect:"), pos, rect) != 0
+            ? GLFW_TRUE
+            : GLFW_FALSE;
+    }
+
     static NSRange cocoa_emptyRange()
     {
         return new NSRange { location = nuint.MaxValue, length = 0 };
@@ -826,6 +838,7 @@ public static unsafe partial class Glfw
 
         window->ns.focused = GLFW_TRUE;
         _glfwInputWindowFocus(window, GLFW_TRUE);
+        cocoa_updateCursorMode(window);
     }
 
     [UnmanagedCallersOnly]
@@ -1466,6 +1479,9 @@ public static unsafe partial class Glfw
     static extern byte objc_msgSend_bool_ptr_ptr(void* receiver, nint selector, void* value1, void* value2);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern byte objc_msgSend_bool_point_rect(void* receiver, nint selector, NSPoint point, NSRect rect);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern int objc_msgSend_int(void* receiver, nint selector);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
@@ -1551,6 +1567,15 @@ public static unsafe partial class Glfw
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     static extern int CGDisplaySetDisplayMode(uint display, void* mode, void* options);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern int CGDisplayMoveCursorToPoint(uint display, NSPoint point);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern int CGWarpMouseCursorPosition(NSPoint point);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern int CGAssociateMouseAndMouseCursorPosition(byte connected);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     static extern void CGDisplayModeRelease(void* mode);
