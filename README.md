@@ -107,7 +107,8 @@ Known remaining work:
 
 ### Cocoa / macOS Backend
 
-Started, but not yet functional:
+Under active implementation and compile-validated on non-macOS hosts, but still
+unverified on real macOS:
 
 - Cocoa platform selection and support detection
 - Objective-C runtime helper layer for classes, selectors, messages, and
@@ -169,8 +170,10 @@ Started, but not yet functional:
 - Cocoa EGL platform selection for ANGLE OpenGL and Metal hints
 - Cocoa Vulkan surface creation through `CAMetalLayer`,
   `VK_EXT_metal_surface`, and `VK_MVK_macos_surface`
-- basic Cocoa IOHID manager creation, joystick/gamepad matching setup, run-loop
-  scheduling, and manager teardown
+- Cocoa IOHID manager creation, joystick/gamepad matching setup, run-loop
+  scheduling, manager teardown, device callbacks, element enumeration, SDL-style
+  element sorting, axis/button/hat polling, GUID generation, and disconnect
+  cleanup
 - POSIX runtime plumbing adjusted for macOS library names and pthread key sizes
 
 Known remaining work:
@@ -181,9 +184,7 @@ Known remaining work:
   drag-and-drop edge-case validation
 - NSGL runtime validation and edge-case parity for context hints unsupported by
   macOS
-- complete IOKit / HID joystick support, including device callbacks, element
-  enumeration, axis/button/hat polling, GUID generation, and disconnect
-  handling
+- macOS runtime validation for IOKit / HID joystick behavior and edge cases
 - runtime validation on macOS
 
 ### Other Backends
