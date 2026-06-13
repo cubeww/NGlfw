@@ -32,6 +32,7 @@ public static unsafe partial class Glfw
     const ulong NSEventModifierFlagDeviceIndependentFlagsMask = 0xffff0000;
     const ulong NSEventMaskAny = ulong.MaxValue;
     const long NSEventTypeApplicationDefined = 15;
+    const ulong NSBitmapFormatAlphaNonpremultiplied = 1;
 
     static readonly byte* _glfwCocoaMappingName = _glfw_allocate_static_string("Mac OS X");
     static readonly byte* _glfwCocoaPasteboardTypeString = _glfw_allocate_static_string("public.utf8-plain-text");
@@ -1011,6 +1012,15 @@ public static unsafe partial class Glfw
     static extern void* objc_msgSend_id_ptr_ptr(void* receiver, nint selector, void* value1, void* value2);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void* objc_msgSend_id_ptr_long_long_long_long_bool_bool_ptr_ulong_long_long(void* receiver, nint selector, void* value1, long value2, long value3, long value4, long value5, byte value6, byte value7, void* value8, ulong value9, long value10, long value11);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void* objc_msgSend_id_size(void* receiver, nint selector, NSSize size);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern void* objc_msgSend_id_ptr_point(void* receiver, nint selector, void* value1, NSPoint value2);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void* objc_msgSend_id_rect(void* receiver, nint selector, NSRect rect);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
@@ -1048,6 +1058,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern byte* objc_msgSend_UTF8String(void* receiver, nint selector);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern byte* objc_msgSend_bytes(void* receiver, nint selector);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern NSPoint objc_msgSend_point(void* receiver, nint selector);

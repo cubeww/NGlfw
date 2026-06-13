@@ -132,7 +132,10 @@ Started, but not yet functional:
   Cocoa monitor native accessor
 - NSScreen mapping for localized monitor names, content scale, and visible
   work area queries
-- standard Cocoa cursor creation for the public cursor shapes
+- standard Cocoa cursor creation for the public cursor shapes, including
+  private resize-cursor fallback selectors
+- custom bitmap cursor creation through `NSBitmapImageRep`, `NSImage`, and
+  `NSCursor`
 - hidden/disabled cursor mode hide/unhide plumbing
 - `NSPasteboard` clipboard string path
 - `NSEvent` application-defined wakeups for `postEmptyEvent`
@@ -150,7 +153,6 @@ Known remaining work:
   IME composition, drag-and-drop, tracking areas, private cursor update details,
   precise disabled-cursor motion, and cursor warping through CoreGraphics
 - full keyboard layout Unicode translation for scancode names
-- custom bitmap cursors and private resize cursor fallbacks
 - display reconfiguration callbacks, IOKit fallback monitor names, fade
   transitions, and IOKit fallback refresh-rate lookup
 - NSGL runtime validation, occluded-window swap interval sleep simulation, and

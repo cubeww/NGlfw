@@ -894,13 +894,86 @@ public static unsafe partial class Glfw
 
     static int _glfwCreateCursorCocoa(_GLFWcursor* cursor, GLFWimage* image, int xhot, int yhot)
     {
-        cocoa_reportUnimplemented("Custom cursors");
-        return GLFW_FALSE;
+        var colorSpaceName = cocoa_stringFromUTF8("NSCalibratedRGBColorSpace");
+        var repClass = cocoa_getClass("NSBitmapImageRep");
+        var allocatedRep = cocoa_msgSend_id(repClass, "alloc");
+        var rep = objc_msgSend_id_ptr_long_long_long_long_bool_bool_ptr_ulong_long_long(allocatedRep,
+            cocoa_sel("initWithBitmapDataPlanes:pixelsWide:pixelsHigh:bitsPerSample:samplesPerPixel:hasAlpha:isPlanar:colorSpaceName:bitmapFormat:bytesPerRow:bitsPerPixel:"),
+            null,
+            image->width,
+            image->height,
+            8,
+            4,
+            1,
+            0,
+            colorSpaceName,
+            NSBitmapFormatAlphaNonpremultiplied,
+            image->width * 4,
+            32);
+        cocoa_releaseTemporaryString(colorSpaceName);
+
+        if (rep == null)
+            return GLFW_FALSE;
+
+        var bitmapData = objc_msgSend_bytes(rep, cocoa_sel("bitmapData"));
+        if (bitmapData == null)
+        {
+            cocoa_msgSend_void(rep, "release");
+            return GLFW_FALSE;
+        }
+
+        _glfw_memcpy(bitmapData, image->pixels, (nuint)(image->width * image->height * 4));
+
+        var nativeClass = cocoa_getClass("NSImage");
+        var native = objc_msgSend_id_size(cocoa_msgSend_id(nativeClass, "alloc"),
+            cocoa_sel("initWithSize:"),
+            cocoa_makeSize(image->width, image->height));
+        if (native == null)
+        {
+            cocoa_msgSend_void(rep, "release");
+            return GLFW_FALSE;
+        }
+
+        cocoa_msgSend_void_ptr(native, "addRepresentation:", rep);
+
+        cursor->ns.@object = objc_msgSend_id_ptr_point(cocoa_msgSend_id(cocoa_getClass("NSCursor"), "alloc"),
+            cocoa_sel("initWithImage:hotSpot:"),
+            native,
+            new NSPoint { x = xhot, y = yhot });
+
+        cocoa_msgSend_void(native, "release");
+        cocoa_msgSend_void(rep, "release");
+
+        return cursor->ns.@object != null ? GLFW_TRUE : GLFW_FALSE;
     }
 
     static int _glfwCreateStandardCursorCocoa(_GLFWcursor* cursor, int shape)
     {
         var cursorClass = cocoa_getClass("NSCursor");
+        nint privateSelector = 0;
+
+        switch (shape)
+        {
+            case GLFW_RESIZE_EW_CURSOR:
+                privateSelector = cocoa_sel("_windowResizeEastWestCursor");
+                break;
+            case GLFW_RESIZE_NS_CURSOR:
+                privateSelector = cocoa_sel("_windowResizeNorthSouthCursor");
+                break;
+            case GLFW_RESIZE_NWSE_CURSOR:
+                privateSelector = cocoa_sel("_windowResizeNorthWestSouthEastCursor");
+                break;
+            case GLFW_RESIZE_NESW_CURSOR:
+                privateSelector = cocoa_sel("_windowResizeNorthEastSouthWestCursor");
+                break;
+        }
+
+        if (privateSelector != 0 &&
+            objc_msgSend_bool_nint(cursorClass, cocoa_sel("respondsToSelector:"), privateSelector) != 0)
+        {
+            cursor->ns.@object = objc_msgSend_id_nint(cursorClass, cocoa_sel("performSelector:"), privateSelector);
+        }
+
         var selector = shape switch
         {
             GLFW_ARROW_CURSOR => "arrowCursor",
@@ -914,13 +987,14 @@ public static unsafe partial class Glfw
             _ => null
         };
 
-        if (selector == null)
+        if (cursor->ns.@object == null && selector == null)
         {
             _glfwInputError(GLFW_CURSOR_UNAVAILABLE, "Cocoa: Standard cursor shape unavailable");
             return GLFW_FALSE;
         }
 
-        cursor->ns.@object = cocoa_msgSend_id(cursorClass, selector);
+        if (cursor->ns.@object == null)
+            cursor->ns.@object = cocoa_msgSend_id(cursorClass, selector!);
         if (cursor->ns.@object == null)
         {
             _glfwInputError(GLFW_CURSOR_UNAVAILABLE, "Cocoa: Standard cursor shape unavailable");
