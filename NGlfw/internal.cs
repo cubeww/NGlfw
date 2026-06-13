@@ -397,6 +397,7 @@ public static unsafe partial class Glfw
         public _GLFWmapping* mapping;
         public _GLFWjoystickWin32 win32;
         public _GLFWjoystickNS ns;
+        public _GLFWjoystickLinux linux;
     }
 
     [InlineArray(GLFW_JOYSTICK_LAST + 1)]
@@ -1150,6 +1151,7 @@ public static unsafe partial class Glfw
     {
         public int inotify;
         public int watch;
+        public int dropped;
     }
 
     public struct _GLFWlibrary_hints
