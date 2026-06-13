@@ -1,4 +1,5 @@
 using System.Threading;
+using System.Runtime.InteropServices;
 
 namespace NGlfw;
 
@@ -40,10 +41,14 @@ public static unsafe partial class Glfw
     const int XA_ATOM = 4;
     const int XA_CARDINAL = 6;
     const int XA_STRING = 31;
+    const int XA_WINDOW = 33;
     const int AnyPropertyType = 0;
+    const int StateHint = 1 << 1;
     const int PMinSize = 1 << 4;
     const int PMaxSize = 1 << 5;
     const int PAspect = 1 << 7;
+    const int DontPreferBlanking = 0;
+    const int DefaultExposures = 2;
     const int _NET_WM_STATE_REMOVE = 0;
     const int _NET_WM_STATE_ADD = 1;
     const int MWM_HINTS_DECORATIONS = 2;
@@ -1269,6 +1274,78 @@ public static unsafe partial class Glfw
         _glfw.x11.XFlush(_glfw.x11.display);
     }
 
+    static void x11_acquireMonitor(_GLFWwindow* window)
+    {
+        if (_glfw.x11.saverCount == 0 &&
+            _glfw.x11.XGetScreenSaver != null &&
+            _glfw.x11.XSetScreenSaver != null)
+        {
+            int timeout;
+            int interval;
+            int blanking;
+            int exposure;
+            _glfw.x11.XGetScreenSaver(_glfw.x11.display,
+                &timeout,
+                &interval,
+                &blanking,
+                &exposure);
+
+            _glfw.x11.saverTimeout = timeout;
+            _glfw.x11.saverInterval = interval;
+            _glfw.x11.saverBlanking = blanking;
+            _glfw.x11.saverExposure = exposure;
+
+            _glfw.x11.XSetScreenSaver(_glfw.x11.display,
+                0,
+                0,
+                DontPreferBlanking,
+                DefaultExposures);
+        }
+
+        if (window->monitor->window == null)
+            _glfw.x11.saverCount++;
+
+        _glfwSetVideoModeX11(window->monitor, &window->videoMode);
+        _glfwInputMonitorWindow(window->monitor, window);
+
+        if (window->x11.overrideRedirect != 0 && _glfw.x11.XMoveResizeWindow != null)
+        {
+            int xpos;
+            int ypos;
+            GLFWvidmode mode;
+            _glfwGetMonitorPosX11(window->monitor, &xpos, &ypos);
+            _glfwGetVideoModeX11(window->monitor, &mode);
+
+            _glfw.x11.XMoveResizeWindow(_glfw.x11.display,
+                window->x11.handle,
+                xpos,
+                ypos,
+                (uint)mode.width,
+                (uint)mode.height);
+        }
+    }
+
+    static void x11_releaseMonitor(_GLFWwindow* window)
+    {
+        if (window->monitor == null || window->monitor->window != window)
+            return;
+
+        _glfwInputMonitorWindow(window->monitor, null);
+        _glfwRestoreVideoModeX11(window->monitor);
+
+        if (_glfw.x11.saverCount > 0)
+            _glfw.x11.saverCount--;
+
+        if (_glfw.x11.saverCount == 0 && _glfw.x11.XSetScreenSaver != null)
+        {
+            _glfw.x11.XSetScreenSaver(_glfw.x11.display,
+                _glfw.x11.saverTimeout,
+                _glfw.x11.saverInterval,
+                _glfw.x11.saverBlanking,
+                _glfw.x11.saverExposure);
+        }
+    }
+
     static void x11_createInputContext(_GLFWwindow* window)
     {
         if (_glfw.x11.im == null || _glfw.x11.XCreateIC == null)
@@ -1747,15 +1824,9 @@ public static unsafe partial class Glfw
                         if (window->monitor != null)
                         {
                             if (iconified != 0)
-                            {
-                                _glfwRestoreVideoModeX11(window->monitor);
-                                _glfwInputMonitorWindow(window->monitor, null);
-                            }
+                                x11_releaseMonitor(window);
                             else
-                            {
-                                _glfwSetVideoModeX11(window->monitor, &window->videoMode);
-                                _glfwInputMonitorWindow(window->monitor, window);
-                            }
+                                x11_acquireMonitor(window);
                         }
 
                         window->x11.iconified = iconified;
@@ -1887,6 +1958,42 @@ public static unsafe partial class Glfw
                 protocols[count++] = _glfw.x11.NET_WM_PING;
 
             _glfw.x11.XSetWMProtocols(_glfw.x11.display, window->x11.handle, protocols, count);
+        }
+
+        if (_glfw.x11.NET_WM_PID != 0 && _glfw.x11.XChangeProperty != null)
+        {
+            var pid = (nint)x11_getpid();
+            _glfw.x11.XChangeProperty(_glfw.x11.display,
+                window->x11.handle,
+                _glfw.x11.NET_WM_PID,
+                XA_CARDINAL,
+                32,
+                PropModeReplace,
+                (byte*)&pid,
+                1);
+        }
+
+        if (_glfw.x11.NET_WM_WINDOW_TYPE != 0 &&
+            _glfw.x11.NET_WM_WINDOW_TYPE_NORMAL != 0 &&
+            _glfw.x11.XChangeProperty != null)
+        {
+            var type = _glfw.x11.NET_WM_WINDOW_TYPE_NORMAL;
+            _glfw.x11.XChangeProperty(_glfw.x11.display,
+                window->x11.handle,
+                _glfw.x11.NET_WM_WINDOW_TYPE,
+                XA_ATOM,
+                32,
+                PropModeReplace,
+                (byte*)&type,
+                1);
+        }
+
+        if (_glfw.x11.XSetWMHints != null)
+        {
+            XWMHints hints = default;
+            hints.flags = StateHint;
+            hints.initial_state = NormalState;
+            _glfw.x11.XSetWMHints(_glfw.x11.display, window->x11.handle, &hints);
         }
 
         x11_createInputContext(window);
@@ -2157,9 +2264,8 @@ public static unsafe partial class Glfw
 
         if (window->monitor != null)
         {
-            _glfwSetVideoModeX11(window->monitor, &window->videoMode);
-            _glfwInputMonitorWindow(window->monitor, window);
             x11_updateWindowMode(window);
+            x11_acquireMonitor(window);
             _glfwShowWindowX11(window);
             _glfwFocusWindowX11(window);
         }
@@ -2175,10 +2281,7 @@ public static unsafe partial class Glfw
     static void _glfwDestroyWindowX11(_GLFWwindow* window)
     {
         if (window->monitor != null)
-        {
-            _glfwRestoreVideoModeX11(window->monitor);
-            _glfwInputMonitorWindow(window->monitor, null);
-        }
+            x11_releaseMonitor(window);
 
         if (window->context.destroy != null)
             window->context.destroy(window);
@@ -2469,7 +2572,8 @@ public static unsafe partial class Glfw
         {
             if (monitor != null)
             {
-                _glfwSetVideoModeX11(monitor, &window->videoMode);
+                if (monitor->window == window)
+                    x11_acquireMonitor(window);
                 int mx;
                 int my;
                 GLFWvidmode mode;
@@ -2500,18 +2604,14 @@ public static unsafe partial class Glfw
         }
 
         if (window->monitor != null)
-        {
-            _glfwRestoreVideoModeX11(window->monitor);
-            _glfwInputMonitorWindow(window->monitor, null);
-        }
+            x11_releaseMonitor(window);
 
         _glfwInputWindowMonitor(window, monitor);
 
         if (window->monitor != null)
         {
-            _glfwSetVideoModeX11(window->monitor, &window->videoMode);
-            _glfwInputMonitorWindow(window->monitor, window);
             x11_updateWindowMode(window);
+            x11_acquireMonitor(window);
 
             int mx;
             int my;
@@ -2918,4 +3018,7 @@ public static unsafe partial class Glfw
 
         return ((_GLFWwindow*)window)->x11.handle;
     }
+
+    [DllImport("libc", EntryPoint = "getpid")]
+    static extern int x11_getpid();
 }

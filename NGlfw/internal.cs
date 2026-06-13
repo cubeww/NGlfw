@@ -547,7 +547,7 @@ public static unsafe partial class Glfw
         public nuint hiddenCursorHandle;
         public nuint context;
         public void* im;
-        public void* errorHandler;
+        public delegate* unmanaged<void*, XErrorEvent*, int> errorHandler;
         public int errorCode;
         public byte* primarySelectionString;
         public byte* clipboardString;
@@ -628,9 +628,19 @@ public static unsafe partial class Glfw
         public nuint xdndSource;
         public nuint xdndFormat;
         public int xdndVersion;
+        public int saverTimeout;
+        public int saverInterval;
+        public int saverBlanking;
+        public int saverExposure;
+        public int saverCount;
         public fixed short keycodes[_GLFW_X11_KEYCODE_LAST + 1];
         public fixed short scancodes[GLFW_KEY_LAST + 1];
         public fixed byte keyname[64];
+        public nuint NET_SUPPORTED;
+        public nuint NET_SUPPORTING_WM_CHECK;
+        public nuint NET_WM_PID;
+        public nuint NET_WM_WINDOW_TYPE;
+        public nuint NET_WM_WINDOW_TYPE_NORMAL;
         public delegate* unmanaged<void*, int> XCloseDisplay;
         public delegate* unmanaged<void*, int> XConnectionNumber;
         public delegate* unmanaged<void*, int> XFree;
@@ -707,6 +717,7 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, nuint, nuint> XGetSelectionOwner;
         public delegate* unmanaged<void*, nuint, int, nint, XEvent*, int> XSendEvent;
         public delegate* unmanaged<void*, nuint, XSizeHints*, void> XSetWMNormalHints;
+        public delegate* unmanaged<void*, nuint, XWMHints*, void> XSetWMHints;
         public delegate* unmanaged<void*, nuint, nuint*, int, int> XSetWMProtocols;
         public delegate* unmanaged<void*, nuint, XClassHint*, int> XSetClassHint;
         public delegate* unmanaged<void*, nuint, nint, int> XSelectInput;
@@ -732,6 +743,11 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, XEvent*, int> XPeekEvent;
         public delegate* unmanaged<XEvent*, byte*, int, nuint*, void*, int> XLookupString;
         public delegate* unmanaged<void*, int> XFlush;
+        public delegate* unmanaged<void*, int, int> XSync;
+        public delegate* unmanaged<void*, int, byte*, int, int> XGetErrorText;
+        public delegate* unmanaged<delegate* unmanaged<void*, XErrorEvent*, int>, delegate* unmanaged<void*, XErrorEvent*, int>> XSetErrorHandler;
+        public delegate* unmanaged<void*, int*, int*, int*, int*, int> XGetScreenSaver;
+        public delegate* unmanaged<void*, int, int, int, int, int> XSetScreenSaver;
     }
 
     public struct _GLFWlibraryGLX
@@ -1019,6 +1035,30 @@ public static unsafe partial class Glfw
         public int base_width;
         public int base_height;
         public int win_gravity;
+    }
+
+    public struct XWMHints
+    {
+        public nint flags;
+        public int input;
+        public int initial_state;
+        public nuint icon_pixmap;
+        public nuint icon_window;
+        public int icon_x;
+        public int icon_y;
+        public nuint icon_mask;
+        public nuint window_group;
+    }
+
+    public struct XErrorEvent
+    {
+        public int type;
+        public void* display;
+        public nuint resourceid;
+        public nuint serial;
+        public byte error_code;
+        public byte request_code;
+        public byte minor_code;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 192)]

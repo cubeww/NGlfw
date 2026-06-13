@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace NGlfw;
 
 public static unsafe partial class Glfw
@@ -10,6 +12,117 @@ public static unsafe partial class Glfw
         var bytes = System.Text.Encoding.ASCII.GetBytes(name + '\0');
         fixed (byte* atomName = bytes)
             return _glfw.x11.XInternAtom(_glfw.x11.display, atomName, GLFW_FALSE);
+    }
+
+    static nuint x11_getAtomIfSupported(nuint* supportedAtoms, nuint atomCount, string name)
+    {
+        if (supportedAtoms == null || atomCount == 0)
+            return 0;
+
+        var atom = x11_internAtom(name);
+        for (nuint i = 0; i < atomCount; i++)
+        {
+            if (supportedAtoms[i] == atom)
+                return atom;
+        }
+
+        return 0;
+    }
+
+    static void x11_detectEWMH()
+    {
+        _glfw.x11.NET_WM_STATE = 0;
+        _glfw.x11.NET_ACTIVE_WINDOW = 0;
+        _glfw.x11.NET_WM_STATE_ABOVE = 0;
+        _glfw.x11.NET_WM_STATE_DEMANDS_ATTENTION = 0;
+        _glfw.x11.NET_WM_STATE_MAXIMIZED_VERT = 0;
+        _glfw.x11.NET_WM_STATE_MAXIMIZED_HORZ = 0;
+        _glfw.x11.NET_WM_STATE_FULLSCREEN = 0;
+        _glfw.x11.NET_WM_FULLSCREEN_MONITORS = 0;
+        _glfw.x11.NET_FRAME_EXTENTS = 0;
+        _glfw.x11.NET_REQUEST_FRAME_EXTENTS = 0;
+        _glfw.x11.NET_WORKAREA = 0;
+        _glfw.x11.NET_CURRENT_DESKTOP = 0;
+        _glfw.x11.NET_WM_WINDOW_TYPE = 0;
+        _glfw.x11.NET_WM_WINDOW_TYPE_NORMAL = 0;
+
+        if (_glfw.x11.NET_SUPPORTING_WM_CHECK == 0 ||
+            _glfw.x11.NET_SUPPORTED == 0 ||
+            _glfw.x11.XGetWindowProperty == null)
+        {
+            return;
+        }
+
+        byte* windowFromRootData = null;
+        var rootCount = x11_getWindowProperty(_glfw.x11.root,
+            _glfw.x11.NET_SUPPORTING_WM_CHECK,
+            XA_WINDOW,
+            GLFW_FALSE,
+            &windowFromRootData);
+
+        if (rootCount == 0 || windowFromRootData == null)
+            return;
+
+        var windowFromRoot = *(nuint*)windowFromRootData;
+
+        byte* windowFromChildData = null;
+        _glfwGrabErrorHandlerX11();
+        var childCount = x11_getWindowProperty(windowFromRoot,
+            _glfw.x11.NET_SUPPORTING_WM_CHECK,
+            XA_WINDOW,
+            GLFW_FALSE,
+            &windowFromChildData);
+        _glfwReleaseErrorHandlerX11();
+
+        if (childCount == 0 || windowFromChildData == null)
+        {
+            if (_glfw.x11.XFree != null)
+                _glfw.x11.XFree(windowFromRootData);
+            return;
+        }
+
+        var windowFromChild = *(nuint*)windowFromChildData;
+        if (windowFromRoot != windowFromChild)
+        {
+            if (_glfw.x11.XFree != null)
+            {
+                _glfw.x11.XFree(windowFromRootData);
+                _glfw.x11.XFree(windowFromChildData);
+            }
+            return;
+        }
+
+        if (_glfw.x11.XFree != null)
+        {
+            _glfw.x11.XFree(windowFromRootData);
+            _glfw.x11.XFree(windowFromChildData);
+        }
+
+        byte* supportedData = null;
+        var atomCount = x11_getWindowProperty(_glfw.x11.root,
+            _glfw.x11.NET_SUPPORTED,
+            XA_ATOM,
+            GLFW_FALSE,
+            &supportedData);
+
+        var supportedAtoms = (nuint*)supportedData;
+        _glfw.x11.NET_WM_STATE = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_STATE");
+        _glfw.x11.NET_WM_STATE_ABOVE = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_STATE_ABOVE");
+        _glfw.x11.NET_WM_STATE_FULLSCREEN = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_STATE_FULLSCREEN");
+        _glfw.x11.NET_WM_STATE_MAXIMIZED_VERT = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_STATE_MAXIMIZED_VERT");
+        _glfw.x11.NET_WM_STATE_MAXIMIZED_HORZ = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_STATE_MAXIMIZED_HORZ");
+        _glfw.x11.NET_WM_STATE_DEMANDS_ATTENTION = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_STATE_DEMANDS_ATTENTION");
+        _glfw.x11.NET_WM_FULLSCREEN_MONITORS = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_FULLSCREEN_MONITORS");
+        _glfw.x11.NET_WM_WINDOW_TYPE = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_WINDOW_TYPE");
+        _glfw.x11.NET_WM_WINDOW_TYPE_NORMAL = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WM_WINDOW_TYPE_NORMAL");
+        _glfw.x11.NET_WORKAREA = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_WORKAREA");
+        _glfw.x11.NET_CURRENT_DESKTOP = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_CURRENT_DESKTOP");
+        _glfw.x11.NET_ACTIVE_WINDOW = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_ACTIVE_WINDOW");
+        _glfw.x11.NET_FRAME_EXTENTS = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_FRAME_EXTENTS");
+        _glfw.x11.NET_REQUEST_FRAME_EXTENTS = x11_getAtomIfSupported(supportedAtoms, atomCount, "_NET_REQUEST_FRAME_EXTENTS");
+
+        if (supportedData != null && _glfw.x11.XFree != null)
+            _glfw.x11.XFree(supportedData);
     }
 
     static void x11_createKeyTables()
@@ -663,6 +776,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, nuint, int, nint, XEvent*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSendEvent");
         _glfw.x11.XSetWMNormalHints =
             (delegate* unmanaged<void*, nuint, XSizeHints*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XSetWMNormalHints");
+        _glfw.x11.XSetWMHints =
+            (delegate* unmanaged<void*, nuint, XWMHints*, void>)x11_getModuleSymbol(_glfw.x11.handle, "XSetWMHints");
         _glfw.x11.XSetWMProtocols =
             (delegate* unmanaged<void*, nuint, nuint*, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSetWMProtocols");
         _glfw.x11.XSetClassHint =
@@ -713,6 +828,16 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<XEvent*, byte*, int, nuint*, void*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XLookupString");
         _glfw.x11.XFlush =
             (delegate* unmanaged<void*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XFlush");
+        _glfw.x11.XSync =
+            (delegate* unmanaged<void*, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSync");
+        _glfw.x11.XGetErrorText =
+            (delegate* unmanaged<void*, int, byte*, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XGetErrorText");
+        _glfw.x11.XSetErrorHandler =
+            (delegate* unmanaged<delegate* unmanaged<void*, XErrorEvent*, int>, delegate* unmanaged<void*, XErrorEvent*, int>>)x11_getModuleSymbol(_glfw.x11.handle, "XSetErrorHandler");
+        _glfw.x11.XGetScreenSaver =
+            (delegate* unmanaged<void*, int*, int*, int*, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XGetScreenSaver");
+        _glfw.x11.XSetScreenSaver =
+            (delegate* unmanaged<void*, int, int, int, int, int>)x11_getModuleSymbol(_glfw.x11.handle, "XSetScreenSaver");
 
         if (_glfw.x11.XDefaultVisual == null ||
             _glfw.x11.XDefaultDepth == null ||
@@ -728,7 +853,10 @@ public static unsafe partial class Glfw
             _glfw.x11.XUnmapWindow == null ||
             _glfw.x11.XPending == null ||
             _glfw.x11.XNextEvent == null ||
-            _glfw.x11.XFlush == null)
+            _glfw.x11.XFlush == null ||
+            _glfw.x11.XSync == null ||
+            _glfw.x11.XGetErrorText == null ||
+            _glfw.x11.XSetErrorHandler == null)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "X11: Failed to load required Xlib entry points");
             return GLFW_FALSE;
@@ -736,6 +864,9 @@ public static unsafe partial class Glfw
 
         _glfw.x11.WM_PROTOCOLS = x11_internAtom("WM_PROTOCOLS");
         _glfw.x11.WM_DELETE_WINDOW = x11_internAtom("WM_DELETE_WINDOW");
+        _glfw.x11.NET_SUPPORTED = x11_internAtom("_NET_SUPPORTED");
+        _glfw.x11.NET_SUPPORTING_WM_CHECK = x11_internAtom("_NET_SUPPORTING_WM_CHECK");
+        _glfw.x11.NET_WM_PID = x11_internAtom("_NET_WM_PID");
         _glfw.x11.NET_WM_PING = x11_internAtom("_NET_WM_PING");
         _glfw.x11.WM_STATE = x11_internAtom("WM_STATE");
         _glfw.x11.NET_WM_NAME = x11_internAtom("_NET_WM_NAME");
@@ -779,6 +910,8 @@ public static unsafe partial class Glfw
         _glfw.x11.XdndSelection = x11_internAtom("XdndSelection");
         _glfw.x11.XdndTypeList = x11_internAtom("XdndTypeList");
         _glfw.x11.text_uri_list = x11_internAtom("text/uri-list");
+
+        x11_detectEWMH();
 
         _glfw.x11.contentScaleX = 1f;
         _glfw.x11.contentScaleY = 1f;
@@ -864,17 +997,52 @@ public static unsafe partial class Glfw
         _glfw.x11 = default;
     }
 
+    [UnmanagedCallersOnly]
+    static int x11_errorHandler(void* display, XErrorEvent* @event)
+    {
+        if (_glfw.x11.display == display)
+            _glfw.x11.errorCode = @event->error_code;
+
+        return 0;
+    }
+
     static void _glfwInputErrorX11(int error, string message)
     {
-        _glfwInputError(error, message);
+        if (_glfw.x11.errorCode == Success || _glfw.x11.XGetErrorText == null)
+        {
+            _glfwInputError(error, message);
+            return;
+        }
+
+        var buffer = stackalloc byte[1024];
+        _glfw.x11.XGetErrorText(_glfw.x11.display, _glfw.x11.errorCode, buffer, 1024);
+
+        var description = Marshal.PtrToStringAnsi((nint)buffer);
+        if (string.IsNullOrEmpty(description))
+            _glfwInputError(error, message);
+        else
+            _glfwInputError(error, "{0}: {1}", message, description);
     }
 
     static void _glfwGrabErrorHandlerX11()
     {
+        if (_glfw.x11.XSetErrorHandler == null)
+            return;
+
+        _glfw.x11.errorCode = Success;
+        _glfw.x11.errorHandler = _glfw.x11.XSetErrorHandler(&x11_errorHandler);
     }
 
     static void _glfwReleaseErrorHandlerX11()
     {
+        if (_glfw.x11.XSetErrorHandler == null)
+            return;
+
+        if (_glfw.x11.XSync != null)
+            _glfw.x11.XSync(_glfw.x11.display, GLFW_FALSE);
+
+        _glfw.x11.XSetErrorHandler(_glfw.x11.errorHandler);
+        _glfw.x11.errorHandler = null;
     }
 
     static void _glfwFreeMonitorX11(_GLFWmonitor* monitor)
