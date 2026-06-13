@@ -723,6 +723,22 @@ public static unsafe partial class Glfw
         public _GLFWlibraryWayland_cursor cursor;
         public _GLFWlibraryWayland_egl egl;
         public _GLFWlibraryWayland_libdecor libdecor;
+        public _GLFWlibraryWayland_pending pending;
+    }
+
+    public struct _GLFWlibraryWayland_pending
+    {
+        public int events;
+        public void* pointerSurface;
+        public double pointerX;
+        public double pointerY;
+        public int button;
+        public int action;
+        public uint buttonSerial;
+        public double scrollX;
+        public double scrollY;
+        public double discreteX;
+        public double discreteY;
     }
 
     public struct _GLFWlibraryWayland_client

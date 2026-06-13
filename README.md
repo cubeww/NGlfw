@@ -238,6 +238,8 @@ Implemented or partially implemented:
   buffer scale updates
 - initial `wl_seat` capability handling and `wl_pointer` enter/leave, motion,
   button, and scroll callbacks
+- `wl_pointer.frame` pending event dispatch, high-resolution wheel
+  `axis_value120` handling, and decoration pointer action gating
 - initial `wl_keyboard` capability handling, keymap compilation, focus,
   key press/release, modifier tracking, and text input callbacks
 - keyboard repeat via Linux `timerfd` integrated into the Wayland event loop
