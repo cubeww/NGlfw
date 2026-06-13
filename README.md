@@ -257,6 +257,9 @@ Implemented or partially implemented:
 - hand-written `zxdg_decoration_manager_v1` protocol tables, registry
   binding, xdg toplevel decoration objects, configure tracking, and
   server/client decoration mode requests
+- client-side fallback decorations through `wl_subsurface` and `wp_viewport`,
+  including fallback frame extents, resize updates, decoration cursors,
+  interactive move/resize, and xdg window-menu requests
 - hand-written `zwp_idle_inhibit_manager_v1` protocol tables, registry
   binding, and fullscreen idle inhibitor creation/destruction
 - hand-written `xdg_activation_v1` protocol tables, registry binding,
@@ -280,11 +283,8 @@ Known remaining work:
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
 - Wayland clipboard edge-case parity and runtime validation
-- libdecor fd integration in the Wayland event loop
-- advanced pointer events and interactive decoration move/resize paths
-- additional viewport users such as fallback decorations and runtime
-  fractional-scaling validation
-- libdecor and client-side fallback decoration support
+- libdecor support and fd integration in the Wayland event loop
+- runtime fractional-scaling validation
 - drag-and-drop action/finish edge cases
 - runtime validation on a Wayland compositor
 

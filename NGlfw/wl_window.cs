@@ -48,6 +48,18 @@ public static unsafe partial class Glfw
     const uint XDG_TOPLEVEL_STATE_ACTIVATED = 4;
     const uint ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE = 1;
     const uint ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE = 2;
+    const int GLFW_BORDER_SIZE = 4;
+    const int GLFW_CAPTION_HEIGHT = 24;
+
+    static readonly byte* _glfwWaylandCursorLeftPtr = _glfw_allocate_static_string("left_ptr");
+    static readonly byte* _glfwWaylandCursorNResize = _glfw_allocate_static_string("n-resize");
+    static readonly byte* _glfwWaylandCursorSResize = _glfw_allocate_static_string("s-resize");
+    static readonly byte* _glfwWaylandCursorWResize = _glfw_allocate_static_string("w-resize");
+    static readonly byte* _glfwWaylandCursorEResize = _glfw_allocate_static_string("e-resize");
+    static readonly byte* _glfwWaylandCursorNwResize = _glfw_allocate_static_string("nw-resize");
+    static readonly byte* _glfwWaylandCursorNeResize = _glfw_allocate_static_string("ne-resize");
+    static readonly byte* _glfwWaylandCursorSwResize = _glfw_allocate_static_string("sw-resize");
+    static readonly byte* _glfwWaylandCursorSeResize = _glfw_allocate_static_string("se-resize");
 
     struct VkWaylandSurfaceCreateInfoKHR
     {
@@ -527,6 +539,39 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal_object(surface, WL_SURFACE_SET_INPUT_REGION, region);
     }
 
+    static void* wayland_subcompositorGetSubsurface(void* subcompositor, void* surface, void* parent)
+    {
+        if (subcompositor == null ||
+            surface == null ||
+            parent == null ||
+            _glfw.wl.client.subsurfaceInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object_object == null)
+        {
+            return null;
+        }
+
+        var subsurface = _glfw.wl.client.proxy_marshal_constructor_object_object(subcompositor,
+            WL_SUBCOMPOSITOR_GET_SUBSURFACE,
+            _glfw.wl.client.subsurfaceInterface,
+            null,
+            surface,
+            parent);
+
+        wayland_tagProxy(subsurface);
+        return subsurface;
+    }
+
+    static void wayland_subsurfaceSetPosition(void* subsurface, int x, int y)
+    {
+        if (subsurface != null && _glfw.wl.client.proxy_marshal_int_int != null)
+            _glfw.wl.client.proxy_marshal_int_int(subsurface, WL_SUBSURFACE_SET_POSITION, x, y);
+    }
+
+    static void wayland_subsurfaceDestroy(void* subsurface)
+    {
+        wayland_proxyDestroyWithOpcode(subsurface, WL_SUBSURFACE_DESTROY);
+    }
+
     static void* wayland_compositorCreateRegion()
     {
         if (_glfw.wl.compositor == null ||
@@ -787,6 +832,156 @@ public static unsafe partial class Glfw
         return buffer;
     }
 
+    static int wayland_createFallbackEdge(_GLFWwindow* window,
+                                          _GLFWfallbackEdgeWayland* edge,
+                                          void* parent,
+                                          void* buffer,
+                                          int x,
+                                          int y,
+                                          int width,
+                                          int height)
+    {
+        if (window == null || edge == null || parent == null || buffer == null)
+            return GLFW_FALSE;
+
+        edge->surface = wayland_compositorCreateSurface();
+        if (edge->surface == null)
+            return GLFW_FALSE;
+
+        if (_glfw.wl.client.proxy_set_user_data != null)
+            _glfw.wl.client.proxy_set_user_data(edge->surface, window);
+
+        edge->subsurface = wayland_subcompositorGetSubsurface(_glfw.wl.subcompositor, edge->surface, parent);
+        edge->viewport = wayland_viewporterGetViewport(_glfw.wl.viewporter, edge->surface);
+
+        if (edge->subsurface == null || edge->viewport == null)
+        {
+            wayland_destroyFallbackEdge(edge);
+            return GLFW_FALSE;
+        }
+
+        wayland_subsurfaceSetPosition(edge->subsurface, x, y);
+        wayland_viewportSetDestination(edge->viewport, width, height);
+        wayland_surfaceAttach(edge->surface, buffer, 0, 0);
+
+        var region = wayland_compositorCreateRegion();
+        if (region != null)
+        {
+            wayland_regionAdd(region, 0, 0, width, height);
+            wayland_surfaceSetOpaqueRegion(edge->surface, region);
+        }
+
+        wayland_surfaceCommit(edge->surface);
+        wayland_regionDestroy(region);
+
+        return GLFW_TRUE;
+    }
+
+    static void wayland_destroyFallbackEdge(_GLFWfallbackEdgeWayland* edge)
+    {
+        if (edge == null)
+            return;
+
+        wayland_subsurfaceDestroy(edge->subsurface);
+        wayland_proxyDestroyWithOpcode(edge->surface, WL_SURFACE_DESTROY);
+        wayland_viewportDestroy(edge->viewport);
+
+        *edge = default;
+    }
+
+    static void wayland_createFallbackDecorations(_GLFWwindow* window)
+    {
+        if (window == null ||
+            window->wl.fallback.decorations != 0 ||
+            _glfw.wl.viewporter == null ||
+            _glfw.wl.subcompositor == null)
+        {
+            return;
+        }
+
+        if (window->wl.fallback.buffer == null)
+        {
+            byte* data = stackalloc byte[4];
+            data[0] = 224;
+            data[1] = 224;
+            data[2] = 224;
+            data[3] = 255;
+            GLFWimage image = default;
+            image.width = 1;
+            image.height = 1;
+            image.pixels = data;
+            window->wl.fallback.buffer = wayland_createShmBuffer(&image);
+        }
+
+        if (window->wl.fallback.buffer == null)
+            return;
+
+        if (wayland_createFallbackEdge(window,
+                &window->wl.fallback.top,
+                window->wl.surface,
+                window->wl.fallback.buffer,
+                0,
+                -GLFW_CAPTION_HEIGHT,
+                window->wl.width,
+                GLFW_CAPTION_HEIGHT) == 0 ||
+            wayland_createFallbackEdge(window,
+                &window->wl.fallback.left,
+                window->wl.surface,
+                window->wl.fallback.buffer,
+                -GLFW_BORDER_SIZE,
+                -GLFW_CAPTION_HEIGHT,
+                GLFW_BORDER_SIZE,
+                window->wl.height + GLFW_CAPTION_HEIGHT) == 0 ||
+            wayland_createFallbackEdge(window,
+                &window->wl.fallback.right,
+                window->wl.surface,
+                window->wl.fallback.buffer,
+                window->wl.width,
+                -GLFW_CAPTION_HEIGHT,
+                GLFW_BORDER_SIZE,
+                window->wl.height + GLFW_CAPTION_HEIGHT) == 0 ||
+            wayland_createFallbackEdge(window,
+                &window->wl.fallback.bottom,
+                window->wl.surface,
+                window->wl.fallback.buffer,
+                -GLFW_BORDER_SIZE,
+                window->wl.height,
+                window->wl.width + GLFW_BORDER_SIZE * 2,
+                GLFW_BORDER_SIZE) == 0)
+        {
+            wayland_destroyFallbackDecorations(window);
+            return;
+        }
+
+        window->wl.fallback.decorations = GLFW_TRUE;
+        wayland_updateXdgSizeLimits(window);
+    }
+
+    static void wayland_destroyFallbackDecorations(_GLFWwindow* window)
+    {
+        if (window == null)
+            return;
+
+        window->wl.fallback.decorations = GLFW_FALSE;
+        window->wl.fallback.focus = null;
+
+        wayland_destroyFallbackEdge(&window->wl.fallback.top);
+        wayland_destroyFallbackEdge(&window->wl.fallback.left);
+        wayland_destroyFallbackEdge(&window->wl.fallback.right);
+        wayland_destroyFallbackEdge(&window->wl.fallback.bottom);
+
+        wayland_updateXdgSizeLimits(window);
+    }
+
+    static void wayland_destroyFallbackBuffer(_GLFWwindow* window)
+    {
+        if (window == null)
+            return;
+
+        wayland_proxyDestroyWithOpcode(window->wl.fallback.buffer, WL_BUFFER_DESTROY);
+        window->wl.fallback.buffer = null;
+    }
+
     static int wayland_proxyHasTag(void* proxy)
     {
         if (proxy == null || _glfw.wl.client.proxy_get_tag == null)
@@ -909,12 +1104,71 @@ public static unsafe partial class Glfw
 
     static void* wayland_themeGetCursor(void* theme, string name)
     {
-        if (theme == null || _glfw.wl.cursor.theme_get_cursor == null)
-            return null;
-
         var bytes = Encoding.UTF8.GetBytes(name + '\0');
         fixed (byte* cursorName = bytes)
-            return _glfw.wl.cursor.theme_get_cursor(theme, cursorName);
+            return wayland_themeGetCursor(theme, cursorName);
+    }
+
+    static void* wayland_themeGetCursor(void* theme, byte* name)
+    {
+        if (theme == null || name == null || _glfw.wl.cursor.theme_get_cursor == null)
+            return null;
+
+        return _glfw.wl.cursor.theme_get_cursor(theme, name);
+    }
+
+    static byte* wayland_getFallbackCursorName(_GLFWwindow* window, double xpos, double ypos)
+    {
+        var cursorName = _glfwWaylandCursorLeftPtr;
+
+        if (window->resizable == 0)
+            return cursorName;
+
+        if (window->wl.fallback.focus == window->wl.fallback.top.surface)
+        {
+            if (ypos < GLFW_BORDER_SIZE)
+                cursorName = _glfwWaylandCursorNResize;
+        }
+        else if (window->wl.fallback.focus == window->wl.fallback.left.surface)
+        {
+            cursorName = ypos < GLFW_BORDER_SIZE
+                ? _glfwWaylandCursorNwResize
+                : _glfwWaylandCursorWResize;
+        }
+        else if (window->wl.fallback.focus == window->wl.fallback.right.surface)
+        {
+            cursorName = ypos < GLFW_BORDER_SIZE
+                ? _glfwWaylandCursorNeResize
+                : _glfwWaylandCursorEResize;
+        }
+        else if (window->wl.fallback.focus == window->wl.fallback.bottom.surface)
+        {
+            if (xpos < GLFW_BORDER_SIZE)
+                cursorName = _glfwWaylandCursorSwResize;
+            else if (xpos > window->wl.width + GLFW_BORDER_SIZE)
+                cursorName = _glfwWaylandCursorSeResize;
+            else
+                cursorName = _glfwWaylandCursorSResize;
+        }
+
+        return cursorName;
+    }
+
+    static void wayland_setFallbackCursor(_GLFWwindow* window, byte* cursorName)
+    {
+        if (window == null || cursorName == null || _glfw.wl.cursorPreviousName == cursorName)
+            return;
+
+        _GLFWcursorWayland cursorWayland = default;
+        cursorWayland.cursor = wayland_themeGetCursor(_glfw.wl.cursorTheme, cursorName);
+        if (_glfw.wl.cursorThemeHiDPI != null)
+            cursorWayland.cursorHiDPI = wayland_themeGetCursor(_glfw.wl.cursorThemeHiDPI, cursorName);
+
+        if (cursorWayland.cursor == null)
+            return;
+
+        wayland_setCursorImage(window, &cursorWayland);
+        _glfw.wl.cursorPreviousName = cursorName;
     }
 
     static void wayland_pointerSetCursor(void* pointer, uint serial, void* surface, int xhot, int yhot)
@@ -1380,6 +1634,8 @@ public static unsafe partial class Glfw
             _glfwSetCursorWayland(window, window->wl.currentCursor);
             _glfwInputCursorEnter(window, GLFW_TRUE);
         }
+        else if (window->wl.fallback.decorations != 0)
+            window->wl.fallback.focus = surface;
     }
 
     [UnmanagedCallersOnly]
@@ -1402,6 +1658,8 @@ public static unsafe partial class Glfw
             window->wl.hovered = GLFW_FALSE;
             _glfwInputCursorEnter(window, GLFW_FALSE);
         }
+        else if (window->wl.fallback.decorations != 0)
+            window->wl.fallback.focus = null;
     }
 
     [UnmanagedCallersOnly]
@@ -1420,7 +1678,11 @@ public static unsafe partial class Glfw
         {
             _glfw.wl.cursorPreviousName = null;
             _glfwInputCursorPos(window, xpos, ypos);
+            return;
         }
+
+        if (window->wl.fallback.decorations != 0)
+            wayland_setFallbackCursor(window, wayland_getFallbackCursorName(window, xpos, ypos));
     }
 
     [UnmanagedCallersOnly]
@@ -1432,15 +1694,67 @@ public static unsafe partial class Glfw
                                             uint state)
     {
         var window = _glfw.wl.pointerFocus;
-        if (window == null || window->wl.hovered == 0)
+        if (window == null)
             return;
 
-        _glfw.wl.serial = serial;
+        if (window->wl.hovered != 0)
+        {
+            _glfw.wl.serial = serial;
 
-        _glfwInputMouseClick(window,
-            wayland_pointerButtonToGLFW(button),
-            state == WL_POINTER_BUTTON_STATE_PRESSED ? GLFW_PRESS : GLFW_RELEASE,
-            (int)_glfw.wl.xkb.modifiers);
+            _glfwInputMouseClick(window,
+                wayland_pointerButtonToGLFW(button),
+                state == WL_POINTER_BUTTON_STATE_PRESSED ? GLFW_PRESS : GLFW_RELEASE,
+                (int)_glfw.wl.xkb.modifiers);
+            return;
+        }
+
+        if (window->wl.fallback.decorations == 0)
+            return;
+
+        if (button == BTN_LEFT)
+        {
+            var edges = XDG_TOPLEVEL_RESIZE_EDGE_NONE;
+
+            if (window->wl.fallback.focus == window->wl.fallback.top.surface)
+            {
+                if (window->wl.cursorPosY < GLFW_BORDER_SIZE)
+                    edges = XDG_TOPLEVEL_RESIZE_EDGE_TOP;
+                else
+                    wayland_xdgToplevelMove(window->wl.xdg.toplevel, _glfw.wl.seat, serial);
+            }
+            else if (window->wl.fallback.focus == window->wl.fallback.left.surface)
+            {
+                edges = window->wl.cursorPosY < GLFW_BORDER_SIZE
+                    ? XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT
+                    : XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
+            }
+            else if (window->wl.fallback.focus == window->wl.fallback.right.surface)
+            {
+                edges = window->wl.cursorPosY < GLFW_BORDER_SIZE
+                    ? XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT
+                    : XDG_TOPLEVEL_RESIZE_EDGE_RIGHT;
+            }
+            else if (window->wl.fallback.focus == window->wl.fallback.bottom.surface)
+            {
+                if (window->wl.cursorPosX < GLFW_BORDER_SIZE)
+                    edges = XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT;
+                else if (window->wl.cursorPosX > window->wl.width + GLFW_BORDER_SIZE)
+                    edges = XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT;
+                else
+                    edges = XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM;
+            }
+
+            if (edges != XDG_TOPLEVEL_RESIZE_EDGE_NONE)
+                wayland_xdgToplevelResize(window->wl.xdg.toplevel, _glfw.wl.seat, serial, edges);
+        }
+        else if (button == BTN_RIGHT)
+        {
+            wayland_xdgToplevelShowWindowMenu(window->wl.xdg.toplevel,
+                _glfw.wl.seat,
+                serial,
+                (int)window->wl.cursorPosX,
+                (int)window->wl.cursorPosY);
+        }
     }
 
     [UnmanagedCallersOnly]
@@ -1878,6 +2192,31 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal_string(toplevel, XDG_TOPLEVEL_SET_APP_ID, appId);
     }
 
+    static void wayland_xdgToplevelShowWindowMenu(void* toplevel, void* seat, uint serial, int x, int y)
+    {
+        if (toplevel != null && seat != null && _glfw.wl.client.proxy_marshal_object_uint_int_int != null)
+        {
+            _glfw.wl.client.proxy_marshal_object_uint_int_int(toplevel,
+                XDG_TOPLEVEL_SHOW_WINDOW_MENU,
+                seat,
+                serial,
+                x,
+                y);
+        }
+    }
+
+    static void wayland_xdgToplevelMove(void* toplevel, void* seat, uint serial)
+    {
+        if (toplevel != null && seat != null && _glfw.wl.client.proxy_marshal_object_uint != null)
+            _glfw.wl.client.proxy_marshal_object_uint(toplevel, XDG_TOPLEVEL_MOVE, seat, serial);
+    }
+
+    static void wayland_xdgToplevelResize(void* toplevel, void* seat, uint serial, uint edges)
+    {
+        if (toplevel != null && seat != null && _glfw.wl.client.proxy_marshal_object_uint_uint != null)
+            _glfw.wl.client.proxy_marshal_object_uint_uint(toplevel, XDG_TOPLEVEL_RESIZE, seat, serial, edges);
+    }
+
     static void wayland_xdgToplevelSetMinSize(void* toplevel, int width, int height)
     {
         if (toplevel != null && _glfw.wl.client.proxy_marshal_int_int != null)
@@ -2260,6 +2599,12 @@ public static unsafe partial class Glfw
             {
                 minwidth = window->minwidth;
                 minheight = window->minheight;
+
+                if (window->wl.fallback.decorations != 0)
+                {
+                    minwidth += GLFW_BORDER_SIZE * 2;
+                    minheight += GLFW_CAPTION_HEIGHT + GLFW_BORDER_SIZE;
+                }
             }
 
             if (window->maxwidth == GLFW_DONT_CARE || window->maxheight == GLFW_DONT_CARE)
@@ -2268,6 +2613,12 @@ public static unsafe partial class Glfw
             {
                 maxwidth = window->maxwidth;
                 maxheight = window->maxheight;
+
+                if (window->wl.fallback.decorations != 0)
+                {
+                    maxwidth += GLFW_BORDER_SIZE * 2;
+                    maxheight += GLFW_CAPTION_HEIGHT + GLFW_BORDER_SIZE;
+                }
             }
         }
         else
@@ -2294,6 +2645,35 @@ public static unsafe partial class Glfw
 
         if (window->wl.scalingViewport != null)
             wayland_viewportSetDestination(window->wl.scalingViewport, window->wl.width, window->wl.height);
+
+        if (window->wl.fallback.decorations != 0)
+        {
+            wayland_viewportSetDestination(window->wl.fallback.top.viewport,
+                window->wl.width,
+                GLFW_CAPTION_HEIGHT);
+            wayland_surfaceCommit(window->wl.fallback.top.surface);
+
+            wayland_viewportSetDestination(window->wl.fallback.left.viewport,
+                GLFW_BORDER_SIZE,
+                window->wl.height + GLFW_CAPTION_HEIGHT);
+            wayland_surfaceCommit(window->wl.fallback.left.surface);
+
+            wayland_subsurfaceSetPosition(window->wl.fallback.right.subsurface,
+                window->wl.width,
+                -GLFW_CAPTION_HEIGHT);
+            wayland_viewportSetDestination(window->wl.fallback.right.viewport,
+                GLFW_BORDER_SIZE,
+                window->wl.height + GLFW_CAPTION_HEIGHT);
+            wayland_surfaceCommit(window->wl.fallback.right.surface);
+
+            wayland_subsurfaceSetPosition(window->wl.fallback.bottom.subsurface,
+                -GLFW_BORDER_SIZE,
+                window->wl.height);
+            wayland_viewportSetDestination(window->wl.fallback.bottom.viewport,
+                window->wl.width + GLFW_BORDER_SIZE * 2,
+                GLFW_BORDER_SIZE);
+            wayland_surfaceCommit(window->wl.fallback.bottom.surface);
+        }
 
         if (window->wl.xdg.surface != null)
             wayland_xdgSurfaceSetWindowGeometry(window->wl.xdg.surface, 0, 0, window->wl.width, window->wl.height);
@@ -2398,8 +2778,16 @@ public static unsafe partial class Glfw
 
         if (width > 0 && height > 0)
         {
-            window->wl.pending.width = width;
-            window->wl.pending.height = height;
+            if (window->wl.fallback.decorations != 0)
+            {
+                window->wl.pending.width = _glfw_max(0, width - GLFW_BORDER_SIZE * 2);
+                window->wl.pending.height = _glfw_max(0, height - GLFW_BORDER_SIZE - GLFW_CAPTION_HEIGHT);
+            }
+            else
+            {
+                window->wl.pending.width = width;
+                window->wl.pending.height = height;
+            }
         }
         else
         {
@@ -2422,6 +2810,14 @@ public static unsafe partial class Glfw
             return;
 
         window->wl.xdg.decorationMode = mode;
+
+        if (mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE)
+        {
+            if (window->decorated != 0 && window->monitor == null)
+                wayland_createFallbackDecorations(window);
+        }
+        else
+            wayland_destroyFallbackDecorations(window);
     }
 
     [UnmanagedCallersOnly]
@@ -2554,6 +2950,11 @@ public static unsafe partial class Glfw
 
             wayland_updateXdgDecorationMode(window);
         }
+        else
+        {
+            if (window->decorated != 0 && window->monitor == null)
+                wayland_createFallbackDecorations(window);
+        }
 
         wayland_updateXdgSizeLimits(window);
         wayland_surfaceCommit(window->wl.surface);
@@ -2570,6 +2971,7 @@ public static unsafe partial class Glfw
 
     static void wayland_destroyShellObjects(_GLFWwindow* window)
     {
+        wayland_destroyFallbackDecorations(window);
         wayland_proxyDestroyWithOpcode(window->wl.xdg.decoration, ZXDG_TOPLEVEL_DECORATION_DESTROY);
         wayland_proxyDestroyWithOpcode(window->wl.xdg.toplevel, XDG_TOPLEVEL_DESTROY);
         wayland_proxyDestroyWithOpcode(window->wl.xdg.surface, XDG_SURFACE_DESTROY);
@@ -2611,6 +3013,9 @@ public static unsafe partial class Glfw
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create window surface");
             return GLFW_FALSE;
         }
+
+        if (_glfw.wl.client.proxy_set_user_data != null)
+            _glfw.wl.client.proxy_set_user_data(window->wl.surface, window);
 
         var surfaceListener = wayland_getSurfaceListener();
         if (surfaceListener == null ||
@@ -2703,6 +3108,7 @@ public static unsafe partial class Glfw
             window->context.destroy(window);
 
         wayland_destroyShellObjects(window);
+        wayland_destroyFallbackBuffer(window);
 
         if (window->wl.egl.window != null && _glfw.wl.egl.window_destroy != null)
             _glfw.wl.egl.window_destroy(window->wl.egl.window);
@@ -2827,13 +3233,13 @@ public static unsafe partial class Glfw
                                                int* bottom)
     {
         if (left != null)
-            *left = 0;
+            *left = window->wl.fallback.decorations != 0 ? GLFW_BORDER_SIZE : 0;
         if (top != null)
-            *top = 0;
+            *top = window->wl.fallback.decorations != 0 ? GLFW_CAPTION_HEIGHT : 0;
         if (right != null)
-            *right = 0;
+            *right = window->wl.fallback.decorations != 0 ? GLFW_BORDER_SIZE : 0;
         if (bottom != null)
-            *bottom = 0;
+            *bottom = window->wl.fallback.decorations != 0 ? GLFW_BORDER_SIZE : 0;
     }
 
     static void _glfwGetWindowContentScaleWayland(_GLFWwindow* window, float* xscale, float* yscale)
@@ -2929,9 +3335,17 @@ public static unsafe partial class Glfw
             wayland_setIdleInhibitor(window, GLFW_FALSE);
             window->wl.fullscreen = GLFW_FALSE;
             _glfwSetWindowSizeWayland(window, width, height);
+
+            if (window->wl.libdecor.frame == null &&
+                window->wl.xdg.decorationMode != ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE &&
+                window->decorated != 0)
+            {
+                wayland_createFallbackDecorations(window);
+            }
         }
         else
         {
+            wayland_destroyFallbackDecorations(window);
             window->wl.fullscreen = GLFW_TRUE;
             wayland_xdgToplevelSetFullscreen(window->wl.xdg.toplevel, monitor->wl.output);
             wayland_setIdleInhibitor(window, GLFW_TRUE);
@@ -2979,7 +3393,23 @@ public static unsafe partial class Glfw
     static void _glfwSetWindowDecoratedWayland(_GLFWwindow* window, int enabled)
     {
         window->decorated = enabled;
-        wayland_updateXdgDecorationMode(window);
+
+        if (window->wl.xdg.decoration != null)
+        {
+            wayland_updateXdgDecorationMode(window);
+
+            if (enabled == 0 || window->monitor != null)
+                wayland_destroyFallbackDecorations(window);
+            else if (window->wl.xdg.decorationMode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE)
+                wayland_createFallbackDecorations(window);
+        }
+        else if (window->wl.xdg.toplevel != null)
+        {
+            if (enabled != 0 && window->monitor == null)
+                wayland_createFallbackDecorations(window);
+            else
+                wayland_destroyFallbackDecorations(window);
+        }
     }
 
     static void _glfwSetWindowFloatingWayland(_GLFWwindow* window, int enabled)
