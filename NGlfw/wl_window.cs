@@ -1875,6 +1875,65 @@ public static unsafe partial class Glfw
             wayland_zxdgToplevelDecorationSetMode(window->wl.xdg.decoration, wayland_getDecorationMode(window));
     }
 
+    static void wayland_updateXdgSizeLimits(_GLFWwindow* window)
+    {
+        if (window->wl.xdg.toplevel == null)
+            return;
+
+        int minwidth;
+        int minheight;
+        int maxwidth;
+        int maxheight;
+
+        if (window->resizable != 0)
+        {
+            if (window->minwidth == GLFW_DONT_CARE || window->minheight == GLFW_DONT_CARE)
+                minwidth = minheight = 0;
+            else
+            {
+                minwidth = window->minwidth;
+                minheight = window->minheight;
+            }
+
+            if (window->maxwidth == GLFW_DONT_CARE || window->maxheight == GLFW_DONT_CARE)
+                maxwidth = maxheight = 0;
+            else
+            {
+                maxwidth = window->maxwidth;
+                maxheight = window->maxheight;
+            }
+        }
+        else
+        {
+            minwidth = maxwidth = window->wl.width;
+            minheight = maxheight = window->wl.height;
+        }
+
+        wayland_xdgToplevelSetMinSize(window->wl.xdg.toplevel, minwidth, minheight);
+        wayland_xdgToplevelSetMaxSize(window->wl.xdg.toplevel, maxwidth, maxheight);
+    }
+
+    static int wayland_resizeWindow(_GLFWwindow* window, int width, int height)
+    {
+        width = _glfw_max(width, 1);
+        height = _glfw_max(height, 1);
+
+        if (width == window->wl.width && height == window->wl.height)
+            return GLFW_FALSE;
+
+        window->wl.width = width;
+        window->wl.height = height;
+        wayland_updateFramebufferSize(window);
+
+        if (window->wl.scalingViewport != null)
+            wayland_viewportSetDestination(window->wl.scalingViewport, window->wl.width, window->wl.height);
+
+        if (window->wl.xdg.surface != null)
+            wayland_xdgSurfaceSetWindowGeometry(window->wl.xdg.surface, 0, 0, window->wl.width, window->wl.height);
+
+        return GLFW_TRUE;
+    }
+
     static void wayland_applyPendingSize(_GLFWwindow* window)
     {
         var width = window->wl.pending.width;
@@ -1900,20 +1959,12 @@ public static unsafe partial class Glfw
                 width = (int)(height * targetRatio);
         }
 
-        if (width == window->wl.width && height == window->wl.height)
+        if (wayland_resizeWindow(window, width, height) == 0)
             return;
 
-        window->wl.width = width;
-        window->wl.height = height;
-        wayland_updateFramebufferSize(window);
-
-        if (window->wl.scalingViewport != null)
-            wayland_viewportSetDestination(window->wl.scalingViewport, window->wl.width, window->wl.height);
-
-        wayland_xdgSurfaceSetWindowGeometry(window->wl.xdg.surface, 0, 0, width, height);
         wayland_surfaceCommit(window->wl.surface);
 
-        _glfwInputWindowSize(window, width, height);
+        _glfwInputWindowSize(window, window->wl.width, window->wl.height);
     }
 
     [UnmanagedCallersOnly]
@@ -2068,6 +2119,7 @@ public static unsafe partial class Glfw
             wayland_updateXdgDecorationMode(window);
         }
 
+        wayland_updateXdgSizeLimits(window);
         wayland_surfaceCommit(window->wl.surface);
 
         if (_glfw.wl.client.display_roundtrip(_glfw.wl.display) < 0)
@@ -2263,14 +2315,19 @@ public static unsafe partial class Glfw
 
     static void _glfwSetWindowSizeWayland(_GLFWwindow* window, int width, int height)
     {
-        window->wl.width = width;
-        window->wl.height = height;
-        wayland_updateFramebufferSize(window);
+        if (window->monitor != null)
+            return;
 
-        if (window->wl.scalingViewport != null)
-            wayland_viewportSetDestination(window->wl.scalingViewport, window->wl.width, window->wl.height);
+        if (wayland_resizeWindow(window, width, height) == 0)
+            return;
 
-        _glfwInputWindowSize(window, width, height);
+        _glfwInputWindowSize(window, window->wl.width, window->wl.height);
+
+        if (window->wl.visible != 0)
+        {
+            wayland_surfaceCommit(window->wl.surface);
+            _glfwInputWindowDamage(window);
+        }
     }
 
     static void _glfwSetWindowSizeLimitsWayland(_GLFWwindow* window,
@@ -2279,19 +2336,38 @@ public static unsafe partial class Glfw
                                                 int maxwidth,
                                                 int maxheight)
     {
-        if (minwidth == GLFW_DONT_CARE || minheight == GLFW_DONT_CARE)
-            wayland_xdgToplevelSetMinSize(window->wl.xdg.toplevel, 0, 0);
-        else
-            wayland_xdgToplevelSetMinSize(window->wl.xdg.toplevel, minwidth, minheight);
-
-        if (maxwidth == GLFW_DONT_CARE || maxheight == GLFW_DONT_CARE)
-            wayland_xdgToplevelSetMaxSize(window->wl.xdg.toplevel, 0, 0);
-        else
-            wayland_xdgToplevelSetMaxSize(window->wl.xdg.toplevel, maxwidth, maxheight);
+        wayland_updateXdgSizeLimits(window);
     }
 
     static void _glfwSetWindowAspectRatioWayland(_GLFWwindow* window, int numer, int denom)
     {
+        if (window->wl.maximized != 0 || window->wl.fullscreen != 0)
+            return;
+
+        var width = window->wl.width;
+        var height = window->wl.height;
+
+        if (numer != GLFW_DONT_CARE && denom != GLFW_DONT_CARE)
+        {
+            var aspectRatio = (float)width / height;
+            var targetRatio = (float)numer / denom;
+
+            if (aspectRatio < targetRatio)
+                height = (int)(width / targetRatio);
+            else if (aspectRatio > targetRatio)
+                width = (int)(height * targetRatio);
+        }
+
+        if (wayland_resizeWindow(window, width, height) == 0)
+            return;
+
+        _glfwInputWindowSize(window, window->wl.width, window->wl.height);
+
+        if (window->wl.visible != 0)
+        {
+            wayland_surfaceCommit(window->wl.surface);
+            _glfwInputWindowDamage(window);
+        }
     }
 
     static void _glfwGetFramebufferSizeWayland(_GLFWwindow* window, int* width, int* height)
@@ -2435,6 +2511,7 @@ public static unsafe partial class Glfw
     static void _glfwSetWindowResizableWayland(_GLFWwindow* window, int enabled)
     {
         window->resizable = enabled;
+        wayland_updateXdgSizeLimits(window);
     }
 
     static void _glfwSetWindowDecoratedWayland(_GLFWwindow* window, int enabled)

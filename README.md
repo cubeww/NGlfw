@@ -232,6 +232,8 @@ Implemented or partially implemented:
   requests
 - xdg toplevel configure state parsing for activation, maximize, fullscreen,
   and aspect-ratio constrained configure sizes
+- Wayland resizable hint updates, public size-limit updates, and active
+  aspect-ratio resize application
 - initial `wl_surface` listener handling for output enter/leave and integer
   buffer scale updates
 - initial `wl_seat` capability handling and `wl_pointer` enter/leave, motion,
