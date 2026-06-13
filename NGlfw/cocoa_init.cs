@@ -498,6 +498,17 @@ public static unsafe partial class Glfw
             return GLFW_FALSE;
 
         _glfwPollMonitorsCocoa();
+
+        var currentApplication = cocoa_msgSend_id(cocoa_getClass("NSRunningApplication"), "currentApplication");
+        if (currentApplication != null &&
+            objc_msgSend_bool(currentApplication, cocoa_sel("isFinishedLaunching")) == 0)
+        {
+            cocoa_msgSend_void(app, "run");
+        }
+
+        if (_glfw.hints.init.ns.menubar != 0)
+            objc_msgSend_void_long(app, cocoa_sel("setActivationPolicy:"), NSApplicationActivationPolicyRegular);
+
         return GLFW_TRUE;
     }
 

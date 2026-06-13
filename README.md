@@ -114,6 +114,8 @@ Started, but not yet functional:
   autorelease pools
 - basic `NSApplicationDelegate` registration for terminate requests, screen
   parameter changes, finish-launch wakeup, and app hide video-mode restoration
+- Cocoa finish-launch path through `NSRunningApplication`, `NSApp run`, and
+  regular activation policy for menubar-enabled apps
 - Cocoa resource-directory `chdir` behavior for bundled apps
 - Cocoa `NSUserDefaults` registration for `ApplePressAndHoldEnabled = NO`
 - Cocoa backend file skeletons for init, windows, monitors, cursors, clipboard,
@@ -168,7 +170,7 @@ Started, but not yet functional:
 Known remaining work:
 
 - remaining NSApplication behavior, including menu bar setup, key-up monitor,
-  and launch lifecycle parity
+  and launch lifecycle validation
 - complete `NSView` / `NSTextInputClient` parity, including IME and
   drag-and-drop edge-case validation
 - NSGL runtime validation and edge-case parity for context hints unsupported by

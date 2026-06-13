@@ -34,6 +34,7 @@ public static unsafe partial class Glfw
     const long NSEventTypeApplicationDefined = 15;
     const ulong NSBitmapFormatAlphaNonpremultiplied = 1;
     const ulong NSDragOperationGeneric = 4;
+    const long NSApplicationActivationPolicyRegular = 0;
     const ulong NSTrackingMouseEnteredAndExited = 1;
     const ulong NSTrackingCursorUpdate = 1 << 2;
     const ulong NSTrackingActiveInKeyWindow = 1 << 5;
