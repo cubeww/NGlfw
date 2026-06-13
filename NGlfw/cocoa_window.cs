@@ -745,6 +745,11 @@ public static unsafe partial class Glfw
                 styleMask &= ~NSWindowStyleMaskResizable;
 
             objc_msgSend_void_ulong(window->ns.@object, cocoa_sel("setStyleMask:"), styleMask);
+            objc_msgSend_void_ulong(window->ns.@object,
+                cocoa_sel("setCollectionBehavior:"),
+                enabled != 0
+                    ? NSWindowCollectionBehaviorFullScreenPrimary | NSWindowCollectionBehaviorManaged
+                    : NSWindowCollectionBehaviorFullScreenNone);
         }
 
         window->resizable = enabled;
@@ -767,6 +772,7 @@ public static unsafe partial class Glfw
             }
 
             objc_msgSend_void_ulong(window->ns.@object, cocoa_sel("setStyleMask:"), styleMask);
+            cocoa_msgSend_void_ptr(window->ns.@object, "makeFirstResponder:", window->ns.view);
         }
 
         window->decorated = enabled;
