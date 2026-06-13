@@ -318,17 +318,20 @@ public static unsafe partial class Glfw
 
         var usagePage = objc_msgSend_id_int(cocoa_getClass("NSNumber"), cocoa_sel("numberWithInt:"), kHIDPage_GenericDesktop);
         var usageValue = objc_msgSend_id_int(cocoa_getClass("NSNumber"), cocoa_sel("numberWithInt:"), usage);
-        if (usagePage != null && usageValue != null)
+        if (usagePage == null || usageValue == null)
         {
-            objc_msgSend_void_ptr_ptr(dictionary,
-                cocoa_sel("setObject:forKey:"),
-                usagePage,
-                usagePageKey);
-            objc_msgSend_void_ptr_ptr(dictionary,
-                cocoa_sel("setObject:forKey:"),
-                usageValue,
-                usageKey);
+            cocoa_msgSend_void(dictionary, "release");
+            return null;
         }
+
+        objc_msgSend_void_ptr_ptr(dictionary,
+            cocoa_sel("setObject:forKey:"),
+            usagePage,
+            usagePageKey);
+        objc_msgSend_void_ptr_ptr(dictionary,
+            cocoa_sel("setObject:forKey:"),
+            usageValue,
+            usageKey);
 
         return dictionary;
     }
