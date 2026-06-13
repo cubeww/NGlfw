@@ -2564,6 +2564,16 @@ public static unsafe partial class Glfw
 
     static byte* _glfwGetClipboardStringWayland()
     {
+        if (_glfw.wl.selectionOffer != null)
+        {
+            if (_glfw.wl.selectionSource != null)
+                return _glfw.wl.clipboardString;
+
+            _glfw_free(_glfw.wl.clipboardString);
+            _glfw.wl.clipboardString = wayland_readDataOfferAsString(_glfw.wl.selectionOffer, _glfwWaylandTextPlainUtf8);
+            return _glfw.wl.clipboardString;
+        }
+
         if (_glfw.wl.clipboardString == null)
         {
             _glfwInputError(GLFW_FORMAT_UNAVAILABLE, "Wayland: No clipboard data available");
