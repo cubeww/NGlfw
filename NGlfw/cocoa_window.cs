@@ -963,6 +963,8 @@ public static unsafe partial class Glfw
 
     static void _glfwSetRawMouseMotionCocoa(_GLFWwindow* window, int enabled)
     {
+        _glfwInputError(GLFW_FEATURE_UNIMPLEMENTED,
+            "Cocoa: Raw mouse motion not yet implemented");
     }
 
     static int _glfwRawMouseMotionSupportedCocoa()
