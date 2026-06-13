@@ -3682,9 +3682,13 @@ public static unsafe partial class Glfw
 
     static void _glfwHideWindowWayland(_GLFWwindow* window)
     {
-        wayland_destroyShellObjects(window);
-        wayland_surfaceCommit(window->wl.surface);
+        if (window->wl.visible == 0)
+            return;
+
         window->wl.visible = GLFW_FALSE;
+        wayland_destroyShellObjects(window);
+        wayland_surfaceAttach(window->wl.surface, null, 0, 0);
+        wayland_surfaceCommit(window->wl.surface);
     }
 
     static void _glfwRequestWindowAttentionWayland(_GLFWwindow* window)
@@ -3722,20 +3726,22 @@ public static unsafe partial class Glfw
                                              int height,
                                              int refreshRate)
     {
-        _glfwInputWindowMonitor(window, monitor);
-
-        if (monitor == null)
+        if (window->monitor == monitor)
         {
-            if (window->wl.fullscreen != 0)
-            {
-                if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_unset_fullscreen != null)
-                    _glfw.wl.libdecor.libdecor_frame_unset_fullscreen(window->wl.libdecor.frame);
-                else
-                    wayland_xdgToplevelUnsetFullscreen(window->wl.xdg.toplevel);
-            }
+            if (monitor == null)
+                _glfwSetWindowSizeWayland(window, width, height);
+
+            return;
+        }
+
+        if (window->monitor != null)
+        {
+            if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_unset_fullscreen != null)
+                _glfw.wl.libdecor.libdecor_frame_unset_fullscreen(window->wl.libdecor.frame);
+            else if (window->wl.xdg.toplevel != null)
+                wayland_xdgToplevelUnsetFullscreen(window->wl.xdg.toplevel);
+
             wayland_setIdleInhibitor(window, GLFW_FALSE);
-            window->wl.fullscreen = GLFW_FALSE;
-            _glfwSetWindowSizeWayland(window, width, height);
 
             if (window->wl.libdecor.frame == null &&
                 window->wl.xdg.decorationMode != ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE &&
@@ -3744,15 +3750,23 @@ public static unsafe partial class Glfw
                 wayland_createFallbackDecorations(window);
             }
         }
-        else
+
+        _glfwInputWindowMonitor(window, monitor);
+
+        if (window->monitor != null)
         {
             wayland_destroyFallbackDecorations(window);
             window->wl.fullscreen = GLFW_TRUE;
             if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_set_fullscreen != null)
-                _glfw.wl.libdecor.libdecor_frame_set_fullscreen(window->wl.libdecor.frame, monitor->wl.output);
+                _glfw.wl.libdecor.libdecor_frame_set_fullscreen(window->wl.libdecor.frame, window->monitor->wl.output);
             else
-                wayland_xdgToplevelSetFullscreen(window->wl.xdg.toplevel, monitor->wl.output);
+                wayland_xdgToplevelSetFullscreen(window->wl.xdg.toplevel, window->monitor->wl.output);
             wayland_setIdleInhibitor(window, GLFW_TRUE);
+        }
+        else
+        {
+            window->wl.fullscreen = GLFW_FALSE;
+            _glfwSetWindowSizeWayland(window, width, height);
         }
 
         wayland_updateXdgDecorationMode(window);
