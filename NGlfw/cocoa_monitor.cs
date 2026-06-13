@@ -71,6 +71,84 @@ public static unsafe partial class Glfw
         CGReleaseDisplayFadeReservation(token);
     }
 
+    static void* cocoa_iokitCopyProperty(uint service, string propertyName)
+    {
+        var property = cocoa_stringFromUTF8(propertyName);
+        if (property == null)
+            return null;
+
+        var value = IORegistryEntryCreateCFProperty(service, property, null, 0);
+        CFRelease(property);
+        return value;
+    }
+
+    static double cocoa_getFallbackRefreshRate(uint displayID)
+    {
+        var refreshRate = 60.0;
+        var serviceName = cocoa_ascii("IOFramebuffer");
+
+        uint iterator = 0;
+        fixed (byte* serviceNamePtr = serviceName)
+        {
+            var matching = IOServiceMatching(serviceNamePtr);
+            if (matching == null ||
+                IOServiceGetMatchingServices(0, matching, &iterator) != 0)
+            {
+                return refreshRate;
+            }
+        }
+
+        for (;;)
+        {
+            var service = IOIteratorNext(iterator);
+            if (service == 0)
+                break;
+
+            var indexRef = cocoa_iokitCopyProperty(service, "IOFramebufferOpenGLIndex");
+            if (indexRef == null)
+            {
+                IOObjectRelease(service);
+                continue;
+            }
+
+            uint index = 0;
+            CFNumberGetValue(indexRef, kCFNumberIntType, &index);
+            CFRelease(indexRef);
+
+            if (index >= 32 || CGOpenGLDisplayMaskToDisplayID(1u << (int)index) != displayID)
+            {
+                IOObjectRelease(service);
+                continue;
+            }
+
+            var clockRef = cocoa_iokitCopyProperty(service, "IOFBCurrentPixelClock");
+            var countRef = cocoa_iokitCopyProperty(service, "IOFBCurrentPixelCount");
+            uint clock = 0;
+            uint count = 0;
+
+            if (clockRef != null)
+            {
+                CFNumberGetValue(clockRef, kCFNumberIntType, &clock);
+                CFRelease(clockRef);
+            }
+
+            if (countRef != null)
+            {
+                CFNumberGetValue(countRef, kCFNumberIntType, &count);
+                CFRelease(countRef);
+            }
+
+            if (clock > 0 && count > 0)
+                refreshRate = clock / (double)count;
+
+            IOObjectRelease(service);
+            break;
+        }
+
+        IOObjectRelease(iterator);
+        return refreshRate;
+    }
+
     static void* cocoa_getScreenForDisplay(uint displayID)
     {
         var screens = cocoa_msgSend_id(cocoa_getClass("NSScreen"), "screens");
@@ -210,7 +288,7 @@ public static unsafe partial class Glfw
             {
                 var refreshRate = CGDisplayModeGetRefreshRate(nativeMode);
                 if (refreshRate == 0.0)
-                    monitor->ns.fallbackRefreshRate = 60.0;
+                    monitor->ns.fallbackRefreshRate = cocoa_getFallbackRefreshRate(displays[i]);
 
                 monitor->currentMode = cocoa_vidmodeFromDisplayMode(nativeMode, monitor->ns.fallbackRefreshRate);
                 CGDisplayModeRelease(nativeMode);

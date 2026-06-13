@@ -138,6 +138,8 @@ Started, but not yet functional:
 - Cocoa monitor hotplug polling with disconnected-monitor detection
 - NSScreen mapping for localized monitor names, content scale, and visible
   work area queries
+- IOKit fallback refresh-rate lookup for CoreGraphics display modes that report
+  zero refresh
 - standard Cocoa cursor creation for the public cursor shapes, including
   private resize-cursor fallback selectors
 - custom bitmap cursor creation through `NSBitmapImageRep`, `NSImage`, and
@@ -163,7 +165,7 @@ Known remaining work:
 - complete `NSView` / `NSTextInputClient` parity, including IME and
   drag-and-drop edge-case validation
 - full keyboard layout Unicode translation for scancode names
-- IOKit fallback monitor names and IOKit fallback refresh-rate lookup
+- IOKit fallback monitor names
 - NSGL runtime validation and edge-case parity for context hints unsupported by
   macOS
 - IOKit / HID joystick support

@@ -41,6 +41,7 @@ public static unsafe partial class Glfw
     const ulong NSTrackingInVisibleRect = 1 << 9;
     const ulong NSTrackingEnabledDuringMouseDrag = 1 << 10;
     const ulong NSWindowOcclusionStateVisible = 1 << 1;
+    const int kCFNumberIntType = 9;
 
     static readonly byte* _glfwCocoaMappingName = _glfw_allocate_static_string("Mac OS X");
     static readonly byte* _glfwCocoaPasteboardTypeString = _glfw_allocate_static_string("public.utf8-plain-text");
@@ -1681,6 +1682,9 @@ public static unsafe partial class Glfw
     static extern int CGDisplaySetDisplayMode(uint display, void* mode, void* options);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern uint CGOpenGLDisplayMaskToDisplayID(uint mask);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     static extern int CGAcquireDisplayFadeReservation(double seconds, uint* token);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
@@ -1729,6 +1733,9 @@ public static unsafe partial class Glfw
     static extern void CFRelease(void* value);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern byte CFNumberGetValue(void* number, int theType, void* valuePtr);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern nint CFArrayGetCount(void* array);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
@@ -1739,4 +1746,19 @@ public static unsafe partial class Glfw
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFBundleGetFunctionPointerForName(void* bundle, void* functionName);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void* IOServiceMatching(byte* name);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern int IOServiceGetMatchingServices(uint mainPort, void* matching, uint* existing);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern uint IOIteratorNext(uint iterator);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern int IOObjectRelease(uint @object);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void* IORegistryEntryCreateCFProperty(uint entry, void* key, void* allocator, uint options);
 }
