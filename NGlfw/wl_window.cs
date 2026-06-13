@@ -26,6 +26,7 @@ public static unsafe partial class Glfw
     const int XKB_COMPOSE_COMPOSED = 2;
     const int XKB_COMPOSE_CANCELLED = 3;
     const int XKB_STATE_MODS_EFFECTIVE = 1;
+    const uint XKB_LAYOUT_INVALID = 0xffffffffu;
     const int PROT_READ = 1;
     const int PROT_WRITE = 2;
     const int MAP_SHARED = 1;
@@ -1985,7 +1986,60 @@ public static unsafe partial class Glfw
             return null;
         }
 
-        return null;
+        if (_glfw.wl.xkb.keymap == null ||
+            _glfw.wl.xkb.state == null ||
+            _glfw.wl.xkb.state_key_get_layout == null ||
+            _glfw.wl.xkb.keymap_key_get_syms_by_level == null)
+        {
+            return null;
+        }
+
+        var key = GLFW_KEY_UNKNOWN;
+        fixed (short* keycodes = _glfw.wl.keycodes)
+            key = keycodes[scancode];
+
+        if (key == GLFW_KEY_UNKNOWN)
+            return null;
+
+        var keycode = (uint)scancode + 8;
+        var layout = _glfw.wl.xkb.state_key_get_layout(_glfw.wl.xkb.state, keycode);
+        if (layout == XKB_LAYOUT_INVALID)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to retrieve layout for key name");
+            return null;
+        }
+
+        uint* keysyms = null;
+        _glfw.wl.xkb.keymap_key_get_syms_by_level(_glfw.wl.xkb.keymap,
+            keycode,
+            layout,
+            0,
+            &keysyms);
+        if (keysyms == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to retrieve keysym for key name");
+            return null;
+        }
+
+        var codepoint = _glfwKeySym2Unicode(keysyms[0]);
+        if (codepoint == GLFW_INVALID_CODEPOINT)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to retrieve codepoint for key name");
+            return null;
+        }
+
+        fixed (byte* keyname = _glfw.wl.xkb.keyname)
+        {
+            var count = _glfwEncodeUTF8(keyname, codepoint);
+            if (count == 0)
+            {
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to encode codepoint for key name");
+                return null;
+            }
+
+            keyname[count] = 0;
+            return keyname;
+        }
     }
 
     static int _glfwGetKeyScancodeWayland(int key)

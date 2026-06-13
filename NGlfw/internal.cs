@@ -819,6 +819,7 @@ public static unsafe partial class Glfw
         public uint capsLockIndex;
         public uint numLockIndex;
         public uint modifiers;
+        public fixed byte keyname[64];
     }
 
     public struct _GLFWlibraryWayland_libdecor
