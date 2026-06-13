@@ -221,6 +221,7 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<uint, uint, byte*> GetStringi;
         public delegate* unmanaged<uint, int*, void> GetIntegerv;
         public delegate* unmanaged<uint, byte*> GetString;
+        public delegate* unmanaged<void> Flush;
 
         public delegate*<_GLFWwindow*, void> makeCurrent;
         public delegate*<_GLFWwindow*, void> swapBuffers;

@@ -302,8 +302,12 @@ public static unsafe partial class Glfw
             if (window->wl.visible == 0)
                 return;
 
-            if (window->wl.egl.interval > 0 && _glfwWaitForEGLFrameWayland(window) == 0)
-                return;
+            if (window->wl.egl.interval > 0)
+            {
+                window->context.Flush();
+                if (_glfwWaitForEGLFrameWayland(window) == 0)
+                    return;
+            }
         }
 
         _glfw.egl.SwapBuffers(_glfw.egl.display, window->context.egl.surface);

@@ -259,8 +259,12 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<uint, int*, void>)context_getProcAddress(window, "glGetIntegerv");
         window->context.GetString =
             (delegate* unmanaged<uint, byte*>)context_getProcAddress(window, "glGetString");
+        window->context.Flush =
+            (delegate* unmanaged<void>)context_getProcAddress(window, "glFlush");
 
-        if (window->context.GetIntegerv == null || window->context.GetString == null)
+        if (window->context.GetIntegerv == null ||
+            window->context.GetString == null ||
+            window->context.Flush == null)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Entry point retrieval is broken");
             glfwMakeContextCurrent((GLFWwindow*)previous);
