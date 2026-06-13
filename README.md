@@ -255,6 +255,7 @@ Implemented or partially implemented:
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
+- animated standard cursor frame timers through Linux `timerfd`
 - custom cursor image buffers through `wl_shm`, `wl_shm_pool`, and
   premultiplied `WL_SHM_FORMAT_ARGB8888` pixel upload
 - Wayland EGL native window creation and EGL/OSMesa context creation path
@@ -266,7 +267,7 @@ Known remaining work:
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
 - Wayland clipboard edge-case parity and runtime validation
-- animated cursor timers and libdecor fd integration in the Wayland event loop
+- libdecor fd integration in the Wayland event loop
 - advanced pointer events, full disabled-cursor behavior, and
   interactive decoration move/resize paths
 - preferred buffer scale/transform and fractional-scale protocol handling

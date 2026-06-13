@@ -1310,6 +1310,9 @@ public static unsafe partial class Glfw
         if (wayland_loadCursorTheme() == 0)
             return GLFW_FALSE;
 
+        _glfw.wl.cursorTimerfd = wayland_timerfd_create(CLOCK_MONOTONIC,
+            TFD_CLOEXEC | TFD_NONBLOCK);
+
         if (_glfw.wl.seat != null && _glfw.wl.dataDeviceManager != null)
         {
             _glfw.wl.dataDevice = wayland_dataDeviceManagerGetDataDevice(_glfw.wl.dataDeviceManager, _glfw.wl.seat);
@@ -1373,6 +1376,8 @@ public static unsafe partial class Glfw
 
         if (_glfw.wl.keyRepeatTimerfd >= 0)
             wayland_close(_glfw.wl.keyRepeatTimerfd);
+        if (_glfw.wl.cursorTimerfd >= 0)
+            wayland_close(_glfw.wl.cursorTimerfd);
 
         _glfw_free(_glfw.wl.clipboardString);
         _glfw_free(_glfw.wl.offers);

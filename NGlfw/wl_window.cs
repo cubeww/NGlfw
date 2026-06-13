@@ -918,6 +918,15 @@ public static unsafe partial class Glfw
         wayland_timerfd_settime(_glfw.wl.keyRepeatTimerfd, 0, &timer, null);
     }
 
+    static void wayland_stopCursorTimer()
+    {
+        if (_glfw.wl.cursorTimerfd < 0)
+            return;
+
+        ITIMERSPEC timer = default;
+        wayland_timerfd_settime(_glfw.wl.cursorTimerfd, 0, &timer, null);
+    }
+
     static void wayland_createKeyboard(void* seat)
     {
         if (_glfw.wl.keyboard != null)
@@ -1281,6 +1290,7 @@ public static unsafe partial class Glfw
         _glfw.wl.serial = serial;
         _glfw.wl.pointerFocus = null;
         _glfw.wl.cursorPreviousName = null;
+        wayland_stopCursorTimer();
 
         if (window->wl.hovered != 0)
         {
@@ -1387,6 +1397,7 @@ public static unsafe partial class Glfw
                 _glfwInputCursorEnter(_glfw.wl.pointerFocus, GLFW_FALSE);
             }
 
+            wayland_stopCursorTimer();
             wayland_pointerDestroy(_glfw.wl.pointer);
             _glfw.wl.pointer = null;
             _glfw.wl.pointerFocus = null;
@@ -2432,7 +2443,8 @@ public static unsafe partial class Glfw
         var @event = GLFW_FALSE;
         const int DISPLAY_FD = 0;
         const int KEYREPEAT_FD = 1;
-        POLLFD* fds = stackalloc POLLFD[2];
+        const int CURSOR_FD = 2;
+        POLLFD* fds = stackalloc POLLFD[3];
         fds[DISPLAY_FD] = new POLLFD
         {
             fd = _glfw.wl.client.display_get_fd(_glfw.wl.display),
@@ -2441,6 +2453,11 @@ public static unsafe partial class Glfw
         fds[KEYREPEAT_FD] = new POLLFD
         {
             fd = _glfw.wl.keyRepeatTimerfd,
+            events = POLLIN
+        };
+        fds[CURSOR_FD] = new POLLFD
+        {
+            fd = _glfw.wl.cursorTimerfd,
             events = POLLIN
         };
 
@@ -2462,7 +2479,9 @@ public static unsafe partial class Glfw
             fds[DISPLAY_FD].revents = 0;
             fds[KEYREPEAT_FD].fd = _glfw.wl.keyRepeatTimerfd;
             fds[KEYREPEAT_FD].revents = 0;
-            if (_glfwPollPOSIX(fds, 2, timeout) == 0)
+            fds[CURSOR_FD].fd = _glfw.wl.cursorTimerfd;
+            fds[CURSOR_FD].revents = 0;
+            if (_glfwPollPOSIX(fds, 3, timeout) == 0)
             {
                 _glfw.wl.client.display_cancel_read(_glfw.wl.display);
                 return;
@@ -2480,6 +2499,12 @@ public static unsafe partial class Glfw
             if ((fds[KEYREPEAT_FD].revents & POLLIN) != 0)
             {
                 wayland_dispatchKeyRepeats();
+                @event = GLFW_TRUE;
+            }
+
+            if ((fds[CURSOR_FD].revents & POLLIN) != 0)
+            {
+                wayland_dispatchCursorTimer();
                 @event = GLFW_TRUE;
             }
         }
@@ -2720,7 +2745,13 @@ public static unsafe partial class Glfw
             if (cursor == null || cursor->image_count == 0 || cursor->images == null)
                 return;
 
-            var image = cursor->images[0];
+            if (cursorWayland->currentImage < 0 ||
+                (uint)cursorWayland->currentImage >= cursor->image_count)
+            {
+                cursorWayland->currentImage = 0;
+            }
+
+            var image = cursor->images[cursorWayland->currentImage];
             if (image == null)
                 return;
 
@@ -2730,20 +2761,34 @@ public static unsafe partial class Glfw
             if (buffer == null)
                 return;
 
+            cursorWayland->width = (int)image->width;
+            cursorWayland->height = (int)image->height;
+            cursorWayland->xhot = (int)image->hotspot_x;
+            cursorWayland->yhot = (int)image->hotspot_y;
+
+            if (_glfw.wl.cursorTimerfd >= 0)
+            {
+                ITIMERSPEC timer = default;
+                timer.it_value.tv_sec = (nint)(image->delay / 1000);
+                timer.it_value.tv_nsec = (nint)((image->delay % 1000) * 1000000);
+                wayland_timerfd_settime(_glfw.wl.cursorTimerfd, 0, &timer, null);
+            }
+
             wayland_pointerSetCursor(_glfw.wl.pointer,
                 _glfw.wl.pointerEnterSerial,
                 _glfw.wl.cursorSurface,
-                (int)(image->hotspot_x / scale),
-                (int)(image->hotspot_y / scale));
+                cursorWayland->xhot / scale,
+                cursorWayland->yhot / scale);
             wayland_surfaceSetBufferScale(_glfw.wl.cursorSurface, scale);
             wayland_surfaceAttach(_glfw.wl.cursorSurface, buffer, 0, 0);
-            wayland_surfaceDamage(_glfw.wl.cursorSurface, 0, 0, (int)image->width, (int)image->height);
+            wayland_surfaceDamage(_glfw.wl.cursorSurface, 0, 0, cursorWayland->width, cursorWayland->height);
             wayland_surfaceCommit(_glfw.wl.cursorSurface);
             return;
         }
 
         if (cursorWayland->buffer != null)
         {
+            wayland_stopCursorTimer();
             wayland_pointerSetCursor(_glfw.wl.pointer,
                 _glfw.wl.pointerEnterSerial,
                 _glfw.wl.cursorSurface,
@@ -2756,6 +2801,32 @@ public static unsafe partial class Glfw
         }
     }
 
+    static void wayland_dispatchCursorTimer()
+    {
+        if (_glfw.wl.cursorTimerfd < 0)
+            return;
+
+        ulong repeats;
+        if (wayland_read(_glfw.wl.cursorTimerfd, &repeats, (nuint)sizeof(ulong)) != sizeof(ulong))
+            return;
+
+        var window = _glfw.wl.pointerFocus;
+        if (window == null || window->wl.hovered == 0)
+            return;
+
+        var cursor = window->wl.currentCursor;
+        if (cursor == null || cursor->wl.cursor == null)
+            return;
+
+        var wlCursor = (wl_cursor*)cursor->wl.cursor;
+        if (wlCursor->image_count == 0)
+            return;
+
+        cursor->wl.currentImage++;
+        cursor->wl.currentImage %= (int)wlCursor->image_count;
+        wayland_setCursorImage(window, &cursor->wl);
+    }
+
     static void _glfwSetCursorWayland(_GLFWwindow* window, _GLFWcursor* cursor)
     {
         window->wl.currentCursor = cursor;
@@ -2766,6 +2837,7 @@ public static unsafe partial class Glfw
         if (window->cursorMode == GLFW_CURSOR_HIDDEN ||
             window->cursorMode == GLFW_CURSOR_DISABLED)
         {
+            wayland_stopCursorTimer();
             wayland_pointerSetCursor(_glfw.wl.pointer, _glfw.wl.pointerEnterSerial, null, 0, 0);
         }
         else
