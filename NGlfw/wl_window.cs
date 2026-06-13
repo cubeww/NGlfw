@@ -38,7 +38,12 @@ public static unsafe partial class Glfw
     const int WAYLAND_O_CLOEXEC = 0x00080000;
     const int WAYLAND_F_GETFD = 1;
     const int WAYLAND_F_SETFD = 2;
+    const int WAYLAND_F_ADD_SEALS = 1033;
     const int WAYLAND_FD_CLOEXEC = 1;
+    const int WAYLAND_F_SEAL_SEAL = 0x0001;
+    const int WAYLAND_F_SEAL_SHRINK = 0x0002;
+    const uint WAYLAND_MFD_CLOEXEC = 0x0001;
+    const uint WAYLAND_MFD_ALLOW_SEALING = 0x0002;
     const uint BTN_LEFT = 0x110;
     const uint BTN_RIGHT = 0x111;
     const uint BTN_MIDDLE = 0x112;
@@ -74,6 +79,7 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwWaylandCursorNeResize = _glfw_allocate_static_string("ne-resize");
     static readonly byte* _glfwWaylandCursorSwResize = _glfw_allocate_static_string("sw-resize");
     static readonly byte* _glfwWaylandCursorSeResize = _glfw_allocate_static_string("se-resize");
+    static readonly byte* _glfwWaylandShmName = _glfw_allocate_static_string("glfw-shared");
 
     struct VkWaylandSurfaceCreateInfoKHR
     {
@@ -885,39 +891,59 @@ public static unsafe partial class Glfw
         return fd;
     }
 
-    static int wayland_createAnonymousFile(nint size, out int errorCode)
+    static int wayland_createMemfdCloexec()
     {
-        errorCode = 0;
-
-        var path = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
-        if (string.IsNullOrEmpty(path))
+        try
         {
-            errorCode = ENOENT;
-            return -1;
-        }
+            var fd = wayland_memfdCreate(_glfwWaylandShmName,
+                WAYLAND_MFD_CLOEXEC | WAYLAND_MFD_ALLOW_SEALING);
 
-        var nameBytes = Encoding.UTF8.GetBytes(path + "/glfw-shared-XXXXXX\0");
-        fixed (byte* name = nameBytes)
-        {
-            var fd = wayland_createTmpfileCloexec(name);
-            if (fd < 0)
-            {
-                errorCode = Marshal.GetLastPInvokeError();
-                return -1;
-            }
-
-            wayland_unlink(name);
-
-            var result = wayland_posix_fallocate(fd, 0, size);
-            if (result != 0)
-            {
-                wayland_close(fd);
-                errorCode = result;
-                return -1;
-            }
+            if (fd >= 0)
+                wayland_fcntl(fd, WAYLAND_F_ADD_SEALS, WAYLAND_F_SEAL_SHRINK | WAYLAND_F_SEAL_SEAL);
 
             return fd;
         }
+        catch (System.EntryPointNotFoundException)
+        {
+            return -1;
+        }
+    }
+
+    static int wayland_createAnonymousFile(nint size, out int errorCode)
+    {
+        errorCode = 0;
+        var fd = wayland_createMemfdCloexec();
+
+        if (fd < 0)
+        {
+            var path = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+            if (string.IsNullOrEmpty(path))
+            {
+                errorCode = ENOENT;
+                return -1;
+            }
+
+            var nameBytes = Encoding.UTF8.GetBytes(path + "/glfw-shared-XXXXXX\0");
+            fixed (byte* name = nameBytes)
+            {
+                fd = wayland_createTmpfileCloexec(name);
+                if (fd < 0)
+                {
+                    errorCode = Marshal.GetLastPInvokeError();
+                    return -1;
+                }
+            }
+        }
+
+        var result = wayland_posix_fallocate(fd, 0, size);
+        if (result != 0)
+        {
+            wayland_close(fd);
+            errorCode = result;
+            return -1;
+        }
+
+        return fd;
     }
 
     static void* wayland_createShmBuffer(GLFWimage* image)
@@ -5030,6 +5056,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libc", EntryPoint = "mkostemp", SetLastError = true)]
     static extern int wayland_mkostemp(byte* template, int flags);
+
+    [DllImport("libc", EntryPoint = "memfd_create", SetLastError = true)]
+    static extern int wayland_memfdCreate(byte* name, uint flags);
 
     [DllImport("libc", EntryPoint = "unlink", SetLastError = true)]
     static extern int wayland_unlink(byte* pathname);
