@@ -1643,11 +1643,32 @@ public static unsafe partial class Glfw
                     _glfwInputWindowSize(window, window->x11.width, window->x11.height);
                 }
 
-                if (@event->configureX != window->x11.xpos ||
-                    @event->configureY != window->x11.ypos)
+                var xpos = @event->configureX;
+                var ypos = @event->configureY;
+
+                if (@event->send_event == 0 &&
+                    window->x11.parent != _glfw.x11.root &&
+                    _glfw.x11.XTranslateCoordinates != null)
                 {
-                    window->x11.xpos = @event->configureX;
-                    window->x11.ypos = @event->configureY;
+                    nuint child;
+                    if (_glfw.x11.XTranslateCoordinates(_glfw.x11.display,
+                            window->x11.parent,
+                            _glfw.x11.root,
+                            xpos,
+                            ypos,
+                            &xpos,
+                            &ypos,
+                            &child) == 0)
+                    {
+                        return;
+                    }
+                }
+
+                if (xpos != window->x11.xpos ||
+                    ypos != window->x11.ypos)
+                {
+                    window->x11.xpos = xpos;
+                    window->x11.ypos = ypos;
                     _glfwInputWindowPos(window, window->x11.xpos, window->x11.ypos);
                 }
                 return;

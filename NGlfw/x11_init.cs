@@ -1206,6 +1206,44 @@ public static unsafe partial class Glfw
     {
         if (attribs != null)
             *attribs = null;
+
+        if (_glfw.egl.ANGLE_platform_angle != 0)
+        {
+            var type = 0;
+
+            if (_glfw.egl.ANGLE_platform_angle_opengl != 0)
+            {
+                if (_glfw.hints.init.angleType == GLFW_ANGLE_PLATFORM_TYPE_OPENGL)
+                    type = EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE;
+            }
+
+            if (_glfw.egl.ANGLE_platform_angle_vulkan != 0)
+            {
+                if (_glfw.hints.init.angleType == GLFW_ANGLE_PLATFORM_TYPE_VULKAN)
+                    type = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
+            }
+
+            if (type != 0)
+            {
+                if (attribs == null)
+                    return 0;
+
+                *attribs = (int*)_glfw_calloc(5, (nuint)sizeof(int));
+                if (*attribs == null)
+                    return 0;
+
+                (*attribs)[0] = EGL_PLATFORM_ANGLE_TYPE_ANGLE;
+                (*attribs)[1] = type;
+                (*attribs)[2] = EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE;
+                (*attribs)[3] = EGL_PLATFORM_X11_EXT;
+                (*attribs)[4] = EGL_NONE;
+                return EGL_PLATFORM_ANGLE_ANGLE;
+            }
+        }
+
+        if (_glfw.egl.EXT_platform_base != 0 && _glfw.egl.EXT_platform_x11 != 0)
+            return EGL_PLATFORM_X11_EXT;
+
         return 0;
     }
 
@@ -1216,7 +1254,12 @@ public static unsafe partial class Glfw
 
     static void* _glfwGetEGLNativeWindowX11(_GLFWwindow* window)
     {
-        return window != null ? (void*)window->x11.handle : null;
+        if (window == null)
+            return null;
+
+        return _glfw.egl.platform != 0
+            ? &window->x11.handle
+            : (void*)window->x11.handle;
     }
 
     static int x11_xcbVulkanSurfaceAvailable()

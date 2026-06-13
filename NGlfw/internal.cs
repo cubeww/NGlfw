@@ -27,6 +27,8 @@ public static unsafe partial class Glfw
     const int EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE = 0x3208;
     const int EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE = 0x3450;
     const int EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE = 0x3489;
+    const int EGL_PLATFORM_X11_EXT = 0x31d5;
+    const int EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE = 0x348f;
 
     static _GLFWlibrary _glfw;
     static _GLFWerror _glfwMainThreadError;
@@ -1136,6 +1138,8 @@ public static unsafe partial class Glfw
         public int ANGLE_platform_angle_d3d;
         public int ANGLE_platform_angle_vulkan;
         public int ANGLE_platform_angle_metal;
+        public int EXT_platform_base;
+        public int EXT_platform_x11;
         public void* handle;
     }
 
