@@ -147,6 +147,11 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, uint, void> action;
     }
 
+    struct wp_fractional_scale_v1_listener
+    {
+        public delegate* unmanaged<void*, void*, uint, void> preferred_scale;
+    }
+
     struct ITIMERSPEC
     {
         public TIMESPEC it_interval;
@@ -171,6 +176,7 @@ public static unsafe partial class Glfw
     static wl_data_offer_listener* _glfwWaylandDataOfferListener;
     static wl_data_device_listener* _glfwWaylandDataDeviceListener;
     static wl_data_source_listener* _glfwWaylandDataSourceListener;
+    static wp_fractional_scale_v1_listener* _glfwWaylandFractionalScaleListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
 
@@ -297,6 +303,19 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandDataSourceListener;
+    }
+
+    static wp_fractional_scale_v1_listener* wayland_getFractionalScaleListener()
+    {
+        if (_glfwWaylandFractionalScaleListener == null)
+        {
+            _glfwWaylandFractionalScaleListener =
+                (wp_fractional_scale_v1_listener*)_glfw_calloc(1, (nuint)sizeof(wp_fractional_scale_v1_listener));
+            if (_glfwWaylandFractionalScaleListener != null)
+                _glfwWaylandFractionalScaleListener->preferred_scale = &wayland_fractionalScaleHandlePreferredScale;
+        }
+
+        return _glfwWaylandFractionalScaleListener;
     }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
@@ -444,6 +463,85 @@ public static unsafe partial class Glfw
         wayland_regionAdd(region, 0, 0, window->wl.width, window->wl.height);
         wayland_surfaceSetOpaqueRegion(window->wl.surface, region);
         wayland_regionDestroy(region);
+    }
+
+    static void* wayland_viewporterGetViewport(void* viewporter, void* surface)
+    {
+        if (viewporter == null ||
+            surface == null ||
+            _glfwWaylandWpViewportInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object == null)
+        {
+            return null;
+        }
+
+        var viewport = _glfw.wl.client.proxy_marshal_constructor_object(viewporter,
+            WP_VIEWPORTER_GET_VIEWPORT,
+            _glfwWaylandWpViewportInterface,
+            null,
+            surface);
+
+        wayland_tagProxy(viewport);
+        return viewport;
+    }
+
+    static void wayland_viewportSetDestination(void* viewport, int width, int height)
+    {
+        if (viewport != null && _glfw.wl.client.proxy_marshal_int_int != null)
+            _glfw.wl.client.proxy_marshal_int_int(viewport, WP_VIEWPORT_SET_DESTINATION, width, height);
+    }
+
+    static void wayland_viewportDestroy(void* viewport)
+    {
+        wayland_proxyDestroyWithOpcode(viewport, WP_VIEWPORT_DESTROY);
+    }
+
+    static void* wayland_fractionalScaleManagerGetFractionalScale(void* manager, void* surface)
+    {
+        if (manager == null ||
+            surface == null ||
+            _glfwWaylandWpFractionalScaleInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object == null)
+        {
+            return null;
+        }
+
+        var fractionalScale = _glfw.wl.client.proxy_marshal_constructor_object(manager,
+            WP_FRACTIONAL_SCALE_MANAGER_GET_FRACTIONAL_SCALE,
+            _glfwWaylandWpFractionalScaleInterface,
+            null,
+            surface);
+
+        wayland_tagProxy(fractionalScale);
+        return fractionalScale;
+    }
+
+    static void wayland_fractionalScaleDestroy(void* fractionalScale)
+    {
+        wayland_proxyDestroyWithOpcode(fractionalScale, WP_FRACTIONAL_SCALE_DESTROY);
+    }
+
+    static void wayland_updateFramebufferSize(_GLFWwindow* window)
+    {
+        if (window->wl.fractionalScale != null)
+        {
+            window->wl.fbWidth = (int)(window->wl.width * window->wl.scalingNumerator / 120);
+            window->wl.fbHeight = (int)(window->wl.height * window->wl.scalingNumerator / 120);
+        }
+        else
+        {
+            var scale = window->wl.bufferScale != 0 ? window->wl.bufferScale : 1;
+            window->wl.fbWidth = window->wl.width * scale;
+            window->wl.fbHeight = window->wl.height * scale;
+        }
+
+        if (window->wl.egl.window != null && _glfw.wl.egl.window_resize != null)
+            _glfw.wl.egl.window_resize(window->wl.egl.window, window->wl.fbWidth, window->wl.fbHeight, 0, 0);
+
+        if (window->wl.transparent == 0)
+            wayland_setContentAreaOpaque(window);
+
+        _glfwInputFramebufferSize(window, window->wl.fbWidth, window->wl.fbHeight);
     }
 
     static void* wayland_shmCreatePool(int fd, int size)
@@ -674,6 +772,21 @@ public static unsafe partial class Glfw
     [UnmanagedCallersOnly]
     static void wayland_surfaceHandlePreferredBufferTransform(void* userData, void* surface, uint transform)
     {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_fractionalScaleHandlePreferredScale(void* userData, void* fractionalScale, uint numerator)
+    {
+        var window = (_GLFWwindow*)userData;
+        if (window == null)
+            return;
+
+        window->wl.scalingNumerator = numerator;
+        _glfwInputWindowContentScale(window, numerator / 120f, numerator / 120f);
+        wayland_updateFramebufferSize(window);
+
+        if (window->wl.visible != 0)
+            _glfwInputWindowDamage(window);
     }
 
     static double wayland_fixedToDouble(int value)
@@ -1721,20 +1834,15 @@ public static unsafe partial class Glfw
 
         window->wl.width = width;
         window->wl.height = height;
-        window->wl.fbWidth = width * (window->wl.bufferScale != 0 ? window->wl.bufferScale : 1);
-        window->wl.fbHeight = height * (window->wl.bufferScale != 0 ? window->wl.bufferScale : 1);
+        wayland_updateFramebufferSize(window);
 
-        if (window->wl.egl.window != null && _glfw.wl.egl.window_resize != null)
-            _glfw.wl.egl.window_resize(window->wl.egl.window, window->wl.fbWidth, window->wl.fbHeight, 0, 0);
-
-        if (window->wl.transparent == 0)
-            wayland_setContentAreaOpaque(window);
+        if (window->wl.scalingViewport != null)
+            wayland_viewportSetDestination(window->wl.scalingViewport, window->wl.width, window->wl.height);
 
         wayland_xdgSurfaceSetWindowGeometry(window->wl.xdg.surface, 0, 0, width, height);
         wayland_surfaceCommit(window->wl.surface);
 
         _glfwInputWindowSize(window, width, height);
-        _glfwInputFramebufferSize(window, window->wl.fbWidth, window->wl.fbHeight);
     }
 
     [UnmanagedCallersOnly]
@@ -1966,6 +2074,26 @@ public static unsafe partial class Glfw
         if (window->wl.transparent == 0)
             wayland_setContentAreaOpaque(window);
 
+        if (_glfw.wl.fractionalScaleManager != null &&
+            _glfw.wl.viewporter != null &&
+            window->wl.scaleFramebuffer != 0)
+        {
+            window->wl.scalingViewport = wayland_viewporterGetViewport(_glfw.wl.viewporter, window->wl.surface);
+            if (window->wl.scalingViewport != null)
+                wayland_viewportSetDestination(window->wl.scalingViewport, window->wl.width, window->wl.height);
+
+            window->wl.fractionalScale =
+                wayland_fractionalScaleManagerGetFractionalScale(_glfw.wl.fractionalScaleManager, window->wl.surface);
+            var fractionalScaleListener = wayland_getFractionalScaleListener();
+            if (window->wl.fractionalScale != null &&
+                fractionalScaleListener != null &&
+                _glfw.wl.client.proxy_add_listener(window->wl.fractionalScale, fractionalScaleListener, window) != 0)
+            {
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add fractional-scale listener");
+                return GLFW_FALSE;
+            }
+        }
+
         if (wndconfig->mousePassthrough != 0)
             _glfwSetWindowMousePassthroughWayland(window, GLFW_TRUE);
 
@@ -1993,6 +2121,8 @@ public static unsafe partial class Glfw
         if (window->wl.egl.window != null && _glfw.wl.egl.window_destroy != null)
             _glfw.wl.egl.window_destroy(window->wl.egl.window);
 
+        wayland_fractionalScaleDestroy(window->wl.fractionalScale);
+        wayland_viewportDestroy(window->wl.scalingViewport);
         wayland_proxyDestroyWithOpcode(window->wl.surface, WL_SURFACE_DESTROY);
 
         _glfw_free(window->wl.appId);
@@ -2037,17 +2167,12 @@ public static unsafe partial class Glfw
     {
         window->wl.width = width;
         window->wl.height = height;
-        window->wl.fbWidth = width * (window->wl.bufferScale != 0 ? window->wl.bufferScale : 1);
-        window->wl.fbHeight = height * (window->wl.bufferScale != 0 ? window->wl.bufferScale : 1);
+        wayland_updateFramebufferSize(window);
 
-        if (window->wl.egl.window != null && _glfw.wl.egl.window_resize != null)
-            _glfw.wl.egl.window_resize(window->wl.egl.window, window->wl.fbWidth, window->wl.fbHeight, 0, 0);
-
-        if (window->wl.transparent == 0)
-            wayland_setContentAreaOpaque(window);
+        if (window->wl.scalingViewport != null)
+            wayland_viewportSetDestination(window->wl.scalingViewport, window->wl.width, window->wl.height);
 
         _glfwInputWindowSize(window, width, height);
-        _glfwInputFramebufferSize(window, window->wl.fbWidth, window->wl.fbHeight);
     }
 
     static void _glfwSetWindowSizeLimitsWayland(_GLFWwindow* window,

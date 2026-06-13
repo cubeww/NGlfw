@@ -64,6 +64,13 @@ public static unsafe partial class Glfw
     const uint XDG_TOPLEVEL_SET_FULLSCREEN = 11;
     const uint XDG_TOPLEVEL_UNSET_FULLSCREEN = 12;
     const uint XDG_TOPLEVEL_SET_MINIMIZED = 13;
+    const uint WP_VIEWPORTER_DESTROY = 0;
+    const uint WP_VIEWPORTER_GET_VIEWPORT = 1;
+    const uint WP_VIEWPORT_DESTROY = 0;
+    const uint WP_VIEWPORT_SET_DESTINATION = 2;
+    const uint WP_FRACTIONAL_SCALE_MANAGER_DESTROY = 0;
+    const uint WP_FRACTIONAL_SCALE_MANAGER_GET_FRACTIONAL_SCALE = 1;
+    const uint WP_FRACTIONAL_SCALE_DESTROY = 0;
 
     static readonly byte* _glfwWaylandWlCompositor = _glfw_allocate_static_string("wl_compositor");
     static readonly byte* _glfwWaylandWlSubcompositor = _glfw_allocate_static_string("wl_subcompositor");
@@ -72,6 +79,8 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwWaylandWlSeat = _glfw_allocate_static_string("wl_seat");
     static readonly byte* _glfwWaylandWlDataDeviceManager = _glfw_allocate_static_string("wl_data_device_manager");
     static readonly byte* _glfwWaylandXdgWmBase = _glfw_allocate_static_string("xdg_wm_base");
+    static readonly byte* _glfwWaylandWpViewporter = _glfw_allocate_static_string("wp_viewporter");
+    static readonly byte* _glfwWaylandWpFractionalScaleManagerV1 = _glfw_allocate_static_string("wp_fractional_scale_manager_v1");
     static readonly byte* _glfwWaylandXkbControl = _glfw_allocate_static_string("Control");
     static readonly byte* _glfwWaylandXkbMod1 = _glfw_allocate_static_string("Mod1");
     static readonly byte* _glfwWaylandXkbShift = _glfw_allocate_static_string("Shift");
@@ -116,6 +125,10 @@ public static unsafe partial class Glfw
     static wl_interface* _glfwWaylandXdgSurfaceInterface;
     static wl_interface* _glfwWaylandXdgToplevelInterface;
     static wl_interface* _glfwWaylandXdgPopupInterface;
+    static wl_interface* _glfwWaylandWpViewporterInterface;
+    static wl_interface* _glfwWaylandWpViewportInterface;
+    static wl_interface* _glfwWaylandWpFractionalScaleManagerInterface;
+    static wl_interface* _glfwWaylandWpFractionalScaleInterface;
 
     static uint wayland_min(uint a, uint b)
     {
@@ -288,6 +301,91 @@ public static unsafe partial class Glfw
         _glfwWaylandXdgToplevelInterface = toplevel;
         _glfwWaylandXdgPopupInterface = popup;
 
+        return GLFW_TRUE;
+    }
+
+    static int wayland_initViewporterInterfaces()
+    {
+        if (_glfwWaylandWpViewporterInterface != null)
+            return GLFW_TRUE;
+
+        var viewporter = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var viewport = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var scaleManager = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var fractionalScale = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        if (viewporter == null || viewport == null || scaleManager == null || fractionalScale == null)
+            return GLFW_FALSE;
+
+        var viewporterMethods = wayland_allocMessages(2);
+        var viewportMethods = wayland_allocMessages(3);
+        var scaleManagerMethods = wayland_allocMessages(2);
+        var fractionalScaleMethods = wayland_allocMessages(1);
+        var fractionalScaleEvents = wayland_allocMessages(1);
+        if (viewporterMethods == null || viewportMethods == null ||
+            scaleManagerMethods == null || fractionalScaleMethods == null ||
+            fractionalScaleEvents == null)
+        {
+            return GLFW_FALSE;
+        }
+
+        var getViewportTypes = wayland_allocTypes(2);
+        var getFractionalScaleTypes = wayland_allocTypes(2);
+        if (getViewportTypes == null || getFractionalScaleTypes == null)
+            return GLFW_FALSE;
+
+        getViewportTypes[0] = viewport;
+        getViewportTypes[1] = (wl_interface*)_glfw.wl.client.surfaceInterface;
+        getFractionalScaleTypes[0] = fractionalScale;
+        getFractionalScaleTypes[1] = (wl_interface*)_glfw.wl.client.surfaceInterface;
+
+        wayland_setMessage(viewporterMethods, 0, "destroy", "", null);
+        wayland_setMessage(viewporterMethods, 1, "get_viewport", "no", getViewportTypes);
+
+        wayland_setMessage(viewportMethods, 0, "destroy", "", null);
+        wayland_setMessage(viewportMethods, 1, "set_source", "ffff", null);
+        wayland_setMessage(viewportMethods, 2, "set_destination", "ii", null);
+
+        wayland_setMessage(scaleManagerMethods, 0, "destroy", "", null);
+        wayland_setMessage(scaleManagerMethods, 1, "get_fractional_scale", "no", getFractionalScaleTypes);
+
+        wayland_setMessage(fractionalScaleMethods, 0, "destroy", "", null);
+        wayland_setMessage(fractionalScaleEvents, 0, "preferred_scale", "u", null);
+
+        *viewporter = new wl_interface
+        {
+            name = _glfwWaylandWpViewporter,
+            version = 1,
+            method_count = 2,
+            methods = viewporterMethods
+        };
+        *viewport = new wl_interface
+        {
+            name = _glfw_allocate_static_string("wp_viewport"),
+            version = 1,
+            method_count = 3,
+            methods = viewportMethods
+        };
+        *scaleManager = new wl_interface
+        {
+            name = _glfwWaylandWpFractionalScaleManagerV1,
+            version = 1,
+            method_count = 2,
+            methods = scaleManagerMethods
+        };
+        *fractionalScale = new wl_interface
+        {
+            name = _glfw_allocate_static_string("wp_fractional_scale_v1"),
+            version = 1,
+            method_count = 1,
+            methods = fractionalScaleMethods,
+            event_count = 1,
+            events = fractionalScaleEvents
+        };
+
+        _glfwWaylandWpViewporterInterface = viewporter;
+        _glfwWaylandWpViewportInterface = viewport;
+        _glfwWaylandWpFractionalScaleManagerInterface = scaleManager;
+        _glfwWaylandWpFractionalScaleInterface = fractionalScale;
         return GLFW_TRUE;
     }
 
@@ -871,8 +969,8 @@ public static unsafe partial class Glfw
                 _glfw.wl.dataDeviceManager = wayland_registryBind(registry,
                     name,
                     _glfw.wl.client.dataDeviceManagerInterface,
-                _glfwWaylandWlDataDeviceManager,
-                1);
+                    _glfwWaylandWlDataDeviceManager,
+                    1);
             }
         }
         else if (wayland_stringEquals(interfaceName, "xdg_wm_base") != 0)
@@ -888,6 +986,28 @@ public static unsafe partial class Glfw
                 var listener = wayland_getXdgWmBaseListener();
                 if (_glfw.wl.wmBase != null && listener != null)
                     _glfw.wl.client.proxy_add_listener(_glfw.wl.wmBase, listener, null);
+            }
+        }
+        else if (wayland_stringEquals(interfaceName, "wp_viewporter") != 0)
+        {
+            if (_glfw.wl.viewporter == null && _glfwWaylandWpViewporterInterface != null)
+            {
+                _glfw.wl.viewporter = wayland_registryBind(registry,
+                    name,
+                    _glfwWaylandWpViewporterInterface,
+                    _glfwWaylandWpViewporter,
+                    1);
+            }
+        }
+        else if (wayland_stringEquals(interfaceName, "wp_fractional_scale_manager_v1") != 0)
+        {
+            if (_glfw.wl.fractionalScaleManager == null && _glfwWaylandWpFractionalScaleManagerInterface != null)
+            {
+                _glfw.wl.fractionalScaleManager = wayland_registryBind(registry,
+                    name,
+                    _glfwWaylandWpFractionalScaleManagerInterface,
+                    _glfwWaylandWpFractionalScaleManagerV1,
+                    1);
             }
         }
     }
@@ -1133,6 +1253,11 @@ public static unsafe partial class Glfw
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize xdg-shell protocol tables");
             return GLFW_FALSE;
         }
+        if (wayland_initViewporterInterfaces() == 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize viewporter protocol tables");
+            return GLFW_FALSE;
+        }
 
         _glfw.wl.registry = wayland_displayGetRegistry(_glfw.wl.display);
         if (_glfw.wl.registry == null)
@@ -1234,6 +1359,8 @@ public static unsafe partial class Glfw
         wayland_proxyDestroy(_glfw.wl.dataDeviceManager);
         wayland_seatDestroy(_glfw.wl.seat);
         wayland_proxyDestroy(_glfw.wl.shm);
+        wayland_proxyDestroyWithOpcode(_glfw.wl.fractionalScaleManager, WP_FRACTIONAL_SCALE_MANAGER_DESTROY);
+        wayland_proxyDestroyWithOpcode(_glfw.wl.viewporter, WP_VIEWPORTER_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.cursorSurface, WL_SURFACE_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.subcompositor, 0);
         wayland_proxyDestroy(_glfw.wl.compositor);
@@ -1258,6 +1385,7 @@ public static unsafe partial class Glfw
         _glfw_free(_glfwWaylandDataOfferListener);
         _glfw_free(_glfwWaylandDataDeviceListener);
         _glfw_free(_glfwWaylandDataSourceListener);
+        _glfw_free(_glfwWaylandFractionalScaleListener);
         _glfw_free(_glfwWaylandXdgWmBaseListener);
         _glfw_free(_glfwWaylandXdgSurfaceListener);
         _glfw_free(_glfwWaylandXdgToplevelListener);
@@ -1270,6 +1398,7 @@ public static unsafe partial class Glfw
         _glfwWaylandDataOfferListener = null;
         _glfwWaylandDataDeviceListener = null;
         _glfwWaylandDataSourceListener = null;
+        _glfwWaylandFractionalScaleListener = null;
         _glfwWaylandXdgWmBaseListener = null;
         _glfwWaylandXdgSurfaceListener = null;
         _glfwWaylandXdgToplevelListener = null;

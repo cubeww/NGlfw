@@ -249,6 +249,9 @@ Implemented or partially implemented:
   compositor-requested data writes
 - `wl_region` creation, surface opaque-region hints for non-transparent
   windows, and input-region updates for mouse passthrough
+- hand-written `wp_viewporter` and `wp_fractional_scale_v1` protocol tables,
+  registry binding, viewport destination updates, preferred fractional-scale
+  handling, framebuffer resize, and content-scale callbacks
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
@@ -267,7 +270,8 @@ Known remaining work:
 - advanced pointer events, full disabled-cursor behavior, and
   interactive decoration move/resize paths
 - preferred buffer scale/transform and fractional-scale protocol handling
-- protocol requests for fractional scaling and related viewport plumbing
+- additional viewport users such as fallback decorations and runtime
+  fractional-scaling validation
 - libdecor and fallback decoration support
 - drag-and-drop action/finish edge cases
 - runtime validation on a Wayland compositor
