@@ -42,6 +42,8 @@ public static unsafe partial class Glfw
     const ulong NSTrackingEnabledDuringMouseDrag = 1 << 10;
     const ulong NSWindowOcclusionStateVisible = 1 << 1;
     const int kCFNumberIntType = 9;
+    const uint kCFStringEncodingUTF8 = 0x08000100;
+    const uint kIODisplayOnlyPreferredName = 0x00000100;
 
     static readonly byte* _glfwCocoaMappingName = _glfw_allocate_static_string("Mac OS X");
     static readonly byte* _glfwCocoaPasteboardTypeString = _glfw_allocate_static_string("public.utf8-plain-text");
@@ -1670,6 +1672,12 @@ public static unsafe partial class Glfw
     static extern uint CGDisplayUnitNumber(uint display);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern uint CGDisplayVendorNumber(uint display);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern uint CGDisplayModelNumber(uint display);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     static extern NSSize CGDisplayScreenSize(uint display);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
@@ -1736,6 +1744,21 @@ public static unsafe partial class Glfw
     static extern byte CFNumberGetValue(void* number, int theType, void* valuePtr);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern byte CFStringGetCString(void* theString, byte* buffer, nint bufferSize, uint encoding);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern nint CFStringGetLength(void* theString);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern nint CFStringGetMaximumSizeForEncoding(nint length, uint encoding);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void* CFDictionaryGetValue(void* theDict, void* key);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern byte CFDictionaryGetValueIfPresent(void* theDict, void* key, void** value);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern nint CFArrayGetCount(void* array);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
@@ -1761,4 +1784,7 @@ public static unsafe partial class Glfw
 
     [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
     static extern void* IORegistryEntryCreateCFProperty(uint entry, void* key, void* allocator, uint options);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void* IODisplayCreateInfoDictionary(uint framebuffer, uint options);
 }

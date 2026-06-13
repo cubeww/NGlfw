@@ -149,6 +149,129 @@ public static unsafe partial class Glfw
         return refreshRate;
     }
 
+    static void* cocoa_dictionaryGetValue(void* dictionary, string keyName)
+    {
+        if (dictionary == null)
+            return null;
+
+        var key = cocoa_stringFromUTF8(keyName);
+        if (key == null)
+            return null;
+
+        var value = CFDictionaryGetValue(dictionary, key);
+        cocoa_releaseTemporaryString(key);
+        return value;
+    }
+
+    static void* cocoa_dictionaryGetValueIfPresent(void* dictionary, string keyName)
+    {
+        if (dictionary == null)
+            return null;
+
+        var key = cocoa_stringFromUTF8(keyName);
+        if (key == null)
+            return null;
+
+        void* value = null;
+        CFDictionaryGetValueIfPresent(dictionary, key, &value);
+        cocoa_releaseTemporaryString(key);
+        return value;
+    }
+
+    static string? cocoa_stringFromCFString(void* value)
+    {
+        if (value == null)
+            return null;
+
+        var length = CFStringGetLength(value);
+        var size = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8);
+        if (size < 0)
+            return null;
+
+        var buffer = (byte*)_glfw_calloc((nuint)size + 1, 1);
+        if (buffer == null)
+            return null;
+
+        string? result = null;
+        if (CFStringGetCString(value, buffer, size + 1, kCFStringEncodingUTF8) != 0)
+            result = System.Runtime.InteropServices.Marshal.PtrToStringUTF8((nint)buffer);
+
+        _glfw_free(buffer);
+        return result;
+    }
+
+    static string? cocoa_getMonitorNameFromIOKit(uint displayID)
+    {
+        var serviceName = cocoa_ascii("IODisplayConnect");
+
+        uint iterator = 0;
+        fixed (byte* serviceNamePtr = serviceName)
+        {
+            var matching = IOServiceMatching(serviceNamePtr);
+            if (matching == null ||
+                IOServiceGetMatchingServices(0, matching, &iterator) != 0)
+            {
+                return null;
+            }
+        }
+
+        void* info = null;
+
+        for (;;)
+        {
+            var service = IOIteratorNext(iterator);
+            if (service == 0)
+                break;
+
+            info = IODisplayCreateInfoDictionary(service, kIODisplayOnlyPreferredName);
+            if (info == null)
+            {
+                IOObjectRelease(service);
+                continue;
+            }
+
+            var vendorIDRef = cocoa_dictionaryGetValue(info, "DisplayVendorID");
+            var productIDRef = cocoa_dictionaryGetValue(info, "DisplayProductID");
+            if (vendorIDRef == null || productIDRef == null)
+            {
+                CFRelease(info);
+                info = null;
+                IOObjectRelease(service);
+                continue;
+            }
+
+            uint vendorID = 0;
+            uint productID = 0;
+            CFNumberGetValue(vendorIDRef, kCFNumberIntType, &vendorID);
+            CFNumberGetValue(productIDRef, kCFNumberIntType, &productID);
+
+            IOObjectRelease(service);
+
+            if (CGDisplayVendorNumber(displayID) == vendorID &&
+                CGDisplayModelNumber(displayID) == productID)
+            {
+                break;
+            }
+
+            CFRelease(info);
+            info = null;
+        }
+
+        IOObjectRelease(iterator);
+
+        if (info == null)
+            return null;
+
+        string? name = null;
+        var names = cocoa_dictionaryGetValue(info, "DisplayProductName");
+        var nameRef = cocoa_dictionaryGetValueIfPresent(names, "en_US");
+        if (nameRef != null)
+            name = cocoa_stringFromCFString(nameRef);
+
+        CFRelease(info);
+        return string.IsNullOrEmpty(name) ? null : name;
+    }
+
     static void* cocoa_getScreenForDisplay(uint displayID)
     {
         var screens = cocoa_msgSend_id(cocoa_getClass("NSScreen"), "screens");
@@ -198,7 +321,11 @@ public static unsafe partial class Glfw
             }
         }
 
-        return $"Cocoa Display {CGDisplayUnitNumber(displayID)}";
+        var fallbackName = cocoa_getMonitorNameFromIOKit(displayID);
+        if (!string.IsNullOrEmpty(fallbackName))
+            return fallbackName;
+
+        return "Display";
     }
 
     static void _glfwPollMonitorsCocoa()
