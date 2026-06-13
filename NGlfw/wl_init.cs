@@ -1883,6 +1883,15 @@ public static unsafe partial class Glfw
             return GLFW_FALSE;
         }
 
+        _glfw.wl.keyRepeatTimerfd = wayland_timerfd_create(CLOCK_MONOTONIC,
+            TFD_CLOEXEC | TFD_NONBLOCK);
+        if (_glfw.wl.keyRepeatTimerfd == -1)
+        {
+            var error = Marshal.GetLastPInvokeError();
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create timerfd: errno {0}", error);
+            return GLFW_FALSE;
+        }
+
         if (_glfw.wl.client.display_roundtrip(_glfw.wl.display) < 0 ||
             _glfw.wl.client.display_roundtrip(_glfw.wl.display) < 0)
         {
@@ -1891,14 +1900,6 @@ public static unsafe partial class Glfw
         }
 
         wayland_initLibdecorContext();
-
-        if (_glfw.wl.seat != null &&
-            _glfw.wl.client.proxy_get_version != null &&
-            _glfw.wl.client.proxy_get_version(_glfw.wl.seat) >= WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION)
-        {
-            _glfw.wl.keyRepeatTimerfd = wayland_timerfd_create(CLOCK_MONOTONIC,
-                TFD_CLOEXEC | TFD_NONBLOCK);
-        }
 
         if (_glfw.wl.compositor == null)
         {
