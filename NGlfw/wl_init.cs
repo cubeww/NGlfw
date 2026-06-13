@@ -567,6 +567,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_object =
             (delegate* unmanaged<void*, uint, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
+        _glfw.wl.client.proxy_marshal_uint_object_int_int =
+            (delegate* unmanaged<void*, uint, uint, void*, int, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_int_int =
             (delegate* unmanaged<void*, uint, int, int, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_int_int_int_int =
@@ -618,6 +620,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal_uint == null ||
             _glfw.wl.client.proxy_marshal_int == null ||
             _glfw.wl.client.proxy_marshal_object == null ||
+            _glfw.wl.client.proxy_marshal_uint_object_int_int == null ||
             _glfw.wl.client.proxy_marshal_int_int == null ||
             _glfw.wl.client.proxy_marshal_int_int_int_int == null ||
             _glfw.wl.client.proxy_add_listener == null ||

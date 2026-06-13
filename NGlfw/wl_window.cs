@@ -10,6 +10,7 @@ public static unsafe partial class Glfw
     const uint WL_POINTER_BUTTON_STATE_PRESSED = 1;
     const uint WL_POINTER_AXIS_VERTICAL_SCROLL = 0;
     const uint WL_POINTER_AXIS_HORIZONTAL_SCROLL = 1;
+    const uint WL_POINTER_SET_CURSOR = 0;
     const uint BTN_LEFT = 0x110;
     const uint BTN_RIGHT = 0x111;
     const uint BTN_MIDDLE = 0x112;
@@ -313,6 +314,12 @@ public static unsafe partial class Glfw
             return (int)(button - BTN_LEFT);
 
         return -1;
+    }
+
+    static void wayland_pointerSetCursor(void* pointer, uint serial, void* surface, int xhot, int yhot)
+    {
+        if (pointer != null && _glfw.wl.client.proxy_marshal_uint_object_int_int != null)
+            _glfw.wl.client.proxy_marshal_uint_object_int_int(pointer, WL_POINTER_SET_CURSOR, serial, surface, xhot, yhot);
     }
 
     static void* wayland_seatGetPointer(void* seat)
@@ -1271,6 +1278,15 @@ public static unsafe partial class Glfw
     static void _glfwSetCursorWayland(_GLFWwindow* window, _GLFWcursor* cursor)
     {
         window->wl.currentCursor = cursor;
+
+        if (_glfw.wl.pointer == null || _glfw.wl.pointerFocus != window)
+            return;
+
+        if (window->cursorMode == GLFW_CURSOR_HIDDEN ||
+            window->cursorMode == GLFW_CURSOR_DISABLED)
+        {
+            wayland_pointerSetCursor(_glfw.wl.pointer, _glfw.wl.pointerEnterSerial, null, 0, 0);
+        }
     }
 
     static void _glfwSetClipboardStringWayland(byte* @string)

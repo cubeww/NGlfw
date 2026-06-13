@@ -234,6 +234,7 @@ Implemented or partially implemented:
   buffer scale updates
 - initial `wl_seat` capability handling and `wl_pointer` enter/leave, motion,
   button, and scroll callbacks
+- basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - Wayland EGL native window creation and EGL/OSMesa context creation path
 - basic Wayland monitor/window/native accessor entry points
 - Wayland EGL and Vulkan extension plumbing entry points
@@ -243,7 +244,7 @@ Known remaining work:
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
 - keyboard, data-device, cursor theme, and XKB event handling
-- advanced pointer events, disabled-cursor behavior, cursor surfaces, and
+- advanced pointer events, full disabled-cursor behavior, cursor surfaces, and
   interactive decoration move/resize paths
 - preferred buffer scale/transform and fractional-scale protocol handling
 - protocol requests for regions, opaque/input regions, buffer scale, and
