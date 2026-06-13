@@ -297,11 +297,32 @@ public static unsafe partial class Glfw
             }
         }
 
+        if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
+        {
+            if (window->wl.visible == 0)
+                return;
+
+            if (window->wl.egl.interval > 0 && _glfwWaitForEGLFrameWayland(window) == 0)
+                return;
+        }
+
         _glfw.egl.SwapBuffers(_glfw.egl.display, window->context.egl.surface);
     }
 
     static void swapIntervalEGL(int interval)
     {
+        if (_glfw.platform.platformID == GLFW_PLATFORM_WAYLAND)
+        {
+            fixed (_GLFWlibrary* glfw = &_glfw)
+            {
+                var window = (_GLFWwindow*)_glfwPlatformGetTls(&glfw->contextSlot);
+                if (window != null)
+                    window->wl.egl.interval = interval;
+            }
+
+            return;
+        }
+
         _glfw.egl.SwapInterval(_glfw.egl.display, interval);
     }
 

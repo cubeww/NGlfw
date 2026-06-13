@@ -281,6 +281,8 @@ Implemented or partially implemented:
 - custom cursor image buffers through `wl_shm`, `wl_shm_pool`, and
   premultiplied `WL_SHM_FORMAT_ARGB8888` pixel upload
 - Wayland EGL native window creation and EGL/OSMesa context creation path
+- Wayland EGL frame callback queue/wrapper setup, swap-interval tracking, and
+  hidden-window swap suppression
 - basic Wayland monitor/window/native accessor entry points
 - Wayland EGL and Vulkan extension plumbing entry points
 

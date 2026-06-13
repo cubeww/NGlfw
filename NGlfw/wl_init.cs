@@ -18,6 +18,7 @@ public static unsafe partial class Glfw
     const uint WL_SURFACE_DESTROY = 0;
     const uint WL_SURFACE_ATTACH = 1;
     const uint WL_SURFACE_DAMAGE = 2;
+    const uint WL_SURFACE_FRAME = 3;
     const uint WL_SURFACE_SET_OPAQUE_REGION = 4;
     const uint WL_SURFACE_SET_INPUT_REGION = 5;
     const uint WL_SURFACE_COMMIT = 6;
@@ -1623,6 +1624,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_display_cancel_read");
         _glfw.wl.client.display_dispatch_pending =
             (delegate* unmanaged<void*, int>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_display_dispatch_pending");
+        _glfw.wl.client.display_dispatch_queue_pending =
+            (delegate* unmanaged<void*, void*, int>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_display_dispatch_queue_pending");
         _glfw.wl.client.display_read_events =
             (delegate* unmanaged<void*, int>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_display_read_events");
         _glfw.wl.client.display_disconnect =
@@ -1633,6 +1636,12 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, int>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_display_get_fd");
         _glfw.wl.client.display_prepare_read =
             (delegate* unmanaged<void*, int>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_display_prepare_read");
+        _glfw.wl.client.display_prepare_read_queue =
+            (delegate* unmanaged<void*, void*, int>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_display_prepare_read_queue");
+        _glfw.wl.client.display_create_queue =
+            (delegate* unmanaged<void*, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_display_create_queue");
+        _glfw.wl.client.event_queue_destroy =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_event_queue_destroy");
         _glfw.wl.client.proxy_marshal =
             (delegate* unmanaged<void*, uint, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_string =
@@ -1691,6 +1700,12 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_get_user_data");
         _glfw.wl.client.proxy_set_user_data =
             (delegate* unmanaged<void*, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_set_user_data");
+        _glfw.wl.client.proxy_create_wrapper =
+            (delegate* unmanaged<void*, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_create_wrapper");
+        _glfw.wl.client.proxy_wrapper_destroy =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_wrapper_destroy");
+        _glfw.wl.client.proxy_set_queue =
+            (delegate* unmanaged<void*, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_set_queue");
         _glfw.wl.client.proxy_get_tag =
             (delegate* unmanaged<void*, byte**>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_get_tag");
         _glfw.wl.client.proxy_set_tag =
@@ -1721,11 +1736,15 @@ public static unsafe partial class Glfw
         if (_glfw.wl.client.display_flush == null ||
             _glfw.wl.client.display_cancel_read == null ||
             _glfw.wl.client.display_dispatch_pending == null ||
+            _glfw.wl.client.display_dispatch_queue_pending == null ||
             _glfw.wl.client.display_read_events == null ||
             _glfw.wl.client.display_disconnect == null ||
             _glfw.wl.client.display_roundtrip == null ||
             _glfw.wl.client.display_get_fd == null ||
             _glfw.wl.client.display_prepare_read == null ||
+            _glfw.wl.client.display_prepare_read_queue == null ||
+            _glfw.wl.client.display_create_queue == null ||
+            _glfw.wl.client.event_queue_destroy == null ||
             _glfw.wl.client.proxy_marshal == null ||
             _glfw.wl.client.proxy_marshal_string == null ||
             _glfw.wl.client.proxy_marshal_uint == null ||
@@ -1755,6 +1774,9 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal_constructor_versioned_registry_bind == null ||
             _glfw.wl.client.proxy_get_user_data == null ||
             _glfw.wl.client.proxy_set_user_data == null ||
+            _glfw.wl.client.proxy_create_wrapper == null ||
+            _glfw.wl.client.proxy_wrapper_destroy == null ||
+            _glfw.wl.client.proxy_set_queue == null ||
             _glfw.wl.client.proxy_get_tag == null ||
             _glfw.wl.client.proxy_set_tag == null ||
             _glfw.wl.client.callbackInterface == null ||

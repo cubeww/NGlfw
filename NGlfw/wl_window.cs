@@ -242,6 +242,7 @@ public static unsafe partial class Glfw
     static wl_data_device_listener* _glfwWaylandDataDeviceListener;
     static wl_data_source_listener* _glfwWaylandDataSourceListener;
     static wl_callback_listener* _glfwWaylandLibdecorReadyListener;
+    static wl_callback_listener* _glfwWaylandFrameCallbackListener;
     static libdecor_interface* _glfwWaylandLibdecorInterface;
     static libdecor_frame_interface* _glfwWaylandLibdecorFrameInterface;
     static wp_fractional_scale_v1_listener* _glfwWaylandFractionalScaleListener;
@@ -393,6 +394,19 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandLibdecorReadyListener;
+    }
+
+    static wl_callback_listener* wayland_getFrameCallbackListener()
+    {
+        if (_glfwWaylandFrameCallbackListener == null)
+        {
+            _glfwWaylandFrameCallbackListener =
+                (wl_callback_listener*)_glfw_calloc(1, (nuint)sizeof(wl_callback_listener));
+            if (_glfwWaylandFrameCallbackListener != null)
+                _glfwWaylandFrameCallbackListener->done = &wayland_frameHandleDone;
+        }
+
+        return _glfwWaylandFrameCallbackListener;
     }
 
     static libdecor_interface* wayland_getLibdecorInterface()
@@ -587,6 +601,21 @@ public static unsafe partial class Glfw
     {
         if (surface != null && _glfw.wl.client.proxy_marshal_int_int_int_int != null)
             _glfw.wl.client.proxy_marshal_int_int_int_int(surface, WL_SURFACE_DAMAGE, x, y, width, height);
+    }
+
+    static void* wayland_surfaceFrame(void* surface)
+    {
+        if (surface == null ||
+            _glfw.wl.client.callbackInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor == null)
+        {
+            return null;
+        }
+
+        return _glfw.wl.client.proxy_marshal_constructor(surface,
+            WL_SURFACE_FRAME,
+            _glfw.wl.client.callbackInterface,
+            null);
     }
 
     static void wayland_surfaceSetBufferScale(void* surface, int scale)
@@ -2036,6 +2065,73 @@ public static unsafe partial class Glfw
         }
     }
 
+    [UnmanagedCallersOnly]
+    static void wayland_frameHandleDone(void* userData, void* callback, uint callbackData)
+    {
+        var window = (_GLFWwindow*)userData;
+
+        wayland_proxyDestroy(callback);
+        if (window->wl.egl.callback == callback)
+            window->wl.egl.callback = null;
+    }
+
+    static int _glfwWaitForEGLFrameWayland(_GLFWwindow* window)
+    {
+        if (_glfw.wl.display == null ||
+            window->wl.egl.queue == null ||
+            window->wl.egl.wrapper == null ||
+            _glfw.wl.client.display_prepare_read_queue == null ||
+            _glfw.wl.client.display_dispatch_queue_pending == null ||
+            _glfw.wl.client.display_cancel_read == null ||
+            _glfw.wl.client.display_read_events == null ||
+            _glfw.wl.client.display_get_fd == null)
+        {
+            return GLFW_FALSE;
+        }
+
+        var timeout = 0.02;
+
+        while (window->wl.egl.callback != null)
+        {
+            while (_glfw.wl.client.display_prepare_read_queue(_glfw.wl.display, window->wl.egl.queue) != 0)
+                _glfw.wl.client.display_dispatch_queue_pending(_glfw.wl.display, window->wl.egl.queue);
+
+            if (wayland_flushDisplay() == 0)
+            {
+                _glfw.wl.client.display_cancel_read(_glfw.wl.display);
+                return GLFW_FALSE;
+            }
+
+            var fd = new POLLFD
+            {
+                fd = _glfw.wl.client.display_get_fd(_glfw.wl.display),
+                events = POLLIN
+            };
+
+            if (_glfwPollPOSIX(&fd, 1, &timeout) == 0)
+            {
+                _glfw.wl.client.display_cancel_read(_glfw.wl.display);
+                return GLFW_FALSE;
+            }
+
+            _glfw.wl.client.display_read_events(_glfw.wl.display);
+            _glfw.wl.client.display_dispatch_queue_pending(_glfw.wl.display, window->wl.egl.queue);
+        }
+
+        window->wl.egl.callback = wayland_surfaceFrame(window->wl.egl.wrapper);
+        var listener = wayland_getFrameCallbackListener();
+        if (window->wl.egl.callback == null ||
+            listener == null ||
+            _glfw.wl.client.proxy_add_listener(window->wl.egl.callback, listener, window) != 0)
+        {
+            wayland_proxyDestroy(window->wl.egl.callback);
+            window->wl.egl.callback = null;
+            return GLFW_FALSE;
+        }
+
+        return window->wl.visible;
+    }
+
     static int wayland_offerIndex(void* offer)
     {
         for (uint i = 0; i < _glfw.wl.offerCount; i++)
@@ -3412,6 +3508,23 @@ public static unsafe partial class Glfw
                     return GLFW_FALSE;
                 }
 
+                window->wl.egl.queue = _glfw.wl.client.display_create_queue(_glfw.wl.display);
+                if (window->wl.egl.queue == null)
+                {
+                    _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create EGL frame queue");
+                    return GLFW_FALSE;
+                }
+
+                window->wl.egl.wrapper = _glfw.wl.client.proxy_create_wrapper(window->wl.surface);
+                if (window->wl.egl.wrapper == null)
+                {
+                    _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create surface wrapper");
+                    return GLFW_FALSE;
+                }
+
+                _glfw.wl.client.proxy_set_queue(window->wl.egl.wrapper, window->wl.egl.queue);
+                window->wl.egl.interval = 1;
+
                 if (_glfwInitEGL() == 0)
                     return GLFW_FALSE;
                 if (_glfwCreateContextEGL(window, ctxconfig, fbconfig) == 0)
@@ -3476,6 +3589,15 @@ public static unsafe partial class Glfw
 
         wayland_destroyShellObjects(window);
         wayland_destroyFallbackBuffer(window);
+
+        if (window->wl.egl.callback != null)
+            wayland_proxyDestroy(window->wl.egl.callback);
+
+        if (window->wl.egl.wrapper != null && _glfw.wl.client.proxy_wrapper_destroy != null)
+            _glfw.wl.client.proxy_wrapper_destroy(window->wl.egl.wrapper);
+
+        if (window->wl.egl.queue != null && _glfw.wl.client.event_queue_destroy != null)
+            _glfw.wl.client.event_queue_destroy(window->wl.egl.queue);
 
         if (window->wl.egl.window != null && _glfw.wl.egl.window_destroy != null)
             _glfw.wl.egl.window_destroy(window->wl.egl.window);

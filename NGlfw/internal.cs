@@ -588,7 +588,11 @@ public static unsafe partial class Glfw
 
     public struct _GLFWwindowWayland_egl
     {
+        public void* queue;
         public void* window;
+        public void* callback;
+        public void* wrapper;
+        public int interval;
     }
 
     public struct _GLFWwindowWayland_pending
@@ -727,10 +731,14 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void> display_disconnect;
         public delegate* unmanaged<void*, int> display_flush;
         public delegate* unmanaged<void*, int> display_dispatch_pending;
+        public delegate* unmanaged<void*, void*, int> display_dispatch_queue_pending;
         public delegate* unmanaged<void*, int> display_roundtrip;
         public delegate* unmanaged<void*, int> display_get_fd;
         public delegate* unmanaged<void*, int> display_prepare_read;
+        public delegate* unmanaged<void*, void*, int> display_prepare_read_queue;
         public delegate* unmanaged<void*, void> display_cancel_read;
+        public delegate* unmanaged<void*, void*> display_create_queue;
+        public delegate* unmanaged<void*, void> event_queue_destroy;
         public delegate* unmanaged<void*, int> display_read_events;
         public delegate* unmanaged<void*, uint, void> proxy_marshal;
         public delegate* unmanaged<void*, uint, byte*, void> proxy_marshal_string;
@@ -761,6 +769,9 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, uint, void*, uint, uint, byte*, uint, void*, void*> proxy_marshal_constructor_versioned_registry_bind;
         public delegate* unmanaged<void*, void*> proxy_get_user_data;
         public delegate* unmanaged<void*, void*, void> proxy_set_user_data;
+        public delegate* unmanaged<void*, void*> proxy_create_wrapper;
+        public delegate* unmanaged<void*, void> proxy_wrapper_destroy;
+        public delegate* unmanaged<void*, void*, void> proxy_set_queue;
         public delegate* unmanaged<void*, byte**> proxy_get_tag;
         public delegate* unmanaged<void*, byte**, void> proxy_set_tag;
         public delegate* unmanaged<void*, uint> proxy_get_version;
