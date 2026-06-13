@@ -661,6 +661,10 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, int, int> XDisplayHeightMM;
         public delegate* unmanaged<void*, int*, int*, int> XDisplayKeycodes;
         public delegate* unmanaged<void*, uint, int, int, nuint> XkbKeycodeToKeysym;
+        public delegate* unmanaged<void*, uint, uint, XkbDescRec*> XkbGetMap;
+        public delegate* unmanaged<void*, uint, XkbDescRec*, int> XkbGetNames;
+        public delegate* unmanaged<XkbDescRec*, uint, int, void> XkbFreeNames;
+        public delegate* unmanaged<XkbDescRec*, uint, int, void> XkbFreeKeyboard;
         public delegate* unmanaged<void*, int*, int*, int*, int*, int*, int> XkbQueryExtension;
         public delegate* unmanaged<void*, int, int*, int> XkbSetDetectableAutoRepeat;
         public delegate* unmanaged<void*, uint, XkbStateRec*, int> XkbGetState;
@@ -858,6 +862,41 @@ public static unsafe partial class Glfw
         public byte lookup_mods;
         public byte compat_lookup_mods;
         public ushort ptr_buttons;
+    }
+
+    public struct XkbDescRec
+    {
+        public void* display;
+        public ushort flags;
+        public ushort device_spec;
+        public byte min_key_code;
+        public byte max_key_code;
+        public void* ctrls;
+        public void* server;
+        public void* map;
+        public void* indicators;
+        public XkbNamesRec* names;
+        public void* compat;
+        public void* geom;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct XkbNamesRec
+    {
+        [FieldOffset(456)] public XkbKeyNameRec* keys;
+        [FieldOffset(464)] public XkbKeyAliasRec* key_aliases;
+        [FieldOffset(489)] public byte num_key_aliases;
+    }
+
+    public struct XkbKeyNameRec
+    {
+        public fixed byte name[4];
+    }
+
+    public struct XkbKeyAliasRec
+    {
+        public fixed byte real[4];
+        public fixed byte alias[4];
     }
 
     public struct XcursorImage

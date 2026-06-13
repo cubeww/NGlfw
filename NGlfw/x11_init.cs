@@ -4,6 +4,131 @@ namespace NGlfw;
 
 public static unsafe partial class Glfw
 {
+    static readonly (int Key, string Name)[] _glfwX11KeyNameMap =
+    [
+        (GLFW_KEY_GRAVE_ACCENT, "TLDE"),
+        (GLFW_KEY_1, "AE01"),
+        (GLFW_KEY_2, "AE02"),
+        (GLFW_KEY_3, "AE03"),
+        (GLFW_KEY_4, "AE04"),
+        (GLFW_KEY_5, "AE05"),
+        (GLFW_KEY_6, "AE06"),
+        (GLFW_KEY_7, "AE07"),
+        (GLFW_KEY_8, "AE08"),
+        (GLFW_KEY_9, "AE09"),
+        (GLFW_KEY_0, "AE10"),
+        (GLFW_KEY_MINUS, "AE11"),
+        (GLFW_KEY_EQUAL, "AE12"),
+        (GLFW_KEY_Q, "AD01"),
+        (GLFW_KEY_W, "AD02"),
+        (GLFW_KEY_E, "AD03"),
+        (GLFW_KEY_R, "AD04"),
+        (GLFW_KEY_T, "AD05"),
+        (GLFW_KEY_Y, "AD06"),
+        (GLFW_KEY_U, "AD07"),
+        (GLFW_KEY_I, "AD08"),
+        (GLFW_KEY_O, "AD09"),
+        (GLFW_KEY_P, "AD10"),
+        (GLFW_KEY_LEFT_BRACKET, "AD11"),
+        (GLFW_KEY_RIGHT_BRACKET, "AD12"),
+        (GLFW_KEY_A, "AC01"),
+        (GLFW_KEY_S, "AC02"),
+        (GLFW_KEY_D, "AC03"),
+        (GLFW_KEY_F, "AC04"),
+        (GLFW_KEY_G, "AC05"),
+        (GLFW_KEY_H, "AC06"),
+        (GLFW_KEY_J, "AC07"),
+        (GLFW_KEY_K, "AC08"),
+        (GLFW_KEY_L, "AC09"),
+        (GLFW_KEY_SEMICOLON, "AC10"),
+        (GLFW_KEY_APOSTROPHE, "AC11"),
+        (GLFW_KEY_Z, "AB01"),
+        (GLFW_KEY_X, "AB02"),
+        (GLFW_KEY_C, "AB03"),
+        (GLFW_KEY_V, "AB04"),
+        (GLFW_KEY_B, "AB05"),
+        (GLFW_KEY_N, "AB06"),
+        (GLFW_KEY_M, "AB07"),
+        (GLFW_KEY_COMMA, "AB08"),
+        (GLFW_KEY_PERIOD, "AB09"),
+        (GLFW_KEY_SLASH, "AB10"),
+        (GLFW_KEY_BACKSLASH, "BKSL"),
+        (GLFW_KEY_WORLD_1, "LSGT"),
+        (GLFW_KEY_SPACE, "SPCE"),
+        (GLFW_KEY_ESCAPE, "ESC"),
+        (GLFW_KEY_ENTER, "RTRN"),
+        (GLFW_KEY_TAB, "TAB"),
+        (GLFW_KEY_BACKSPACE, "BKSP"),
+        (GLFW_KEY_INSERT, "INS"),
+        (GLFW_KEY_DELETE, "DELE"),
+        (GLFW_KEY_RIGHT, "RGHT"),
+        (GLFW_KEY_LEFT, "LEFT"),
+        (GLFW_KEY_DOWN, "DOWN"),
+        (GLFW_KEY_UP, "UP"),
+        (GLFW_KEY_PAGE_UP, "PGUP"),
+        (GLFW_KEY_PAGE_DOWN, "PGDN"),
+        (GLFW_KEY_HOME, "HOME"),
+        (GLFW_KEY_END, "END"),
+        (GLFW_KEY_CAPS_LOCK, "CAPS"),
+        (GLFW_KEY_SCROLL_LOCK, "SCLK"),
+        (GLFW_KEY_NUM_LOCK, "NMLK"),
+        (GLFW_KEY_PRINT_SCREEN, "PRSC"),
+        (GLFW_KEY_PAUSE, "PAUS"),
+        (GLFW_KEY_F1, "FK01"),
+        (GLFW_KEY_F2, "FK02"),
+        (GLFW_KEY_F3, "FK03"),
+        (GLFW_KEY_F4, "FK04"),
+        (GLFW_KEY_F5, "FK05"),
+        (GLFW_KEY_F6, "FK06"),
+        (GLFW_KEY_F7, "FK07"),
+        (GLFW_KEY_F8, "FK08"),
+        (GLFW_KEY_F9, "FK09"),
+        (GLFW_KEY_F10, "FK10"),
+        (GLFW_KEY_F11, "FK11"),
+        (GLFW_KEY_F12, "FK12"),
+        (GLFW_KEY_F13, "FK13"),
+        (GLFW_KEY_F14, "FK14"),
+        (GLFW_KEY_F15, "FK15"),
+        (GLFW_KEY_F16, "FK16"),
+        (GLFW_KEY_F17, "FK17"),
+        (GLFW_KEY_F18, "FK18"),
+        (GLFW_KEY_F19, "FK19"),
+        (GLFW_KEY_F20, "FK20"),
+        (GLFW_KEY_F21, "FK21"),
+        (GLFW_KEY_F22, "FK22"),
+        (GLFW_KEY_F23, "FK23"),
+        (GLFW_KEY_F24, "FK24"),
+        (GLFW_KEY_F25, "FK25"),
+        (GLFW_KEY_KP_0, "KP0"),
+        (GLFW_KEY_KP_1, "KP1"),
+        (GLFW_KEY_KP_2, "KP2"),
+        (GLFW_KEY_KP_3, "KP3"),
+        (GLFW_KEY_KP_4, "KP4"),
+        (GLFW_KEY_KP_5, "KP5"),
+        (GLFW_KEY_KP_6, "KP6"),
+        (GLFW_KEY_KP_7, "KP7"),
+        (GLFW_KEY_KP_8, "KP8"),
+        (GLFW_KEY_KP_9, "KP9"),
+        (GLFW_KEY_KP_DECIMAL, "KPDL"),
+        (GLFW_KEY_KP_DIVIDE, "KPDV"),
+        (GLFW_KEY_KP_MULTIPLY, "KPMU"),
+        (GLFW_KEY_KP_SUBTRACT, "KPSU"),
+        (GLFW_KEY_KP_ADD, "KPAD"),
+        (GLFW_KEY_KP_ENTER, "KPEN"),
+        (GLFW_KEY_KP_EQUAL, "KPEQ"),
+        (GLFW_KEY_LEFT_SHIFT, "LFSH"),
+        (GLFW_KEY_LEFT_CONTROL, "LCTL"),
+        (GLFW_KEY_LEFT_ALT, "LALT"),
+        (GLFW_KEY_LEFT_SUPER, "LWIN"),
+        (GLFW_KEY_RIGHT_SHIFT, "RTSH"),
+        (GLFW_KEY_RIGHT_CONTROL, "RCTL"),
+        (GLFW_KEY_RIGHT_ALT, "RALT"),
+        (GLFW_KEY_RIGHT_ALT, "LVL3"),
+        (GLFW_KEY_RIGHT_ALT, "MDSW"),
+        (GLFW_KEY_RIGHT_SUPER, "RWIN"),
+        (GLFW_KEY_MENU, "MENU")
+    ];
+
     static nuint x11_internAtom(string name)
     {
         if (_glfw.x11.XInternAtom == null)
@@ -144,19 +269,104 @@ public static unsafe partial class Glfw
             scancodeMin = _glfw_max(scancodeMin, 0);
             scancodeMax = _glfw_min(scancodeMax, _GLFW_X11_KEYCODE_LAST);
 
+            if (_glfw.x11.xkbAvailable != 0 &&
+                _glfw.x11.XkbGetMap != null &&
+                _glfw.x11.XkbGetNames != null)
+            {
+                var desc = _glfw.x11.XkbGetMap(_glfw.x11.display, 0, XkbUseCoreKbd);
+                if (desc != null)
+                {
+                    if (_glfw.x11.XkbGetNames(_glfw.x11.display,
+                            XkbKeyNamesMask | XkbKeyAliasesMask,
+                            desc) == Success &&
+                        desc->names != null &&
+                        desc->names->keys != null)
+                    {
+                        scancodeMin = _glfw_max(desc->min_key_code, 0);
+                        scancodeMax = _glfw_min(desc->max_key_code, _GLFW_X11_KEYCODE_LAST);
+
+                        for (var scancode = scancodeMin; scancode <= scancodeMax; scancode++)
+                        {
+                            var key = x11_translateKeyName(desc->names->keys[scancode].name);
+
+                            if (key == GLFW_KEY_UNKNOWN &&
+                                desc->names->key_aliases != null)
+                            {
+                                for (var i = 0; i < desc->names->num_key_aliases; i++)
+                                {
+                                    if (x11_keyNameEquals(desc->names->key_aliases[i].real,
+                                            desc->names->keys[scancode].name) == 0)
+                                    {
+                                        continue;
+                                    }
+
+                                    key = x11_translateKeyName(desc->names->key_aliases[i].alias);
+                                    if (key != GLFW_KEY_UNKNOWN)
+                                        break;
+                                }
+                            }
+
+                            keycodes[scancode] = (short)key;
+                        }
+                    }
+
+                    if (_glfw.x11.XkbFreeNames != null)
+                        _glfw.x11.XkbFreeNames(desc, XkbKeyNamesMask, GLFW_TRUE);
+                    if (_glfw.x11.XkbFreeKeyboard != null)
+                        _glfw.x11.XkbFreeKeyboard(desc, 0, GLFW_TRUE);
+                }
+            }
+
             for (var scancode = scancodeMin; scancode <= scancodeMax; scancode++)
             {
-                var keysym = _glfw.x11.XkbKeycodeToKeysym != null
-                    ? _glfw.x11.XkbKeycodeToKeysym(_glfw.x11.display, (uint)scancode, 0, 0)
-                    : 0;
-                var key = x11_translateKeySym(keysym);
-
-                keycodes[scancode] = (short)key;
+                var key = keycodes[scancode];
+                if (key == GLFW_KEY_UNKNOWN)
+                {
+                    var keysym = _glfw.x11.XkbKeycodeToKeysym != null
+                        ? _glfw.x11.XkbKeycodeToKeysym(_glfw.x11.display, (uint)scancode, 0, 0)
+                        : 0;
+                    key = (short)x11_translateKeySym(keysym);
+                    keycodes[scancode] = key;
+                }
 
                 if (key > 0 && key <= GLFW_KEY_LAST && scancodes[key] < 0)
                     scancodes[key] = (short)scancode;
             }
         }
+    }
+
+    static int x11_keyNameEquals(byte* a, byte* b)
+    {
+        for (var i = 0; i < 4; i++)
+        {
+            if (a[i] != b[i])
+                return GLFW_FALSE;
+        }
+
+        return GLFW_TRUE;
+    }
+
+    static int x11_keyNameMatches(byte* name, string expected)
+    {
+        for (var i = 0; i < 4; i++)
+        {
+            var value = i < expected.Length ? (byte)expected[i] : (byte)0;
+            if (name[i] != value)
+                return GLFW_FALSE;
+        }
+
+        return GLFW_TRUE;
+    }
+
+    static int x11_translateKeyName(byte* name)
+    {
+        foreach (var (key, expected) in _glfwX11KeyNameMap)
+        {
+            if (x11_keyNameMatches(name, expected) != 0)
+                return key;
+        }
+
+        return GLFW_KEY_UNKNOWN;
     }
 
     static void x11_initXkb()
@@ -800,6 +1010,14 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, int*, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XDisplayKeycodes");
         _glfw.x11.XkbKeycodeToKeysym =
             (delegate* unmanaged<void*, uint, int, int, nuint>)x11_getModuleSymbol(_glfw.x11.handle, "XkbKeycodeToKeysym");
+        _glfw.x11.XkbGetMap =
+            (delegate* unmanaged<void*, uint, uint, XkbDescRec*>)x11_getModuleSymbol(_glfw.x11.handle, "XkbGetMap");
+        _glfw.x11.XkbGetNames =
+            (delegate* unmanaged<void*, uint, XkbDescRec*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XkbGetNames");
+        _glfw.x11.XkbFreeNames =
+            (delegate* unmanaged<XkbDescRec*, uint, int, void>)x11_getModuleSymbol(_glfw.x11.handle, "XkbFreeNames");
+        _glfw.x11.XkbFreeKeyboard =
+            (delegate* unmanaged<XkbDescRec*, uint, int, void>)x11_getModuleSymbol(_glfw.x11.handle, "XkbFreeKeyboard");
         _glfw.x11.XkbQueryExtension =
             (delegate* unmanaged<void*, int*, int*, int*, int*, int*, int>)x11_getModuleSymbol(_glfw.x11.handle, "XkbQueryExtension");
         _glfw.x11.XkbSetDetectableAutoRepeat =

@@ -59,6 +59,8 @@ public static unsafe partial class Glfw
     const int XI_RawMotion = 17;
     const uint XkbUseCoreKbd = 0x0100;
     const int XkbEventCode = 0;
+    const uint XkbKeyNamesMask = 1u << 9;
+    const uint XkbKeyAliasesMask = 1u << 10;
     const uint XkbStateNotify = 2;
     const ulong XkbGroupStateMask = 1UL << 4;
     const ulong XIMPreeditNothing = 0x0008;
