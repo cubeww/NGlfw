@@ -643,6 +643,7 @@ public static unsafe partial class Glfw
                     styleMask &= ~NSWindowStyleMaskResizable;
 
                 objc_msgSend_void_ulong(window->ns.@object, cocoa_sel("setStyleMask:"), styleMask);
+                cocoa_msgSend_void_ptr(window->ns.@object, "makeFirstResponder:", window->ns.view);
 
                 var contentRect = cocoa_makeRect(xpos, cocoa_transformY(ypos + height - 1), width, height);
                 var frameRect = objc_msgSend_rect_rect(window->ns.@object,
@@ -656,7 +657,40 @@ public static unsafe partial class Glfw
                 objc_msgSend_void_long(window->ns.@object,
                     cocoa_sel("setLevel:"),
                     window->floating != 0 ? NSFloatingWindowLevel : NSNormalWindowLevel);
+
+                if (window->numer != GLFW_DONT_CARE &&
+                    window->denom != GLFW_DONT_CARE)
+                {
+                    objc_msgSend_void_size(window->ns.@object,
+                        cocoa_sel("setContentAspectRatio:"),
+                        cocoa_makeSize(window->numer, window->denom));
+                }
+
+                if (window->minwidth != GLFW_DONT_CARE &&
+                    window->minheight != GLFW_DONT_CARE)
+                {
+                    objc_msgSend_void_size(window->ns.@object,
+                        cocoa_sel("setContentMinSize:"),
+                        cocoa_makeSize(window->minwidth, window->minheight));
+                }
+
+                if (window->maxwidth != GLFW_DONT_CARE &&
+                    window->maxheight != GLFW_DONT_CARE)
+                {
+                    objc_msgSend_void_size(window->ns.@object,
+                        cocoa_sel("setContentMaxSize:"),
+                        cocoa_makeSize(window->maxwidth, window->maxheight));
+                }
+
+                objc_msgSend_void_ulong(window->ns.@object,
+                    cocoa_sel("setCollectionBehavior:"),
+                    window->resizable != 0
+                        ? NSWindowCollectionBehaviorFullScreenPrimary | NSWindowCollectionBehaviorManaged
+                        : NSWindowCollectionBehaviorFullScreenNone);
                 cocoa_msgSend_void_bool(window->ns.@object, "setHasShadow:", GLFW_TRUE);
+                cocoa_msgSend_void_ptr(window->ns.@object,
+                    "setTitle:",
+                    cocoa_msgSend_id(window->ns.@object, "miniwindowTitle"));
             }
         }
 
