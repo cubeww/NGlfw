@@ -4053,6 +4053,9 @@ public static unsafe partial class Glfw
 
     static void wayland_handleEvents(double* timeout)
     {
+        if (_glfw.joysticksInitialized != 0)
+            _glfwDetectJoystickConnectionLinux();
+
         if (_glfw.wl.display == null ||
             _glfw.wl.client.display_prepare_read == null ||
             _glfw.wl.client.display_cancel_read == null ||

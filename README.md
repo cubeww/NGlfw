@@ -244,6 +244,7 @@ Implemented or partially implemented:
 - Wayland scancode name lookup through XKB layout/keysyms and UTF-8 encoding
 - basic Wayland event loop using `wl_display_prepare_read`, display-fd polling,
   `wl_display_read_events`, pending dispatch, and `wl_display.sync` wakeups
+- Linux joystick hotplug detection from the Wayland event loop
 - initial Wayland data-device setup with data offer tracking, selection offer
   filtering, URI-list drag-and-drop receive, and `_glfwInputDrop` dispatch
 - Wayland drag-and-drop copy-action negotiation and `wl_data_offer.finish`
