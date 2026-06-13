@@ -1746,15 +1746,15 @@ public static unsafe partial class Glfw
         _glfw.wl.keyRepeatDelay = delay;
     }
 
-    static void wayland_dispatchKeyRepeats()
+    static int wayland_dispatchKeyRepeats()
     {
         var window = _glfw.wl.keyboardFocus;
         if (window == null || _glfw.wl.keyRepeatTimerfd < 0)
-            return;
+            return GLFW_FALSE;
 
         ulong repeats;
         if (wayland_read(_glfw.wl.keyRepeatTimerfd, &repeats, (nuint)sizeof(ulong)) != sizeof(ulong))
-            return;
+            return GLFW_FALSE;
 
         for (ulong i = 0; i < repeats; i++)
         {
@@ -1766,6 +1766,8 @@ public static unsafe partial class Glfw
                 (int)_glfw.wl.xkb.modifiers);
             wayland_inputText(window, (uint)scancode);
         }
+
+        return GLFW_TRUE;
     }
 
     static int wayland_pointerSupportsFrame(void* pointer)
@@ -4346,15 +4348,12 @@ public static unsafe partial class Glfw
 
             if ((fds[KEYREPEAT_FD].revents & POLLIN) != 0)
             {
-                wayland_dispatchKeyRepeats();
-                @event = GLFW_TRUE;
+                if (wayland_dispatchKeyRepeats() != 0)
+                    @event = GLFW_TRUE;
             }
 
             if ((fds[CURSOR_FD].revents & POLLIN) != 0)
-            {
                 wayland_dispatchCursorTimer();
-                @event = GLFW_TRUE;
-            }
 
             if ((fds[LIBDECOR_FD].revents & POLLIN) != 0 &&
                 _glfw.wl.libdecor.context != null &&
