@@ -26,8 +26,24 @@ public static unsafe partial class Glfw
             if (OperatingSystem.IsMacOS())
                 return _glfwConnectCocoa(desiredID, platform);
 
-            if (OperatingSystem.IsLinux() && _glfwConnectX11(desiredID, platform) != 0)
-                return GLFW_TRUE;
+            if (OperatingSystem.IsLinux())
+            {
+                var session = Environment.GetEnvironmentVariable("XDG_SESSION_TYPE");
+                var waylandDisplay = Environment.GetEnvironmentVariable("WAYLAND_DISPLAY");
+
+                if (session == "wayland" &&
+                    !string.IsNullOrEmpty(waylandDisplay) &&
+                    _glfwConnectWayland(desiredID, platform) != 0)
+                {
+                    return GLFW_TRUE;
+                }
+
+                if (_glfwConnectX11(desiredID, platform) != 0)
+                    return GLFW_TRUE;
+
+                if (_glfwConnectWayland(desiredID, platform) != 0)
+                    return GLFW_TRUE;
+            }
 
             return _glfwConnectNull(desiredID, platform);
         }
@@ -52,6 +68,9 @@ public static unsafe partial class Glfw
 
         if (desiredID == GLFW_PLATFORM_X11)
             return _glfwConnectX11(desiredID, platform);
+
+        if (desiredID == GLFW_PLATFORM_WAYLAND)
+            return _glfwConnectWayland(desiredID, platform);
 
         _glfwInputError(GLFW_PLATFORM_UNAVAILABLE, "The requested platform is not available in this binary");
         return GLFW_FALSE;
@@ -242,6 +261,9 @@ public static unsafe partial class Glfw
             return GLFW_TRUE;
 
         if (platformID == GLFW_PLATFORM_X11 && OperatingSystem.IsLinux())
+            return GLFW_TRUE;
+
+        if (platformID == GLFW_PLATFORM_WAYLAND && OperatingSystem.IsLinux())
             return GLFW_TRUE;
 
         return GLFW_FALSE;

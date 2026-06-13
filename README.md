@@ -209,9 +209,38 @@ Known remaining work:
 
 ### Other Backends
 
+Wayland work has started.
+
+Implemented or partially implemented:
+
+- Wayland platform selection and dynamic `libwayland-client` loading
+- Wayland platform callback table
+- initial Wayland library, window, monitor, and cursor state structures
+- libwayland-client core entry point and protocol interface resolution
+- registry listener setup and global discovery for core Wayland objects
+- binding for `wl_compositor`, `wl_subcompositor`, `wl_shm`, `wl_output`,
+  `wl_seat`, and `wl_data_device_manager`
+- initial `wl_output` monitor listener path for geometry, modes, scale, and
+  monitor connection/removal
+- native `wl_surface` creation/destruction for windows, before xdg-shell setup
+- basic Wayland monitor/window/native accessor entry points
+- Wayland EGL and Vulkan extension plumbing entry points
+
+Known remaining work:
+
+- generated/translated Wayland protocol interface tables and marshal wrappers
+  beyond the currently hand-written core wrappers
+- xdg-shell discovery and binding
+- seat, pointer, keyboard, data-device, cursor theme, and XKB event handling
+- real `xdg_surface` / `xdg_toplevel` window creation and surface listeners
+- protocol requests for regions, opaque/input regions, buffer scale, and
+  fractional scaling
+- libdecor and fallback decoration support
+- clipboard and drag-and-drop data transfer
+- runtime validation on a Wayland compositor
+
 Not implemented yet:
 
-- Wayland
 - platform-specific native accessors beyond the currently translated paths
 
 ## Building

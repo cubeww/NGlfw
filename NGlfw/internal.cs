@@ -40,6 +40,7 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwVkKHRWin32SurfaceExtensionName;
     static readonly byte* _glfwVkKHRXlibSurfaceExtensionName;
     static readonly byte* _glfwVkKHRXcbSurfaceExtensionName;
+    static readonly byte* _glfwVkKHRWaylandSurfaceExtensionName;
     static readonly byte* _glfwVkMVKMacOSSurfaceExtensionName;
     static readonly byte* _glfwVkEXTMetalSurfaceExtensionName;
     static readonly byte* _glfwX11InputStyleName;
@@ -53,11 +54,12 @@ public static unsafe partial class Glfw
 
     static Glfw()
     {
-        _glfwVersionString = _glfw_allocate_static_string("3.4.0 Win32 WGL X11 GLX Cocoa NSGL Null EGL OSMesa");
+        _glfwVersionString = _glfw_allocate_static_string("3.4.0 Win32 WGL X11 GLX Wayland Cocoa NSGL Null EGL OSMesa");
         _glfwVkKHRSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_surface");
         _glfwVkKHRWin32SurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_win32_surface");
         _glfwVkKHRXlibSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_xlib_surface");
         _glfwVkKHRXcbSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_xcb_surface");
+        _glfwVkKHRWaylandSurfaceExtensionName = _glfw_allocate_static_string("VK_KHR_wayland_surface");
         _glfwVkMVKMacOSSurfaceExtensionName = _glfw_allocate_static_string("VK_MVK_macos_surface");
         _glfwVkEXTMetalSurfaceExtensionName = _glfw_allocate_static_string("VK_EXT_metal_surface");
         _glfwX11InputStyleName = _glfw_allocate_static_string("inputStyle");
@@ -309,6 +311,7 @@ public static unsafe partial class Glfw
         public _GLFWwindowNull @null;
         public _GLFWwindowWin32 win32;
         public _GLFWwindowX11 x11;
+        public _GLFWwindowWayland wl;
         public _GLFWwindowNS ns;
     }
 
@@ -348,6 +351,7 @@ public static unsafe partial class Glfw
         public _GLFWmonitorNull @null;
         public _GLFWmonitorWin32 win32;
         public _GLFWmonitorX11 x11;
+        public _GLFWmonitorWayland wl;
         public _GLFWmonitorNS ns;
     }
 
@@ -356,6 +360,7 @@ public static unsafe partial class Glfw
         public _GLFWcursor* next;
         public _GLFWcursorWin32 win32;
         public _GLFWcursorX11 x11;
+        public _GLFWcursorWayland wl;
         public _GLFWcursorNS ns;
     }
 
@@ -536,10 +541,250 @@ public static unsafe partial class Glfw
         public _GLFWlibraryNull @null;
         public _GLFWlibraryWin32 win32;
         public _GLFWlibraryX11 x11;
+        public _GLFWlibraryWayland wl;
         public _GLFWlibraryGLX glx;
         public _GLFWlibraryNS ns;
         public _GLFWlibraryNSGL nsgl;
         public _GLFWlibraryLinuxJoystick linux_js;
+    }
+
+    public struct _GLFWwindowWayland
+    {
+        public int width;
+        public int height;
+        public int fbWidth;
+        public int fbHeight;
+        public int visible;
+        public int maximized;
+        public int activated;
+        public int fullscreen;
+        public int hovered;
+        public int transparent;
+        public int scaleFramebuffer;
+        public void* surface;
+        public void* callback;
+        public _GLFWwindowWayland_egl egl;
+        public _GLFWwindowWayland_pending pending;
+        public _GLFWwindowWayland_xdg xdg;
+        public _GLFWwindowWayland_libdecor libdecor;
+        public _GLFWcursor* currentCursor;
+        public double cursorPosX;
+        public double cursorPosY;
+        public byte* appId;
+        public int bufferScale;
+        public _GLFWscaleWayland* outputScales;
+        public nuint outputScaleCount;
+        public nuint outputScaleSize;
+        public void* scalingViewport;
+        public uint scalingNumerator;
+        public void* fractionalScale;
+        public void* relativePointer;
+        public void* lockedPointer;
+        public void* confinedPointer;
+        public void* idleInhibitor;
+        public void* activationToken;
+        public _GLFWwindowWayland_fallback fallback;
+    }
+
+    public struct _GLFWwindowWayland_egl
+    {
+        public void* window;
+    }
+
+    public struct _GLFWwindowWayland_pending
+    {
+        public int width;
+        public int height;
+        public int maximized;
+        public int iconified;
+        public int activated;
+        public int fullscreen;
+    }
+
+    public struct _GLFWwindowWayland_xdg
+    {
+        public void* surface;
+        public void* toplevel;
+        public void* decoration;
+        public uint decorationMode;
+    }
+
+    public struct _GLFWwindowWayland_libdecor
+    {
+        public void* frame;
+    }
+
+    public struct _GLFWfallbackEdgeWayland
+    {
+        public void* surface;
+        public void* subsurface;
+        public void* viewport;
+    }
+
+    public struct _GLFWwindowWayland_fallback
+    {
+        public int decorations;
+        public void* buffer;
+        public _GLFWfallbackEdgeWayland top;
+        public _GLFWfallbackEdgeWayland left;
+        public _GLFWfallbackEdgeWayland right;
+        public _GLFWfallbackEdgeWayland bottom;
+        public void* focus;
+    }
+
+    public struct _GLFWofferWayland
+    {
+        public void* offer;
+        public int text_plain_utf8;
+        public int text_uri_list;
+    }
+
+    public struct _GLFWscaleWayland
+    {
+        public void* output;
+        public int factor;
+    }
+
+    public struct _GLFWmonitorWayland
+    {
+        public void* output;
+        public uint name;
+        public int currentMode;
+        public int x;
+        public int y;
+        public int scale;
+    }
+
+    public struct _GLFWcursorWayland
+    {
+        public void* cursor;
+        public void* cursorHiDPI;
+        public void* buffer;
+        public int width;
+        public int height;
+        public int xhot;
+        public int yhot;
+        public int currentImage;
+    }
+
+    public struct _GLFWlibraryWayland
+    {
+        public void* display;
+        public void* registry;
+        public void* compositor;
+        public void* subcompositor;
+        public void* shm;
+        public void* seat;
+        public void* pointer;
+        public void* keyboard;
+        public void* dataDeviceManager;
+        public void* dataDevice;
+        public void* wmBase;
+        public void* decorationManager;
+        public void* viewporter;
+        public void* relativePointerManager;
+        public void* pointerConstraints;
+        public void* idleInhibitManager;
+        public void* activationManager;
+        public void* fractionalScaleManager;
+        public _GLFWofferWayland* offers;
+        public uint offerCount;
+        public void* selectionOffer;
+        public void* selectionSource;
+        public void* dragOffer;
+        public _GLFWwindow* dragFocus;
+        public uint dragSerial;
+        public byte* tag;
+        public void* cursorTheme;
+        public void* cursorThemeHiDPI;
+        public void* cursorSurface;
+        public byte* cursorPreviousName;
+        public int cursorTimerfd;
+        public uint serial;
+        public uint pointerEnterSerial;
+        public int keyRepeatTimerfd;
+        public int keyRepeatRate;
+        public int keyRepeatDelay;
+        public int keyRepeatScancode;
+        public byte* clipboardString;
+        public fixed short keycodes[256];
+        public fixed short scancodes[GLFW_KEY_LAST + 1];
+        public _GLFWlibraryWayland_xkb xkb;
+        public _GLFWwindow* pointerFocus;
+        public _GLFWwindow* keyboardFocus;
+        public _GLFWlibraryWayland_client client;
+        public _GLFWlibraryWayland_cursor cursor;
+        public _GLFWlibraryWayland_egl egl;
+        public _GLFWlibraryWayland_libdecor libdecor;
+    }
+
+    public struct _GLFWlibraryWayland_client
+    {
+        public void* handle;
+        public delegate* unmanaged<byte*, void*> display_connect;
+        public delegate* unmanaged<void*, void> display_disconnect;
+        public delegate* unmanaged<void*, int> display_flush;
+        public delegate* unmanaged<void*, int> display_dispatch_pending;
+        public delegate* unmanaged<void*, int> display_roundtrip;
+        public delegate* unmanaged<void*, int> display_get_fd;
+        public delegate* unmanaged<void*, int> display_prepare_read;
+        public delegate* unmanaged<void*, void> display_cancel_read;
+        public delegate* unmanaged<void*, int> display_read_events;
+        public delegate* unmanaged<void*, uint, void> proxy_marshal;
+        public delegate* unmanaged<void*, void*, void*, int> proxy_add_listener;
+        public delegate* unmanaged<void*, void> proxy_destroy;
+        public delegate* unmanaged<void*, uint, void*, void*, void*> proxy_marshal_constructor;
+        public delegate* unmanaged<void*, uint, void*, uint, void*> proxy_marshal_constructor_versioned;
+        public delegate* unmanaged<void*, uint, void*, uint, uint, byte*, uint, void*, void*> proxy_marshal_constructor_versioned_registry_bind;
+        public delegate* unmanaged<void*, void*> proxy_get_user_data;
+        public delegate* unmanaged<void*, void*, void> proxy_set_user_data;
+        public delegate* unmanaged<void*, byte**> proxy_get_tag;
+        public delegate* unmanaged<void*, byte**, void> proxy_set_tag;
+        public delegate* unmanaged<void*, uint> proxy_get_version;
+        public delegate* unmanaged<void*, uint, void*, uint, uint, void*> proxy_marshal_flags;
+        public void* registryInterface;
+        public void* compositorInterface;
+        public void* subcompositorInterface;
+        public void* shmInterface;
+        public void* seatInterface;
+        public void* outputInterface;
+        public void* dataDeviceManagerInterface;
+        public void* surfaceInterface;
+    }
+
+    public struct _GLFWlibraryWayland_cursor
+    {
+        public void* handle;
+        public delegate* unmanaged<byte*, int, void*, void*> theme_load;
+        public delegate* unmanaged<void*, void> theme_destroy;
+        public delegate* unmanaged<void*, byte*, void*> theme_get_cursor;
+        public delegate* unmanaged<void*, void*> image_get_buffer;
+    }
+
+    public struct _GLFWlibraryWayland_egl
+    {
+        public void* handle;
+        public delegate* unmanaged<void*, int, int, void*> window_create;
+        public delegate* unmanaged<void*, void> window_destroy;
+        public delegate* unmanaged<void*, int, int, int, int, void> window_resize;
+    }
+
+    public struct _GLFWlibraryWayland_xkb
+    {
+        public void* handle;
+        public void* context;
+        public void* keymap;
+        public void* state;
+        public void* composeState;
+        public uint modifiers;
+    }
+
+    public struct _GLFWlibraryWayland_libdecor
+    {
+        public void* handle;
+        public void* context;
+        public void* callback;
+        public int ready;
     }
 
     public struct _GLFWlibraryX11
