@@ -788,11 +788,8 @@ public static unsafe partial class Glfw
         }
 
         _glfw.wl.cursorSurface = wayland_compositorCreateSurface();
-        if (_glfw.wl.cursorSurface == null)
-        {
-            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create cursor surface");
-            return GLFW_FALSE;
-        }
+        _glfw.wl.cursorTimerfd = wayland_timerfd_create(CLOCK_MONOTONIC,
+            TFD_CLOEXEC | TFD_NONBLOCK);
 
         return GLFW_TRUE;
     }
@@ -1921,9 +1918,6 @@ public static unsafe partial class Glfw
 
         if (wayland_loadCursorTheme() == 0)
             return GLFW_FALSE;
-
-        _glfw.wl.cursorTimerfd = wayland_timerfd_create(CLOCK_MONOTONIC,
-            TFD_CLOEXEC | TFD_NONBLOCK);
 
         if (_glfw.wl.seat != null && _glfw.wl.dataDeviceManager != null)
         {
