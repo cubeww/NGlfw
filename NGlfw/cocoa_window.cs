@@ -656,7 +656,7 @@ public static unsafe partial class Glfw
 
         if (window->ns.@object != null)
         {
-            var styleMask = (ulong)objc_msgSend_int(window->ns.@object, cocoa_sel("styleMask"));
+            var styleMask = objc_msgSend_ulong(window->ns.@object, cocoa_sel("styleMask"));
             if (window->monitor != null)
             {
                 styleMask &= ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable);
@@ -828,7 +828,7 @@ public static unsafe partial class Glfw
     {
         if (window->ns.@object != null)
         {
-            var styleMask = (ulong)objc_msgSend_int(window->ns.@object, cocoa_sel("styleMask"));
+            var styleMask = objc_msgSend_ulong(window->ns.@object, cocoa_sel("styleMask"));
             if (enabled != 0)
                 styleMask |= NSWindowStyleMaskResizable;
             else
@@ -849,7 +849,7 @@ public static unsafe partial class Glfw
     {
         if (window->ns.@object != null)
         {
-            var styleMask = (ulong)objc_msgSend_int(window->ns.@object, cocoa_sel("styleMask"));
+            var styleMask = objc_msgSend_ulong(window->ns.@object, cocoa_sel("styleMask"));
             if (enabled != 0)
             {
                 styleMask &= ~NSWindowStyleMaskBorderless;
