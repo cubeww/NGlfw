@@ -219,6 +219,12 @@ public static unsafe partial class Glfw
         public ObjCBlockDescriptor* descriptor;
     }
 
+    public struct ObjCSuper
+    {
+        public void* receiver;
+        public void* superClass;
+    }
+
     public struct _GLFWmonitorNS
     {
         public uint displayID;
@@ -1278,6 +1284,13 @@ public static unsafe partial class Glfw
             null);
         if (window->ns.trackingArea != null)
             cocoa_msgSend_void_ptr(self, "addTrackingArea:", window->ns.trackingArea);
+
+        var superInfo = new ObjCSuper
+        {
+            receiver = self,
+            superClass = cocoa_getClass("NSView")
+        };
+        objc_msgSendSuper_void(&superInfo, cocoa_sel("updateTrackingAreas"));
     }
 
     static int cocoa_eventMods(void* eventObject)
@@ -1730,6 +1743,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void objc_msgSend_void(void* receiver, nint selector);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSendSuper")]
+    static extern void objc_msgSendSuper_void(ObjCSuper* superInfo, nint selector);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern void objc_msgSend_void_bool(void* receiver, nint selector, byte value);
