@@ -1401,10 +1401,20 @@ public static unsafe partial class Glfw
 
         var urlClass = cocoa_getClass("NSURL");
         var classes = cocoa_msgSend_id_ptr(cocoa_getClass("NSArray"), "arrayWithObject:", urlClass);
+        var fileURLsOnlyKey = cocoa_stringFromUTF8("NSPasteboardURLReadingFileURLsOnlyKey");
+        var fileURLsOnly = cocoa_msgSend_id_bool(cocoa_getClass("NSNumber"), "numberWithBool:", GLFW_TRUE);
+        var options = fileURLsOnlyKey != null && fileURLsOnly != null
+            ? objc_msgSend_id_ptr_ptr(cocoa_getClass("NSDictionary"),
+                cocoa_sel("dictionaryWithObject:forKey:"),
+                fileURLsOnly,
+                fileURLsOnlyKey)
+            : null;
         var urls = objc_msgSend_id_ptr_ptr(pasteboard,
             cocoa_sel("readObjectsForClasses:options:"),
             classes,
-            null);
+            options);
+        cocoa_releaseTemporaryString(fileURLsOnlyKey);
+
         if (urls == null)
             return 1;
 
