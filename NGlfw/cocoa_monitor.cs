@@ -24,7 +24,7 @@ public static unsafe partial class Glfw
     {
         var refreshRate = CGDisplayModeGetRefreshRate(mode);
         if (refreshRate == 0.0)
-            refreshRate = fallbackRefreshRate != 0.0 ? fallbackRefreshRate : 60.0;
+            refreshRate = fallbackRefreshRate;
 
         return new GLFWvidmode
         {
