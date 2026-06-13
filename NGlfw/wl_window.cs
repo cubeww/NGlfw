@@ -48,6 +48,10 @@ public static unsafe partial class Glfw
     const uint XDG_TOPLEVEL_STATE_ACTIVATED = 4;
     const uint ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE = 1;
     const uint ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE = 2;
+    const uint LIBDECOR_WINDOW_STATE_ACTIVE = 1;
+    const uint LIBDECOR_WINDOW_STATE_MAXIMIZED = 2;
+    const uint LIBDECOR_WINDOW_STATE_FULLSCREEN = 4;
+    const uint LIBDECOR_ACTION_RESIZE = 2;
     const int GLFW_BORDER_SIZE = 4;
     const int GLFW_CAPTION_HEIGHT = 24;
 
@@ -173,6 +177,14 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, uint, byte*, void> error;
     }
 
+    struct libdecor_frame_interface
+    {
+        public delegate* unmanaged<void*, void*, void*, void> configure;
+        public delegate* unmanaged<void*, void*, void> close;
+        public delegate* unmanaged<void*, void*, void> commit;
+        public delegate* unmanaged<void*, byte*, void*, void> dismiss_popup;
+    }
+
     struct wp_fractional_scale_v1_listener
     {
         public delegate* unmanaged<void*, void*, uint, void> preferred_scale;
@@ -231,6 +243,7 @@ public static unsafe partial class Glfw
     static wl_data_source_listener* _glfwWaylandDataSourceListener;
     static wl_callback_listener* _glfwWaylandLibdecorReadyListener;
     static libdecor_interface* _glfwWaylandLibdecorInterface;
+    static libdecor_frame_interface* _glfwWaylandLibdecorFrameInterface;
     static wp_fractional_scale_v1_listener* _glfwWaylandFractionalScaleListener;
     static zxdg_toplevel_decoration_v1_listener* _glfwWaylandXdgDecorationListener;
     static xdg_activation_token_v1_listener* _glfwWaylandXdgActivationListener;
@@ -393,6 +406,24 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandLibdecorInterface;
+    }
+
+    static libdecor_frame_interface* wayland_getLibdecorFrameInterface()
+    {
+        if (_glfwWaylandLibdecorFrameInterface == null)
+        {
+            _glfwWaylandLibdecorFrameInterface =
+                (libdecor_frame_interface*)_glfw_calloc(1, (nuint)sizeof(libdecor_frame_interface));
+            if (_glfwWaylandLibdecorFrameInterface != null)
+            {
+                _glfwWaylandLibdecorFrameInterface->configure = &wayland_libdecorFrameHandleConfigure;
+                _glfwWaylandLibdecorFrameInterface->close = &wayland_libdecorFrameHandleClose;
+                _glfwWaylandLibdecorFrameInterface->commit = &wayland_libdecorFrameHandleCommit;
+                _glfwWaylandLibdecorFrameInterface->dismiss_popup = &wayland_libdecorFrameHandleDismissPopup;
+            }
+        }
+
+        return _glfwWaylandLibdecorFrameInterface;
     }
 
     static wp_fractional_scale_v1_listener* wayland_getFractionalScaleListener()
@@ -2944,6 +2975,208 @@ public static unsafe partial class Glfw
         window->wl.activationToken = null;
     }
 
+    static void wayland_commitLibdecorFrame(_GLFWwindow* window, void* config, int width, int height)
+    {
+        if (window == null ||
+            window->wl.libdecor.frame == null ||
+            _glfw.wl.libdecor.libdecor_state_new == null ||
+            _glfw.wl.libdecor.libdecor_frame_commit == null)
+        {
+            return;
+        }
+
+        var state = _glfw.wl.libdecor.libdecor_state_new(width, height);
+        if (state == null)
+            return;
+
+        _glfw.wl.libdecor.libdecor_frame_commit(window->wl.libdecor.frame, state, config);
+
+        if (_glfw.wl.libdecor.libdecor_state_free != null)
+            _glfw.wl.libdecor.libdecor_state_free(state);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_libdecorFrameHandleConfigure(void* frame, void* config, void* userData)
+    {
+        var window = (_GLFWwindow*)userData;
+        if (window == null)
+            return;
+
+        var fullscreen = window->wl.fullscreen;
+        var activated = window->wl.activated;
+        var maximized = window->wl.maximized;
+
+        if (_glfw.wl.libdecor.libdecor_configuration_get_window_state != null)
+        {
+            uint windowState = 0;
+            if (_glfw.wl.libdecor.libdecor_configuration_get_window_state(config, &windowState) != 0)
+            {
+                fullscreen = (windowState & LIBDECOR_WINDOW_STATE_FULLSCREEN) != 0 ? GLFW_TRUE : GLFW_FALSE;
+                activated = (windowState & LIBDECOR_WINDOW_STATE_ACTIVE) != 0 ? GLFW_TRUE : GLFW_FALSE;
+                maximized = (windowState & LIBDECOR_WINDOW_STATE_MAXIMIZED) != 0 ? GLFW_TRUE : GLFW_FALSE;
+            }
+        }
+
+        var width = window->wl.width;
+        var height = window->wl.height;
+        if (_glfw.wl.libdecor.libdecor_configuration_get_content_size == null ||
+            _glfw.wl.libdecor.libdecor_configuration_get_content_size(config, frame, &width, &height) == 0)
+        {
+            width = window->wl.width;
+            height = window->wl.height;
+        }
+
+        if (maximized == 0 &&
+            fullscreen == 0 &&
+            window->numer != GLFW_DONT_CARE &&
+            window->denom != GLFW_DONT_CARE)
+        {
+            var aspectRatio = (float)width / height;
+            var targetRatio = (float)window->numer / window->denom;
+
+            if (aspectRatio < targetRatio)
+                height = (int)(width / targetRatio);
+            else if (aspectRatio > targetRatio)
+                width = (int)(height * targetRatio);
+        }
+
+        width = _glfw_max(width, 1);
+        height = _glfw_max(height, 1);
+        wayland_commitLibdecorFrame(window, config, width, height);
+
+        if (window->wl.activated != activated)
+        {
+            window->wl.activated = activated;
+            if (window->wl.activated == 0 &&
+                window->monitor != null &&
+                window->autoIconify != 0 &&
+                _glfw.wl.libdecor.libdecor_frame_set_minimized != null)
+            {
+                _glfw.wl.libdecor.libdecor_frame_set_minimized(window->wl.libdecor.frame);
+            }
+        }
+
+        if (window->wl.maximized != maximized)
+        {
+            window->wl.maximized = maximized;
+            _glfwInputWindowMaximize(window, window->wl.maximized);
+        }
+
+        window->wl.fullscreen = fullscreen;
+
+        var damaged = GLFW_FALSE;
+        if (window->wl.visible == 0)
+        {
+            window->wl.visible = GLFW_TRUE;
+            damaged = GLFW_TRUE;
+        }
+
+        if (wayland_resizeWindow(window, width, height) != 0)
+        {
+            _glfwInputWindowSize(window, window->wl.width, window->wl.height);
+            damaged = GLFW_TRUE;
+        }
+
+        if (damaged != 0)
+            _glfwInputWindowDamage(window);
+        else
+            wayland_surfaceCommit(window->wl.surface);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_libdecorFrameHandleClose(void* frame, void* userData)
+    {
+        _glfwInputWindowCloseRequest((_GLFWwindow*)userData);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_libdecorFrameHandleCommit(void* frame, void* userData)
+    {
+        var window = (_GLFWwindow*)userData;
+        if (window != null)
+            wayland_surfaceCommit(window->wl.surface);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_libdecorFrameHandleDismissPopup(void* frame, byte* seatName, void* userData)
+    {
+    }
+
+    static int wayland_createLibdecorFrame(_GLFWwindow* window)
+    {
+        if (_glfw.wl.libdecor.context == null || _glfw.wl.libdecor.libdecor_decorate == null)
+            return GLFW_FALSE;
+
+        while (_glfw.wl.libdecor.ready == 0)
+            _glfwWaitEventsWayland();
+
+        var frameInterface = wayland_getLibdecorFrameInterface();
+        if (frameInterface == null)
+            return GLFW_FALSE;
+
+        window->wl.libdecor.frame = _glfw.wl.libdecor.libdecor_decorate(_glfw.wl.libdecor.context,
+            window->wl.surface,
+            frameInterface,
+            window);
+        if (window->wl.libdecor.frame == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create libdecor frame");
+            return GLFW_FALSE;
+        }
+
+        wayland_commitLibdecorFrame(window, null, window->wl.width, window->wl.height);
+
+        if (window->wl.appId != null && _glfw.wl.libdecor.libdecor_frame_set_app_id != null)
+            _glfw.wl.libdecor.libdecor_frame_set_app_id(window->wl.libdecor.frame, window->wl.appId);
+
+        if (_glfw.wl.libdecor.libdecor_frame_set_title != null)
+            _glfw.wl.libdecor.libdecor_frame_set_title(window->wl.libdecor.frame, window->title);
+
+        if (window->minwidth != GLFW_DONT_CARE &&
+            window->minheight != GLFW_DONT_CARE &&
+            _glfw.wl.libdecor.libdecor_frame_set_min_content_size != null)
+        {
+            _glfw.wl.libdecor.libdecor_frame_set_min_content_size(window->wl.libdecor.frame,
+                window->minwidth,
+                window->minheight);
+        }
+
+        if (window->maxwidth != GLFW_DONT_CARE &&
+            window->maxheight != GLFW_DONT_CARE &&
+            _glfw.wl.libdecor.libdecor_frame_set_max_content_size != null)
+        {
+            _glfw.wl.libdecor.libdecor_frame_set_max_content_size(window->wl.libdecor.frame,
+                window->maxwidth,
+                window->maxheight);
+        }
+
+        if (window->resizable == 0 && _glfw.wl.libdecor.libdecor_frame_unset_capabilities != null)
+            _glfw.wl.libdecor.libdecor_frame_unset_capabilities(window->wl.libdecor.frame, LIBDECOR_ACTION_RESIZE);
+
+        if (window->monitor != null)
+        {
+            if (_glfw.wl.libdecor.libdecor_frame_set_fullscreen != null)
+                _glfw.wl.libdecor.libdecor_frame_set_fullscreen(window->wl.libdecor.frame, window->monitor->wl.output);
+            wayland_setIdleInhibitor(window, GLFW_TRUE);
+        }
+        else
+        {
+            if (window->wl.maximized != 0 && _glfw.wl.libdecor.libdecor_frame_set_maximized != null)
+                _glfw.wl.libdecor.libdecor_frame_set_maximized(window->wl.libdecor.frame);
+
+            if (window->decorated == 0 && _glfw.wl.libdecor.libdecor_frame_set_visibility != null)
+                _glfw.wl.libdecor.libdecor_frame_set_visibility(window->wl.libdecor.frame, 0);
+
+            wayland_setIdleInhibitor(window, GLFW_FALSE);
+        }
+
+        if (_glfw.wl.libdecor.libdecor_frame_map != null)
+            _glfw.wl.libdecor.libdecor_frame_map(window->wl.libdecor.frame);
+        _glfw.wl.client.display_roundtrip(_glfw.wl.display);
+
+        return GLFW_TRUE;
+    }
+
     [UnmanagedCallersOnly]
     static void wayland_relativePointerHandleRelativeMotion(void* userData,
                                                             void* pointer,
@@ -3081,13 +3314,27 @@ public static unsafe partial class Glfw
         return GLFW_TRUE;
     }
 
+    static int wayland_createShellObjects(_GLFWwindow* window)
+    {
+        if (_glfw.wl.libdecor.context != null &&
+            wayland_createLibdecorFrame(window) != 0)
+        {
+            return GLFW_TRUE;
+        }
+
+        return wayland_createXdgShellObjects(window);
+    }
+
     static void wayland_destroyShellObjects(_GLFWwindow* window)
     {
         wayland_destroyFallbackDecorations(window);
+        if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_unref != null)
+            _glfw.wl.libdecor.libdecor_frame_unref(window->wl.libdecor.frame);
         wayland_proxyDestroyWithOpcode(window->wl.xdg.decoration, ZXDG_TOPLEVEL_DECORATION_DESTROY);
         wayland_proxyDestroyWithOpcode(window->wl.xdg.toplevel, XDG_TOPLEVEL_DESTROY);
         wayland_proxyDestroyWithOpcode(window->wl.xdg.surface, XDG_SURFACE_DESTROY);
 
+        window->wl.libdecor.frame = null;
         window->wl.xdg.toplevel = null;
         window->wl.xdg.surface = null;
         window->wl.xdg.decoration = null;
@@ -3202,7 +3449,7 @@ public static unsafe partial class Glfw
 
         if (window->monitor != null || wndconfig->visible != 0)
         {
-            if (wayland_createXdgShellObjects(window) == 0)
+            if (wayland_createShellObjects(window) == 0)
                 return GLFW_FALSE;
         }
 
@@ -3242,7 +3489,10 @@ public static unsafe partial class Glfw
 
     static void _glfwSetWindowTitleWayland(_GLFWwindow* window, byte* title)
     {
-        wayland_xdgToplevelSetTitle(window->wl.xdg.toplevel, title);
+        if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_set_title != null)
+            _glfw.wl.libdecor.libdecor_frame_set_title(window->wl.libdecor.frame, title);
+        else
+            wayland_xdgToplevelSetTitle(window->wl.xdg.toplevel, title);
     }
 
     static void _glfwSetWindowIconWayland(_GLFWwindow* window, int count, GLFWimage* images)
@@ -3281,6 +3531,9 @@ public static unsafe partial class Glfw
         if (wayland_resizeWindow(window, width, height) == 0)
             return;
 
+        if (window->wl.libdecor.frame != null)
+            wayland_commitLibdecorFrame(window, null, window->wl.width, window->wl.height);
+
         _glfwInputWindowSize(window, window->wl.width, window->wl.height);
 
         if (window->wl.visible != 0)
@@ -3296,7 +3549,20 @@ public static unsafe partial class Glfw
                                                 int maxwidth,
                                                 int maxheight)
     {
-        wayland_updateXdgSizeLimits(window);
+        if (window->wl.libdecor.frame != null)
+        {
+            if (minwidth == GLFW_DONT_CARE || minheight == GLFW_DONT_CARE)
+                minwidth = minheight = 0;
+            if (maxwidth == GLFW_DONT_CARE || maxheight == GLFW_DONT_CARE)
+                maxwidth = maxheight = 0;
+
+            if (_glfw.wl.libdecor.libdecor_frame_set_min_content_size != null)
+                _glfw.wl.libdecor.libdecor_frame_set_min_content_size(window->wl.libdecor.frame, minwidth, minheight);
+            if (_glfw.wl.libdecor.libdecor_frame_set_max_content_size != null)
+                _glfw.wl.libdecor.libdecor_frame_set_max_content_size(window->wl.libdecor.frame, maxwidth, maxheight);
+        }
+        else
+            wayland_updateXdgSizeLimits(window);
     }
 
     static void _glfwSetWindowAspectRatioWayland(_GLFWwindow* window, int numer, int denom)
@@ -3320,6 +3586,9 @@ public static unsafe partial class Glfw
 
         if (wayland_resizeWindow(window, width, height) == 0)
             return;
+
+        if (window->wl.libdecor.frame != null)
+            wayland_commitLibdecorFrame(window, null, window->wl.width, window->wl.height);
 
         _glfwInputWindowSize(window, window->wl.width, window->wl.height);
 
@@ -3368,13 +3637,24 @@ public static unsafe partial class Glfw
 
     static void _glfwIconifyWindowWayland(_GLFWwindow* window)
     {
-        wayland_xdgToplevelSetMinimized(window->wl.xdg.toplevel);
+        if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_set_minimized != null)
+            _glfw.wl.libdecor.libdecor_frame_set_minimized(window->wl.libdecor.frame);
+        else
+            wayland_xdgToplevelSetMinimized(window->wl.xdg.toplevel);
     }
 
     static void _glfwRestoreWindowWayland(_GLFWwindow* window)
     {
+        if (window->monitor != null)
+            return;
+
         if (window->wl.maximized != 0)
-            wayland_xdgToplevelUnsetMaximized(window->wl.xdg.toplevel);
+        {
+            if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_unset_maximized != null)
+                _glfw.wl.libdecor.libdecor_frame_unset_maximized(window->wl.libdecor.frame);
+            else
+                wayland_xdgToplevelUnsetMaximized(window->wl.xdg.toplevel);
+        }
 
         window->wl.maximized = GLFW_FALSE;
     }
@@ -3382,13 +3662,17 @@ public static unsafe partial class Glfw
     static void _glfwMaximizeWindowWayland(_GLFWwindow* window)
     {
         window->wl.maximized = GLFW_TRUE;
-        wayland_xdgToplevelSetMaximized(window->wl.xdg.toplevel);
+        if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_set_maximized != null)
+            _glfw.wl.libdecor.libdecor_frame_set_maximized(window->wl.libdecor.frame);
+        else
+            wayland_xdgToplevelSetMaximized(window->wl.xdg.toplevel);
     }
 
     static void _glfwShowWindowWayland(_GLFWwindow* window)
     {
         if (window->wl.xdg.surface == null &&
-            wayland_createXdgShellObjects(window) == 0)
+            window->wl.libdecor.frame == null &&
+            wayland_createShellObjects(window) == 0)
         {
             return;
         }
@@ -3443,7 +3727,12 @@ public static unsafe partial class Glfw
         if (monitor == null)
         {
             if (window->wl.fullscreen != 0)
-                wayland_xdgToplevelUnsetFullscreen(window->wl.xdg.toplevel);
+            {
+                if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_unset_fullscreen != null)
+                    _glfw.wl.libdecor.libdecor_frame_unset_fullscreen(window->wl.libdecor.frame);
+                else
+                    wayland_xdgToplevelUnsetFullscreen(window->wl.xdg.toplevel);
+            }
             wayland_setIdleInhibitor(window, GLFW_FALSE);
             window->wl.fullscreen = GLFW_FALSE;
             _glfwSetWindowSizeWayland(window, width, height);
@@ -3459,7 +3748,10 @@ public static unsafe partial class Glfw
         {
             wayland_destroyFallbackDecorations(window);
             window->wl.fullscreen = GLFW_TRUE;
-            wayland_xdgToplevelSetFullscreen(window->wl.xdg.toplevel, monitor->wl.output);
+            if (window->wl.libdecor.frame != null && _glfw.wl.libdecor.libdecor_frame_set_fullscreen != null)
+                _glfw.wl.libdecor.libdecor_frame_set_fullscreen(window->wl.libdecor.frame, monitor->wl.output);
+            else
+                wayland_xdgToplevelSetFullscreen(window->wl.xdg.toplevel, monitor->wl.output);
             wayland_setIdleInhibitor(window, GLFW_TRUE);
         }
 
@@ -3499,14 +3791,31 @@ public static unsafe partial class Glfw
     static void _glfwSetWindowResizableWayland(_GLFWwindow* window, int enabled)
     {
         window->resizable = enabled;
-        wayland_updateXdgSizeLimits(window);
+
+        if (window->wl.libdecor.frame != null)
+        {
+            if (enabled != 0)
+            {
+                if (_glfw.wl.libdecor.libdecor_frame_set_capabilities != null)
+                    _glfw.wl.libdecor.libdecor_frame_set_capabilities(window->wl.libdecor.frame, LIBDECOR_ACTION_RESIZE);
+            }
+            else if (_glfw.wl.libdecor.libdecor_frame_unset_capabilities != null)
+                _glfw.wl.libdecor.libdecor_frame_unset_capabilities(window->wl.libdecor.frame, LIBDECOR_ACTION_RESIZE);
+        }
+        else
+            wayland_updateXdgSizeLimits(window);
     }
 
     static void _glfwSetWindowDecoratedWayland(_GLFWwindow* window, int enabled)
     {
         window->decorated = enabled;
 
-        if (window->wl.xdg.decoration != null)
+        if (window->wl.libdecor.frame != null)
+        {
+            if (_glfw.wl.libdecor.libdecor_frame_set_visibility != null)
+                _glfw.wl.libdecor.libdecor_frame_set_visibility(window->wl.libdecor.frame, enabled != 0 ? (byte)1 : (byte)0);
+        }
+        else if (window->wl.xdg.decoration != null)
         {
             wayland_updateXdgDecorationMode(window);
 

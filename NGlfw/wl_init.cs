@@ -1251,6 +1251,8 @@ public static unsafe partial class Glfw
         {
             _glfw.wl.client.proxy_add_listener(_glfw.wl.libdecor.callback, readyListener, null);
         }
+        else
+            _glfw.wl.libdecor.ready = GLFW_TRUE;
     }
 
     static wl_registry_listener* wayland_getRegistryListener()
@@ -1994,6 +1996,7 @@ public static unsafe partial class Glfw
         _glfw_free(_glfwWaylandDataSourceListener);
         _glfw_free(_glfwWaylandLibdecorReadyListener);
         _glfw_free(_glfwWaylandLibdecorInterface);
+        _glfw_free(_glfwWaylandLibdecorFrameInterface);
         _glfw_free(_glfwWaylandFractionalScaleListener);
         _glfw_free(_glfwWaylandXdgDecorationListener);
         _glfw_free(_glfwWaylandXdgActivationListener);
@@ -2014,6 +2017,7 @@ public static unsafe partial class Glfw
         _glfwWaylandDataSourceListener = null;
         _glfwWaylandLibdecorReadyListener = null;
         _glfwWaylandLibdecorInterface = null;
+        _glfwWaylandLibdecorFrameInterface = null;
         _glfwWaylandFractionalScaleListener = null;
         _glfwWaylandXdgDecorationListener = null;
         _glfwWaylandXdgActivationListener = null;

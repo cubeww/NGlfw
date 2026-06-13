@@ -264,6 +264,8 @@ Implemented or partially implemented:
   interactive move/resize, and xdg window-menu requests
 - libdecor dynamic loading, context creation, ready sync callback, and
   libdecor fd dispatch in the Wayland event loop
+- libdecor frame creation, configure/close/commit callbacks, frame state
+  commits, and common window operations through libdecor frame APIs
 - hand-written `zwp_idle_inhibit_manager_v1` protocol tables, registry
   binding, and fullscreen idle inhibitor creation/destruction
 - hand-written `xdg_activation_v1` protocol tables, registry binding,
@@ -287,7 +289,7 @@ Known remaining work:
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
 - Wayland clipboard edge-case parity and runtime validation
-- libdecor frame creation and window operation integration
+- libdecor runtime validation and edge-case parity
 - runtime fractional-scaling validation
 - runtime validation on a Wayland compositor
 
