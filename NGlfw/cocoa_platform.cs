@@ -43,11 +43,40 @@ public static unsafe partial class Glfw
     const ulong NSTrackingEnabledDuringMouseDrag = 1 << 10;
     const ulong NSWindowOcclusionStateVisible = 1 << 1;
     const int kCFNumberIntType = 9;
+    const int kCFNumberSInt32Type = 3;
     const int kIOHIDOptionsTypeNone = 0;
+    const int kIOHIDElementTypeInput_Misc = 1;
+    const int kIOHIDElementTypeInput_Button = 2;
+    const int kIOHIDElementTypeInput_Axis = 3;
     const int kHIDPage_GenericDesktop = 0x01;
+    const int kHIDPage_Simulation = 0x02;
+    const int kHIDPage_Button = 0x09;
+    const int kHIDPage_Consumer = 0x0c;
     const int kHIDUsage_GD_Joystick = 0x04;
     const int kHIDUsage_GD_GamePad = 0x05;
     const int kHIDUsage_GD_MultiAxisController = 0x08;
+    const int kHIDUsage_GD_X = 0x30;
+    const int kHIDUsage_GD_Y = 0x31;
+    const int kHIDUsage_GD_Z = 0x32;
+    const int kHIDUsage_GD_Rx = 0x33;
+    const int kHIDUsage_GD_Ry = 0x34;
+    const int kHIDUsage_GD_Rz = 0x35;
+    const int kHIDUsage_GD_Slider = 0x36;
+    const int kHIDUsage_GD_Dial = 0x37;
+    const int kHIDUsage_GD_Wheel = 0x38;
+    const int kHIDUsage_GD_Hatswitch = 0x39;
+    const int kHIDUsage_GD_Start = 0x3d;
+    const int kHIDUsage_GD_Select = 0x3e;
+    const int kHIDUsage_GD_SystemMainMenu = 0x85;
+    const int kHIDUsage_GD_DPadUp = 0x90;
+    const int kHIDUsage_GD_DPadDown = 0x91;
+    const int kHIDUsage_GD_DPadRight = 0x92;
+    const int kHIDUsage_GD_DPadLeft = 0x93;
+    const int kHIDUsage_Sim_Rudder = 0xba;
+    const int kHIDUsage_Sim_Throttle = 0xbb;
+    const int kHIDUsage_Sim_Accelerator = 0xc4;
+    const int kHIDUsage_Sim_Brake = 0xc5;
+    const int kHIDUsage_Sim_Steering = 0xc8;
     const int kUCKeyActionDisplay = 3;
     const uint kUCKeyTranslateNoDeadKeysBit = 0;
     const uint kCFStringEncodingUTF8 = 0x08000100;
@@ -157,6 +186,12 @@ public static unsafe partial class Glfw
     {
         public nuint location;
         public nuint length;
+    }
+
+    public struct CFRange
+    {
+        public nint location;
+        public nint length;
     }
 
     public struct _GLFWmonitorNS
@@ -1924,10 +1959,25 @@ public static unsafe partial class Glfw
     static extern byte CFDictionaryGetValueIfPresent(void* theDict, void* key, void** value);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void* CFArrayCreateMutable(void* allocator, nint capacity, void* callBacks);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern nint CFArrayGetCount(void* array);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFArrayGetValueAtIndex(void* array, nint index);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void CFArrayAppendValue(void* theArray, void* value);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void CFArraySortValues(void* theArray,
+                                         CFRange range,
+                                         delegate* unmanaged<void*, void*, void*, nint> comparator,
+                                         void* context);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern nuint CFGetTypeID(void* cf);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFBundleGetBundleWithIdentifier(void* bundleID);
@@ -1986,4 +2036,28 @@ public static unsafe partial class Glfw
 
     [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
     static extern int IOHIDManagerOpen(void* manager, int options);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void* IOHIDDeviceGetProperty(void* device, void* key);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern void* IOHIDDeviceCopyMatchingElements(void* device, void* matching, int options);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern nuint IOHIDElementGetTypeID();
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern int IOHIDElementGetType(void* element);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern uint IOHIDElementGetUsage(void* element);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern uint IOHIDElementGetUsagePage(void* element);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern long IOHIDElementGetLogicalMin(void* element);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern long IOHIDElementGetLogicalMax(void* element);
 }
