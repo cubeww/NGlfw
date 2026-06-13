@@ -69,6 +69,9 @@ public static unsafe partial class Glfw
     const uint ZXDG_TOPLEVEL_DECORATION_DESTROY = 0;
     const uint ZXDG_TOPLEVEL_DECORATION_SET_MODE = 1;
     const uint ZXDG_TOPLEVEL_DECORATION_UNSET_MODE = 2;
+    const uint ZWP_IDLE_INHIBIT_MANAGER_DESTROY = 0;
+    const uint ZWP_IDLE_INHIBIT_MANAGER_CREATE_INHIBITOR = 1;
+    const uint ZWP_IDLE_INHIBITOR_DESTROY = 0;
     const uint WP_VIEWPORTER_DESTROY = 0;
     const uint WP_VIEWPORTER_GET_VIEWPORT = 1;
     const uint WP_VIEWPORT_DESTROY = 0;
@@ -85,6 +88,7 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwWaylandWlDataDeviceManager = _glfw_allocate_static_string("wl_data_device_manager");
     static readonly byte* _glfwWaylandXdgWmBase = _glfw_allocate_static_string("xdg_wm_base");
     static readonly byte* _glfwWaylandZxdgDecorationManagerV1 = _glfw_allocate_static_string("zxdg_decoration_manager_v1");
+    static readonly byte* _glfwWaylandZwpIdleInhibitManagerV1 = _glfw_allocate_static_string("zwp_idle_inhibit_manager_v1");
     static readonly byte* _glfwWaylandWpViewporter = _glfw_allocate_static_string("wp_viewporter");
     static readonly byte* _glfwWaylandWpFractionalScaleManagerV1 = _glfw_allocate_static_string("wp_fractional_scale_manager_v1");
     static readonly byte* _glfwWaylandXkbControl = _glfw_allocate_static_string("Control");
@@ -133,6 +137,8 @@ public static unsafe partial class Glfw
     static wl_interface* _glfwWaylandXdgPopupInterface;
     static wl_interface* _glfwWaylandZxdgDecorationManagerV1Interface;
     static wl_interface* _glfwWaylandZxdgToplevelDecorationV1Interface;
+    static wl_interface* _glfwWaylandZwpIdleInhibitManagerV1Interface;
+    static wl_interface* _glfwWaylandZwpIdleInhibitorV1Interface;
     static wl_interface* _glfwWaylandWpViewporterInterface;
     static wl_interface* _glfwWaylandWpViewportInterface;
     static wl_interface* _glfwWaylandWpFractionalScaleManagerInterface;
@@ -365,6 +371,52 @@ public static unsafe partial class Glfw
 
         _glfwWaylandZxdgDecorationManagerV1Interface = manager;
         _glfwWaylandZxdgToplevelDecorationV1Interface = decoration;
+        return GLFW_TRUE;
+    }
+
+    static int wayland_initIdleInhibitInterfaces()
+    {
+        if (_glfwWaylandZwpIdleInhibitManagerV1Interface != null)
+            return GLFW_TRUE;
+
+        var manager = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var inhibitor = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        if (manager == null || inhibitor == null)
+            return GLFW_FALSE;
+
+        var managerMethods = wayland_allocMessages(2);
+        var inhibitorMethods = wayland_allocMessages(1);
+        if (managerMethods == null || inhibitorMethods == null)
+            return GLFW_FALSE;
+
+        var createInhibitorTypes = wayland_allocTypes(2);
+        if (createInhibitorTypes == null)
+            return GLFW_FALSE;
+
+        createInhibitorTypes[0] = inhibitor;
+        createInhibitorTypes[1] = (wl_interface*)_glfw.wl.client.surfaceInterface;
+
+        wayland_setMessage(managerMethods, 0, "destroy", "", null);
+        wayland_setMessage(managerMethods, 1, "create_inhibitor", "no", createInhibitorTypes);
+        wayland_setMessage(inhibitorMethods, 0, "destroy", "", null);
+
+        *manager = new wl_interface
+        {
+            name = _glfwWaylandZwpIdleInhibitManagerV1,
+            version = 1,
+            method_count = 2,
+            methods = managerMethods
+        };
+        *inhibitor = new wl_interface
+        {
+            name = _glfw_allocate_static_string("zwp_idle_inhibitor_v1"),
+            version = 1,
+            method_count = 1,
+            methods = inhibitorMethods
+        };
+
+        _glfwWaylandZwpIdleInhibitManagerV1Interface = manager;
+        _glfwWaylandZwpIdleInhibitorV1Interface = inhibitor;
         return GLFW_TRUE;
     }
 
@@ -1074,6 +1126,17 @@ public static unsafe partial class Glfw
                     1);
             }
         }
+        else if (wayland_stringEquals(interfaceName, "zwp_idle_inhibit_manager_v1") != 0)
+        {
+            if (_glfw.wl.idleInhibitManager == null && _glfwWaylandZwpIdleInhibitManagerV1Interface != null)
+            {
+                _glfw.wl.idleInhibitManager = wayland_registryBind(registry,
+                    name,
+                    _glfwWaylandZwpIdleInhibitManagerV1Interface,
+                    _glfwWaylandZwpIdleInhibitManagerV1,
+                    1);
+            }
+        }
         else if (wayland_stringEquals(interfaceName, "wp_fractional_scale_manager_v1") != 0)
         {
             if (_glfw.wl.fractionalScaleManager == null && _glfwWaylandWpFractionalScaleManagerInterface != null)
@@ -1333,6 +1396,11 @@ public static unsafe partial class Glfw
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize xdg-decoration protocol tables");
             return GLFW_FALSE;
         }
+        if (wayland_initIdleInhibitInterfaces() == 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize idle-inhibit protocol tables");
+            return GLFW_FALSE;
+        }
         if (wayland_initViewporterInterfaces() == 0)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize viewporter protocol tables");
@@ -1445,6 +1513,7 @@ public static unsafe partial class Glfw
         wayland_proxyDestroyWithOpcode(_glfw.wl.fractionalScaleManager, WP_FRACTIONAL_SCALE_MANAGER_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.viewporter, WP_VIEWPORTER_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.decorationManager, ZXDG_DECORATION_MANAGER_DESTROY);
+        wayland_proxyDestroyWithOpcode(_glfw.wl.idleInhibitManager, ZWP_IDLE_INHIBIT_MANAGER_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.cursorSurface, WL_SURFACE_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.subcompositor, 0);
         wayland_proxyDestroy(_glfw.wl.compositor);

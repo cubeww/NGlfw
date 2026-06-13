@@ -1875,6 +1875,47 @@ public static unsafe partial class Glfw
             wayland_zxdgToplevelDecorationSetMode(window->wl.xdg.decoration, wayland_getDecorationMode(window));
     }
 
+    static void* wayland_idleInhibitManagerCreateInhibitor(void* manager, void* surface)
+    {
+        if (manager == null ||
+            surface == null ||
+            _glfwWaylandZwpIdleInhibitorV1Interface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object == null)
+        {
+            return null;
+        }
+
+        var inhibitor = _glfw.wl.client.proxy_marshal_constructor_object(manager,
+            ZWP_IDLE_INHIBIT_MANAGER_CREATE_INHIBITOR,
+            _glfwWaylandZwpIdleInhibitorV1Interface,
+            null,
+            surface);
+
+        wayland_tagProxy(inhibitor);
+        return inhibitor;
+    }
+
+    static void wayland_idleInhibitorDestroy(void* inhibitor)
+    {
+        wayland_proxyDestroyWithOpcode(inhibitor, ZWP_IDLE_INHIBITOR_DESTROY);
+    }
+
+    static void wayland_setIdleInhibitor(_GLFWwindow* window, int enabled)
+    {
+        if (enabled != 0 && window->wl.idleInhibitor == null && _glfw.wl.idleInhibitManager != null)
+        {
+            window->wl.idleInhibitor =
+                wayland_idleInhibitManagerCreateInhibitor(_glfw.wl.idleInhibitManager, window->wl.surface);
+            if (window->wl.idleInhibitor == null)
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create idle inhibitor");
+        }
+        else if (enabled == 0 && window->wl.idleInhibitor != null)
+        {
+            wayland_idleInhibitorDestroy(window->wl.idleInhibitor);
+            window->wl.idleInhibitor = null;
+        }
+    }
+
     static void wayland_updateXdgSizeLimits(_GLFWwindow* window)
     {
         if (window->wl.xdg.toplevel == null)
@@ -2099,9 +2140,15 @@ public static unsafe partial class Glfw
         {
             window->wl.fullscreen = GLFW_TRUE;
             wayland_xdgToplevelSetFullscreen(window->wl.xdg.toplevel, window->monitor->wl.output);
+            wayland_setIdleInhibitor(window, GLFW_TRUE);
         }
-        else if (window->wl.maximized != 0)
-            wayland_xdgToplevelSetMaximized(window->wl.xdg.toplevel);
+        else
+        {
+            if (window->wl.maximized != 0)
+                wayland_xdgToplevelSetMaximized(window->wl.xdg.toplevel);
+
+            wayland_setIdleInhibitor(window, GLFW_FALSE);
+        }
 
         if (_glfw.wl.decorationManager != null)
         {
@@ -2271,6 +2318,7 @@ public static unsafe partial class Glfw
         if (window->wl.egl.window != null && _glfw.wl.egl.window_destroy != null)
             _glfw.wl.egl.window_destroy(window->wl.egl.window);
 
+        wayland_setIdleInhibitor(window, GLFW_FALSE);
         wayland_fractionalScaleDestroy(window->wl.fractionalScale);
         wayland_viewportDestroy(window->wl.scalingViewport);
         wayland_proxyDestroyWithOpcode(window->wl.surface, WL_SURFACE_DESTROY);
@@ -2466,6 +2514,7 @@ public static unsafe partial class Glfw
         {
             if (window->wl.fullscreen != 0)
                 wayland_xdgToplevelUnsetFullscreen(window->wl.xdg.toplevel);
+            wayland_setIdleInhibitor(window, GLFW_FALSE);
             window->wl.fullscreen = GLFW_FALSE;
             _glfwSetWindowSizeWayland(window, width, height);
         }
@@ -2473,6 +2522,7 @@ public static unsafe partial class Glfw
         {
             window->wl.fullscreen = GLFW_TRUE;
             wayland_xdgToplevelSetFullscreen(window->wl.xdg.toplevel, monitor->wl.output);
+            wayland_setIdleInhibitor(window, GLFW_TRUE);
         }
 
         wayland_updateXdgDecorationMode(window);

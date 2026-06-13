@@ -257,6 +257,8 @@ Implemented or partially implemented:
 - hand-written `zxdg_decoration_manager_v1` protocol tables, registry
   binding, xdg toplevel decoration objects, configure tracking, and
   server/client decoration mode requests
+- hand-written `zwp_idle_inhibit_manager_v1` protocol tables, registry
+  binding, and fullscreen idle inhibitor creation/destruction
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
