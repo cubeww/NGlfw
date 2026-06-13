@@ -237,6 +237,8 @@ Implemented or partially implemented:
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
+- custom cursor image buffers through `wl_shm`, `wl_shm_pool`, and
+  premultiplied `WL_SHM_FORMAT_ARGB8888` pixel upload
 - Wayland EGL native window creation and EGL/OSMesa context creation path
 - basic Wayland monitor/window/native accessor entry points
 - Wayland EGL and Vulkan extension plumbing entry points
@@ -245,7 +247,7 @@ Known remaining work:
 
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
-- keyboard, data-device, custom cursor image, and XKB event handling
+- keyboard, data-device, and XKB event handling
 - advanced pointer events, full disabled-cursor behavior, and
   interactive decoration move/resize paths
 - preferred buffer scale/transform and fractional-scale protocol handling

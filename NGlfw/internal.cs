@@ -743,6 +743,8 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void> proxy_destroy;
         public delegate* unmanaged<void*, uint, void*, void*, void*> proxy_marshal_constructor;
         public delegate* unmanaged<void*, uint, void*, void*, void*, void*> proxy_marshal_constructor_object;
+        public delegate* unmanaged<void*, uint, void*, void*, int, int, void*> proxy_marshal_constructor_int_int;
+        public delegate* unmanaged<void*, uint, void*, void*, int, int, int, int, uint, void*> proxy_marshal_constructor_int_int_int_int_uint;
         public delegate* unmanaged<void*, uint, void*, uint, void*> proxy_marshal_constructor_versioned;
         public delegate* unmanaged<void*, uint, void*, uint, uint, byte*, uint, void*, void*> proxy_marshal_constructor_versioned_registry_bind;
         public delegate* unmanaged<void*, void*> proxy_get_user_data;
@@ -755,6 +757,8 @@ public static unsafe partial class Glfw
         public void* compositorInterface;
         public void* subcompositorInterface;
         public void* shmInterface;
+        public void* shmPoolInterface;
+        public void* bufferInterface;
         public void* seatInterface;
         public void* pointerInterface;
         public void* outputInterface;

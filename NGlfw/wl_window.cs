@@ -12,6 +12,10 @@ public static unsafe partial class Glfw
     const uint WL_POINTER_AXIS_VERTICAL_SCROLL = 0;
     const uint WL_POINTER_AXIS_HORIZONTAL_SCROLL = 1;
     const uint WL_POINTER_SET_CURSOR = 0;
+    const int PROT_READ = 1;
+    const int PROT_WRITE = 2;
+    const int MAP_SHARED = 1;
+    const int ENOENT = 2;
     const uint BTN_LEFT = 0x110;
     const uint BTN_RIGHT = 0x111;
     const uint BTN_MIDDLE = 0x112;
@@ -253,6 +257,144 @@ public static unsafe partial class Glfw
         }
 
         _glfw.wl.client.proxy_marshal_int(surface, WL_SURFACE_SET_BUFFER_SCALE, scale);
+    }
+
+    static void* wayland_shmCreatePool(int fd, int size)
+    {
+        if (_glfw.wl.shm == null ||
+            _glfw.wl.client.shmPoolInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_int_int == null)
+        {
+            return null;
+        }
+
+        return _glfw.wl.client.proxy_marshal_constructor_int_int(_glfw.wl.shm,
+            WL_SHM_CREATE_POOL,
+            _glfw.wl.client.shmPoolInterface,
+            null,
+            fd,
+            size);
+    }
+
+    static void* wayland_shmPoolCreateBuffer(void* pool,
+                                             int offset,
+                                             int width,
+                                             int height,
+                                             int stride,
+                                             uint format)
+    {
+        if (pool == null ||
+            _glfw.wl.client.bufferInterface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_int_int_int_int_uint == null)
+        {
+            return null;
+        }
+
+        return _glfw.wl.client.proxy_marshal_constructor_int_int_int_int_uint(pool,
+            WL_SHM_POOL_CREATE_BUFFER,
+            _glfw.wl.client.bufferInterface,
+            null,
+            offset,
+            width,
+            height,
+            stride,
+            format);
+    }
+
+    static void wayland_shmPoolDestroy(void* pool)
+    {
+        wayland_proxyDestroyWithOpcode(pool, WL_SHM_POOL_DESTROY);
+    }
+
+    static int wayland_createAnonymousFile(nint size, out int errorCode)
+    {
+        errorCode = 0;
+
+        var path = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+        if (string.IsNullOrEmpty(path))
+        {
+            errorCode = ENOENT;
+            return -1;
+        }
+
+        var nameBytes = Encoding.UTF8.GetBytes(path + "/glfw-shared-XXXXXX\0");
+        fixed (byte* name = nameBytes)
+        {
+            var fd = wayland_mkstemp(name);
+            if (fd < 0)
+            {
+                errorCode = Marshal.GetLastPInvokeError();
+                return -1;
+            }
+
+            wayland_unlink(name);
+
+            var result = wayland_posix_fallocate(fd, 0, size);
+            if (result != 0)
+            {
+                wayland_close(fd);
+                errorCode = result;
+                return -1;
+            }
+
+            return fd;
+        }
+    }
+
+    static void* wayland_createShmBuffer(GLFWimage* image)
+    {
+        var stride = image->width * 4;
+        var length = image->width * image->height * 4;
+
+        var fd = wayland_createAnonymousFile(length, out var errorCode);
+        if (fd < 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR,
+                "Wayland: Failed to create buffer file of size {0}: errno {1}",
+                length,
+                errorCode);
+            return null;
+        }
+
+        var data = wayland_mmap(null, (nuint)length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if ((nint)data == -1)
+        {
+            errorCode = Marshal.GetLastPInvokeError();
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to map file: errno {0}", errorCode);
+            wayland_close(fd);
+            return null;
+        }
+
+        var pool = wayland_shmCreatePool(fd, length);
+        wayland_close(fd);
+        if (pool == null)
+        {
+            wayland_munmap(data, (nuint)length);
+            return null;
+        }
+
+        byte* source = image->pixels;
+        byte* target = (byte*)data;
+        for (var i = 0; i < image->width * image->height; i++, source += 4)
+        {
+            var alpha = source[3];
+
+            *target++ = (byte)((source[2] * alpha) / 255);
+            *target++ = (byte)((source[1] * alpha) / 255);
+            *target++ = (byte)((source[0] * alpha) / 255);
+            *target++ = alpha;
+        }
+
+        var buffer = wayland_shmPoolCreateBuffer(pool,
+            0,
+            image->width,
+            image->height,
+            stride,
+            WL_SHM_FORMAT_ARGB8888);
+        wayland_munmap(data, (nuint)length);
+        wayland_shmPoolDestroy(pool);
+
+        return buffer;
     }
 
     static int wayland_proxyHasTag(void* proxy)
@@ -1310,6 +1452,10 @@ public static unsafe partial class Glfw
 
     static int _glfwCreateCursorWayland(_GLFWcursor* cursor, GLFWimage* image, int xhot, int yhot)
     {
+        cursor->wl.buffer = wayland_createShmBuffer(image);
+        if (cursor->wl.buffer == null)
+            return GLFW_FALSE;
+
         cursor->wl.width = image->width;
         cursor->wl.height = image->height;
         cursor->wl.xhot = xhot;
@@ -1599,4 +1745,22 @@ public static unsafe partial class Glfw
 
         return ((_GLFWwindow*)window)->wl.surface;
     }
+
+    [DllImport("libc", EntryPoint = "mkstemp", SetLastError = true)]
+    static extern int wayland_mkstemp(byte* template);
+
+    [DllImport("libc", EntryPoint = "unlink", SetLastError = true)]
+    static extern int wayland_unlink(byte* pathname);
+
+    [DllImport("libc", EntryPoint = "posix_fallocate")]
+    static extern int wayland_posix_fallocate(int fd, nint offset, nint len);
+
+    [DllImport("libc", EntryPoint = "mmap", SetLastError = true)]
+    static extern void* wayland_mmap(void* addr, nuint length, int prot, int flags, int fd, nint offset);
+
+    [DllImport("libc", EntryPoint = "munmap", SetLastError = true)]
+    static extern int wayland_munmap(void* addr, nuint length);
+
+    [DllImport("libc", EntryPoint = "close", SetLastError = true)]
+    static extern int wayland_close(int fd);
 }

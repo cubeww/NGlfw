@@ -22,6 +22,10 @@ public static unsafe partial class Glfw
     const uint WL_POINTER_RELEASE = 1;
     const uint WL_POINTER_RELEASE_SINCE_VERSION = 3;
     const uint WL_BUFFER_DESTROY = 0;
+    const uint WL_SHM_CREATE_POOL = 0;
+    const uint WL_SHM_POOL_CREATE_BUFFER = 0;
+    const uint WL_SHM_POOL_DESTROY = 1;
+    const uint WL_SHM_FORMAT_ARGB8888 = 0;
     const uint WL_MARSHAL_FLAG_DESTROY = 1;
     const uint XDG_WM_BASE_DESTROY = 0;
     const uint XDG_WM_BASE_GET_XDG_SURFACE = 2;
@@ -631,6 +635,10 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, void*, void*, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor");
         _glfw.wl.client.proxy_marshal_constructor_object =
             (delegate* unmanaged<void*, uint, void*, void*, void*, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor");
+        _glfw.wl.client.proxy_marshal_constructor_int_int =
+            (delegate* unmanaged<void*, uint, void*, void*, int, int, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor");
+        _glfw.wl.client.proxy_marshal_constructor_int_int_int_int_uint =
+            (delegate* unmanaged<void*, uint, void*, void*, int, int, int, int, uint, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor");
         _glfw.wl.client.proxy_marshal_constructor_versioned =
             (delegate* unmanaged<void*, uint, void*, uint, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor_versioned");
         _glfw.wl.client.proxy_marshal_constructor_versioned_registry_bind =
@@ -651,6 +659,8 @@ public static unsafe partial class Glfw
         _glfw.wl.client.compositorInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_compositor_interface");
         _glfw.wl.client.subcompositorInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_subcompositor_interface");
         _glfw.wl.client.shmInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_shm_interface");
+        _glfw.wl.client.shmPoolInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_shm_pool_interface");
+        _glfw.wl.client.bufferInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_buffer_interface");
         _glfw.wl.client.seatInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_seat_interface");
         _glfw.wl.client.pointerInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_pointer_interface");
         _glfw.wl.client.outputInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_output_interface");
@@ -678,6 +688,8 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_destroy == null ||
             _glfw.wl.client.proxy_marshal_constructor == null ||
             _glfw.wl.client.proxy_marshal_constructor_object == null ||
+            _glfw.wl.client.proxy_marshal_constructor_int_int == null ||
+            _glfw.wl.client.proxy_marshal_constructor_int_int_int_int_uint == null ||
             _glfw.wl.client.proxy_marshal_constructor_versioned == null ||
             _glfw.wl.client.proxy_marshal_constructor_versioned_registry_bind == null ||
             _glfw.wl.client.proxy_get_user_data == null ||
@@ -688,6 +700,8 @@ public static unsafe partial class Glfw
             _glfw.wl.client.compositorInterface == null ||
             _glfw.wl.client.subcompositorInterface == null ||
             _glfw.wl.client.shmInterface == null ||
+            _glfw.wl.client.shmPoolInterface == null ||
+            _glfw.wl.client.bufferInterface == null ||
             _glfw.wl.client.seatInterface == null ||
             _glfw.wl.client.pointerInterface == null ||
             _glfw.wl.client.outputInterface == null ||
