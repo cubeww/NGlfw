@@ -699,7 +699,27 @@ public static unsafe partial class Glfw
 
     static int _glfwWindowHoveredCocoa(_GLFWwindow* window)
     {
-        return window->ns.hovered;
+        if (window->ns.@object == null || window->ns.view == null)
+            return window->ns.hovered;
+
+        var point = objc_msgSend_point(cocoa_getClass("NSEvent"), cocoa_sel("mouseLocation"));
+        var topWindow = objc_msgSend_long_point_long(cocoa_getClass("NSWindow"),
+            cocoa_sel("windowNumberAtPoint:belowWindowWithWindowNumber:"),
+            point,
+            0);
+        if (topWindow != objc_msgSend_long(window->ns.@object, cocoa_sel("windowNumber")))
+            return GLFW_FALSE;
+
+        var rect = objc_msgSend_rect_rect(window->ns.@object,
+            cocoa_sel("convertRectToScreen:"),
+            objc_msgSend_rect(window->ns.view, cocoa_sel("frame")));
+
+        return point.x >= rect.origin.x &&
+               point.y >= rect.origin.y &&
+               point.x < rect.origin.x + rect.size.width &&
+               point.y < rect.origin.y + rect.size.height
+            ? GLFW_TRUE
+            : GLFW_FALSE;
     }
 
     static int _glfwFramebufferTransparentCocoa(_GLFWwindow* window)

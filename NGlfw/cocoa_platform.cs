@@ -1741,6 +1741,9 @@ public static unsafe partial class Glfw
     static extern long objc_msgSend_long_ptr_ptr(void* receiver, nint selector, void* value1, void* value2);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    static extern long objc_msgSend_long_point_long(void* receiver, nint selector, NSPoint point, long value);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     static extern double objc_msgSend_double(void* receiver, nint selector);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_msgSend")]
