@@ -523,6 +523,8 @@ public static unsafe partial class Glfw
                 return;
             }
         }
+        else
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Cannot query content scale without screen");
 
         if (xscale != null)
             *xscale = 1f;
@@ -548,6 +550,8 @@ public static unsafe partial class Glfw
                 *height = (int)frame.size.height;
             return;
         }
+
+        _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Cannot query workarea without screen");
 
         var bounds = CGDisplayBounds(monitor->ns.displayID);
 
