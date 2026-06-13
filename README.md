@@ -236,6 +236,8 @@ Implemented or partially implemented:
   buffer scale updates
 - initial `wl_seat` capability handling and `wl_pointer` enter/leave, motion,
   button, and scroll callbacks
+- initial `wl_keyboard` capability handling, keymap compilation, focus,
+  key press/release, modifier tracking, and text input callbacks
 - basic Wayland event loop using `wl_display_prepare_read`, display-fd polling,
   `wl_display_read_events`, pending dispatch, and `wl_display.sync` wakeups
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
@@ -251,8 +253,7 @@ Known remaining work:
 
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
-- `wl_keyboard` listener handling for keymap, focus, key, modifier, text input,
-  and repeat events
+- `wl_keyboard` repeat timers and scancode name lookup
 - data-device event handling
 - keyboard repeat timers, animated cursor timers, and libdecor fd integration in
   the Wayland event loop

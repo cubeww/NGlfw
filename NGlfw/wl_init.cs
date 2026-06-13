@@ -18,10 +18,13 @@ public static unsafe partial class Glfw
     const uint WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION = 3;
     const uint WL_OUTPUT_RELEASE = 0;
     const uint WL_SEAT_GET_POINTER = 0;
+    const uint WL_SEAT_GET_KEYBOARD = 1;
     const uint WL_SEAT_RELEASE = 3;
     const uint WL_SEAT_RELEASE_SINCE_VERSION = 5;
     const uint WL_POINTER_RELEASE = 1;
     const uint WL_POINTER_RELEASE_SINCE_VERSION = 3;
+    const uint WL_KEYBOARD_RELEASE = 0;
+    const uint WL_KEYBOARD_RELEASE_SINCE_VERSION = 3;
     const uint WL_BUFFER_DESTROY = 0;
     const uint WL_SHM_CREATE_POOL = 0;
     const uint WL_SHM_POOL_CREATE_BUFFER = 0;
@@ -54,6 +57,12 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwWaylandWlSeat = _glfw_allocate_static_string("wl_seat");
     static readonly byte* _glfwWaylandWlDataDeviceManager = _glfw_allocate_static_string("wl_data_device_manager");
     static readonly byte* _glfwWaylandXdgWmBase = _glfw_allocate_static_string("xdg_wm_base");
+    static readonly byte* _glfwWaylandXkbControl = _glfw_allocate_static_string("Control");
+    static readonly byte* _glfwWaylandXkbMod1 = _glfw_allocate_static_string("Mod1");
+    static readonly byte* _glfwWaylandXkbShift = _glfw_allocate_static_string("Shift");
+    static readonly byte* _glfwWaylandXkbMod4 = _glfw_allocate_static_string("Mod4");
+    static readonly byte* _glfwWaylandXkbLock = _glfw_allocate_static_string("Lock");
+    static readonly byte* _glfwWaylandXkbMod2 = _glfw_allocate_static_string("Mod2");
 
     struct wl_message
     {
@@ -1006,6 +1015,7 @@ public static unsafe partial class Glfw
         _glfw.wl.client.bufferInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_buffer_interface");
         _glfw.wl.client.seatInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_seat_interface");
         _glfw.wl.client.pointerInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_pointer_interface");
+        _glfw.wl.client.keyboardInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_keyboard_interface");
         _glfw.wl.client.outputInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_output_interface");
         _glfw.wl.client.dataDeviceManagerInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_data_device_manager_interface");
         _glfw.wl.client.surfaceInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_surface_interface");
@@ -1048,6 +1058,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.bufferInterface == null ||
             _glfw.wl.client.seatInterface == null ||
             _glfw.wl.client.pointerInterface == null ||
+            _glfw.wl.client.keyboardInterface == null ||
             _glfw.wl.client.outputInterface == null ||
             _glfw.wl.client.dataDeviceManagerInterface == null ||
             _glfw.wl.client.surfaceInterface == null)
@@ -1161,6 +1172,7 @@ public static unsafe partial class Glfw
 
         wayland_proxyDestroyWithOpcode(_glfw.wl.wmBase, XDG_WM_BASE_DESTROY);
         wayland_pointerDestroy(_glfw.wl.pointer);
+        wayland_keyboardDestroy(_glfw.wl.keyboard);
         wayland_proxyDestroy(_glfw.wl.dataDeviceManager);
         wayland_seatDestroy(_glfw.wl.seat);
         wayland_proxyDestroy(_glfw.wl.shm);
@@ -1181,6 +1193,7 @@ public static unsafe partial class Glfw
         _glfw_free(_glfwWaylandSurfaceListener);
         _glfw_free(_glfwWaylandSeatListener);
         _glfw_free(_glfwWaylandPointerListener);
+        _glfw_free(_glfwWaylandKeyboardListener);
         _glfw_free(_glfwWaylandXdgWmBaseListener);
         _glfw_free(_glfwWaylandXdgSurfaceListener);
         _glfw_free(_glfwWaylandXdgToplevelListener);
@@ -1189,6 +1202,7 @@ public static unsafe partial class Glfw
         _glfwWaylandSurfaceListener = null;
         _glfwWaylandSeatListener = null;
         _glfwWaylandPointerListener = null;
+        _glfwWaylandKeyboardListener = null;
         _glfwWaylandXdgWmBaseListener = null;
         _glfwWaylandXdgSurfaceListener = null;
         _glfwWaylandXdgToplevelListener = null;

@@ -7,11 +7,24 @@ public static unsafe partial class Glfw
 {
     const int VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR = 1000006000;
     const uint WL_SEAT_CAPABILITY_POINTER = 1;
+    const uint WL_SEAT_CAPABILITY_KEYBOARD = 2;
     const uint WL_POINTER_BUTTON_STATE_RELEASED = 0;
     const uint WL_POINTER_BUTTON_STATE_PRESSED = 1;
     const uint WL_POINTER_AXIS_VERTICAL_SCROLL = 0;
     const uint WL_POINTER_AXIS_HORIZONTAL_SCROLL = 1;
     const uint WL_POINTER_SET_CURSOR = 0;
+    const uint WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1 = 1;
+    const uint WL_KEYBOARD_KEY_STATE_RELEASED = 0;
+    const uint WL_KEYBOARD_KEY_STATE_PRESSED = 1;
+    const uint XKB_KEY_NoSymbol = 0;
+    const int XKB_KEYMAP_FORMAT_TEXT_V1 = 1;
+    const int XKB_COMPOSE_COMPILE_NO_FLAGS = 0;
+    const int XKB_COMPOSE_STATE_NO_FLAGS = 0;
+    const int XKB_COMPOSE_FEED_ACCEPTED = 1;
+    const int XKB_COMPOSE_COMPOSING = 1;
+    const int XKB_COMPOSE_COMPOSED = 2;
+    const int XKB_COMPOSE_CANCELLED = 3;
+    const int XKB_STATE_MODS_EFFECTIVE = 1;
     const int PROT_READ = 1;
     const int PROT_WRITE = 2;
     const int MAP_SHARED = 1;
@@ -95,6 +108,16 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, uint, uint, void> axis_relative_direction;
     }
 
+    struct wl_keyboard_listener
+    {
+        public delegate* unmanaged<void*, void*, uint, int, uint, void> keymap;
+        public delegate* unmanaged<void*, void*, uint, void*, void*, void> enter;
+        public delegate* unmanaged<void*, void*, uint, void*, void> leave;
+        public delegate* unmanaged<void*, void*, uint, uint, uint, uint, void> key;
+        public delegate* unmanaged<void*, void*, uint, uint, uint, uint, uint, void> modifiers;
+        public delegate* unmanaged<void*, void*, int, int, void> repeat_info;
+    }
+
     struct xdg_surface_listener
     {
         public delegate* unmanaged<void*, void*, uint, void> configure;
@@ -109,6 +132,7 @@ public static unsafe partial class Glfw
     static wl_surface_listener* _glfwWaylandSurfaceListener;
     static wl_seat_listener* _glfwWaylandSeatListener;
     static wl_pointer_listener* _glfwWaylandPointerListener;
+    static wl_keyboard_listener* _glfwWaylandKeyboardListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
 
@@ -166,6 +190,25 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandPointerListener;
+    }
+
+    static wl_keyboard_listener* wayland_getKeyboardListener()
+    {
+        if (_glfwWaylandKeyboardListener == null)
+        {
+            _glfwWaylandKeyboardListener = (wl_keyboard_listener*)_glfw_calloc(1, (nuint)sizeof(wl_keyboard_listener));
+            if (_glfwWaylandKeyboardListener != null)
+            {
+                _glfwWaylandKeyboardListener->keymap = &wayland_keyboardHandleKeymap;
+                _glfwWaylandKeyboardListener->enter = &wayland_keyboardHandleEnter;
+                _glfwWaylandKeyboardListener->leave = &wayland_keyboardHandleLeave;
+                _glfwWaylandKeyboardListener->key = &wayland_keyboardHandleKey;
+                _glfwWaylandKeyboardListener->modifiers = &wayland_keyboardHandleModifiers;
+                _glfwWaylandKeyboardListener->repeat_info = &wayland_keyboardHandleRepeatInfo;
+            }
+        }
+
+        return _glfwWaylandKeyboardListener;
     }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
@@ -582,6 +625,311 @@ public static unsafe partial class Glfw
         _glfw.wl.pointer = pointer;
     }
 
+    static void* wayland_seatGetKeyboard(void* seat)
+    {
+        if (seat == null || _glfw.wl.client.keyboardInterface == null)
+            return null;
+
+        var keyboard = _glfw.wl.client.proxy_marshal_constructor(seat,
+            WL_SEAT_GET_KEYBOARD,
+            _glfw.wl.client.keyboardInterface,
+            null);
+
+        wayland_tagProxy(keyboard);
+        return keyboard;
+    }
+
+    static void wayland_keyboardDestroy(void* keyboard)
+    {
+        if (keyboard == null)
+            return;
+
+        if (_glfw.wl.client.proxy_get_version != null &&
+            _glfw.wl.client.proxy_get_version(keyboard) >= WL_KEYBOARD_RELEASE_SINCE_VERSION)
+        {
+            wayland_proxyDestroyWithOpcode(keyboard, WL_KEYBOARD_RELEASE);
+        }
+        else
+            wayland_proxyDestroy(keyboard);
+    }
+
+    static void wayland_createKeyboard(void* seat)
+    {
+        if (_glfw.wl.keyboard != null)
+            return;
+
+        var keyboard = wayland_seatGetKeyboard(seat);
+        if (keyboard == null)
+            return;
+
+        var listener = wayland_getKeyboardListener();
+        if (listener == null ||
+            _glfw.wl.client.proxy_add_listener(keyboard, listener, null) != 0)
+        {
+            wayland_keyboardDestroy(keyboard);
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add keyboard listener");
+            return;
+        }
+
+        _glfw.wl.keyboard = keyboard;
+    }
+
+    static int wayland_translateKey(uint scancode)
+    {
+        fixed (short* keycodes = _glfw.wl.keycodes)
+        {
+            if (scancode < 256)
+                return keycodes[scancode];
+        }
+
+        return GLFW_KEY_UNKNOWN;
+    }
+
+    static uint wayland_composeSymbol(uint sym)
+    {
+        if (sym == XKB_KEY_NoSymbol || _glfw.wl.xkb.composeState == null)
+            return sym;
+
+        if (_glfw.wl.xkb.compose_state_feed == null ||
+            _glfw.wl.xkb.compose_state_get_status == null ||
+            _glfw.wl.xkb.compose_state_get_one_sym == null ||
+            _glfw.wl.xkb.compose_state_feed(_glfw.wl.xkb.composeState, sym) != XKB_COMPOSE_FEED_ACCEPTED)
+        {
+            return sym;
+        }
+
+        return _glfw.wl.xkb.compose_state_get_status(_glfw.wl.xkb.composeState) switch
+        {
+            XKB_COMPOSE_COMPOSED => _glfw.wl.xkb.compose_state_get_one_sym(_glfw.wl.xkb.composeState),
+            XKB_COMPOSE_COMPOSING => XKB_KEY_NoSymbol,
+            XKB_COMPOSE_CANCELLED => XKB_KEY_NoSymbol,
+            _ => sym
+        };
+    }
+
+    static void wayland_inputText(_GLFWwindow* window, uint scancode)
+    {
+        if (window == null ||
+            _glfw.wl.xkb.state == null ||
+            _glfw.wl.xkb.state_key_get_syms == null)
+        {
+            return;
+        }
+
+        uint* keysyms = null;
+        var keycode = scancode + 8;
+        if (_glfw.wl.xkb.state_key_get_syms(_glfw.wl.xkb.state, keycode, &keysyms) == 1)
+        {
+            var keysym = wayland_composeSymbol(keysyms[0]);
+            var codepoint = _glfwKeySym2Unicode(keysym);
+            if (codepoint != GLFW_INVALID_CODEPOINT)
+            {
+                var mods = (int)_glfw.wl.xkb.modifiers;
+                var plain = (mods & (GLFW_MOD_CONTROL | GLFW_MOD_ALT)) == 0 ? GLFW_TRUE : GLFW_FALSE;
+                _glfwInputChar(window, codepoint, mods, plain);
+            }
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_keyboardHandleKeymap(void* userData, void* keyboard, uint format, int fd, uint size)
+    {
+        if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1)
+        {
+            wayland_close(fd);
+            return;
+        }
+
+        var mapStr = wayland_mmap(null, (nuint)size, PROT_READ, MAP_SHARED, fd, 0);
+        if ((nint)mapStr == -1)
+        {
+            wayland_close(fd);
+            return;
+        }
+
+        var keymap = _glfw.wl.xkb.keymap_new_from_string != null
+            ? _glfw.wl.xkb.keymap_new_from_string(_glfw.wl.xkb.context,
+                (byte*)mapStr,
+                XKB_KEYMAP_FORMAT_TEXT_V1,
+                0)
+            : null;
+
+        wayland_munmap(mapStr, (nuint)size);
+        wayland_close(fd);
+
+        if (keymap == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to compile keymap");
+            return;
+        }
+
+        var state = _glfw.wl.xkb.state_new != null ? _glfw.wl.xkb.state_new(keymap) : null;
+        if (state == null)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create XKB state");
+            if (_glfw.wl.xkb.keymap_unref != null)
+                _glfw.wl.xkb.keymap_unref(keymap);
+            return;
+        }
+
+        var locale = Environment.GetEnvironmentVariable("LC_ALL");
+        if (string.IsNullOrEmpty(locale))
+            locale = Environment.GetEnvironmentVariable("LC_CTYPE");
+        if (string.IsNullOrEmpty(locale))
+            locale = Environment.GetEnvironmentVariable("LANG");
+        if (string.IsNullOrEmpty(locale))
+            locale = "C";
+
+        var localeBytes = Encoding.UTF8.GetBytes(locale + '\0');
+        fixed (byte* localeName = localeBytes)
+        {
+            var composeTable = _glfw.wl.xkb.compose_table_new_from_locale != null
+                ? _glfw.wl.xkb.compose_table_new_from_locale(_glfw.wl.xkb.context,
+                    localeName,
+                    XKB_COMPOSE_COMPILE_NO_FLAGS)
+                : null;
+
+            if (composeTable != null)
+            {
+                var composeState = _glfw.wl.xkb.compose_state_new != null
+                    ? _glfw.wl.xkb.compose_state_new(composeTable, XKB_COMPOSE_STATE_NO_FLAGS)
+                    : null;
+                if (_glfw.wl.xkb.compose_table_unref != null)
+                    _glfw.wl.xkb.compose_table_unref(composeTable);
+
+                if (composeState != null)
+                {
+                    if (_glfw.wl.xkb.composeState != null && _glfw.wl.xkb.compose_state_unref != null)
+                        _glfw.wl.xkb.compose_state_unref(_glfw.wl.xkb.composeState);
+                    _glfw.wl.xkb.composeState = composeState;
+                }
+                else
+                    _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create XKB compose state");
+            }
+            else
+                _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create XKB compose table");
+        }
+
+        if (_glfw.wl.xkb.keymap != null && _glfw.wl.xkb.keymap_unref != null)
+            _glfw.wl.xkb.keymap_unref(_glfw.wl.xkb.keymap);
+        if (_glfw.wl.xkb.state != null && _glfw.wl.xkb.state_unref != null)
+            _glfw.wl.xkb.state_unref(_glfw.wl.xkb.state);
+
+        _glfw.wl.xkb.keymap = keymap;
+        _glfw.wl.xkb.state = state;
+
+        if (_glfw.wl.xkb.keymap_mod_get_index != null)
+        {
+            _glfw.wl.xkb.controlIndex = _glfw.wl.xkb.keymap_mod_get_index(keymap, _glfwWaylandXkbControl);
+            _glfw.wl.xkb.altIndex = _glfw.wl.xkb.keymap_mod_get_index(keymap, _glfwWaylandXkbMod1);
+            _glfw.wl.xkb.shiftIndex = _glfw.wl.xkb.keymap_mod_get_index(keymap, _glfwWaylandXkbShift);
+            _glfw.wl.xkb.superIndex = _glfw.wl.xkb.keymap_mod_get_index(keymap, _glfwWaylandXkbMod4);
+            _glfw.wl.xkb.capsLockIndex = _glfw.wl.xkb.keymap_mod_get_index(keymap, _glfwWaylandXkbLock);
+            _glfw.wl.xkb.numLockIndex = _glfw.wl.xkb.keymap_mod_get_index(keymap, _glfwWaylandXkbMod2);
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_keyboardHandleEnter(void* userData, void* keyboard, uint serial, void* surface, void* keys)
+    {
+        if (surface == null || wayland_proxyHasTag(surface) == 0 || _glfw.wl.client.proxy_get_user_data == null)
+            return;
+
+        var window = (_GLFWwindow*)_glfw.wl.client.proxy_get_user_data(surface);
+        if (window == null || surface != window->wl.surface)
+            return;
+
+        _glfw.wl.serial = serial;
+        _glfw.wl.keyboardFocus = window;
+        _glfwInputWindowFocus(window, GLFW_TRUE);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_keyboardHandleLeave(void* userData, void* keyboard, uint serial, void* surface)
+    {
+        var window = _glfw.wl.keyboardFocus;
+        if (window == null)
+            return;
+
+        _glfw.wl.serial = serial;
+        _glfw.wl.keyboardFocus = null;
+        _glfwInputWindowFocus(window, GLFW_FALSE);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_keyboardHandleKey(void* userData,
+                                          void* keyboard,
+                                          uint serial,
+                                          uint time,
+                                          uint scancode,
+                                          uint state)
+    {
+        var window = _glfw.wl.keyboardFocus;
+        if (window == null)
+            return;
+
+        var key = wayland_translateKey(scancode);
+        var action = state == WL_KEYBOARD_KEY_STATE_PRESSED ? GLFW_PRESS : GLFW_RELEASE;
+
+        _glfw.wl.serial = serial;
+        _glfwInputKey(window, key, (int)scancode, action, (int)_glfw.wl.xkb.modifiers);
+
+        if (action == GLFW_PRESS)
+            wayland_inputText(window, scancode);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_keyboardHandleModifiers(void* userData,
+                                                void* keyboard,
+                                                uint serial,
+                                                uint modsDepressed,
+                                                uint modsLatched,
+                                                uint modsLocked,
+                                                uint group)
+    {
+        _glfw.wl.serial = serial;
+
+        if (_glfw.wl.xkb.keymap == null ||
+            _glfw.wl.xkb.state == null ||
+            _glfw.wl.xkb.state_update_mask == null ||
+            _glfw.wl.xkb.state_mod_index_is_active == null)
+        {
+            return;
+        }
+
+        _glfw.wl.xkb.state_update_mask(_glfw.wl.xkb.state,
+            modsDepressed,
+            modsLatched,
+            modsLocked,
+            0,
+            0,
+            group);
+
+        _glfw.wl.xkb.modifiers = 0;
+        if (_glfw.wl.xkb.state_mod_index_is_active(_glfw.wl.xkb.state, _glfw.wl.xkb.controlIndex, XKB_STATE_MODS_EFFECTIVE) == 1)
+            _glfw.wl.xkb.modifiers |= GLFW_MOD_CONTROL;
+        if (_glfw.wl.xkb.state_mod_index_is_active(_glfw.wl.xkb.state, _glfw.wl.xkb.altIndex, XKB_STATE_MODS_EFFECTIVE) == 1)
+            _glfw.wl.xkb.modifiers |= GLFW_MOD_ALT;
+        if (_glfw.wl.xkb.state_mod_index_is_active(_glfw.wl.xkb.state, _glfw.wl.xkb.shiftIndex, XKB_STATE_MODS_EFFECTIVE) == 1)
+            _glfw.wl.xkb.modifiers |= GLFW_MOD_SHIFT;
+        if (_glfw.wl.xkb.state_mod_index_is_active(_glfw.wl.xkb.state, _glfw.wl.xkb.superIndex, XKB_STATE_MODS_EFFECTIVE) == 1)
+            _glfw.wl.xkb.modifiers |= GLFW_MOD_SUPER;
+        if (_glfw.wl.xkb.state_mod_index_is_active(_glfw.wl.xkb.state, _glfw.wl.xkb.capsLockIndex, XKB_STATE_MODS_EFFECTIVE) == 1)
+            _glfw.wl.xkb.modifiers |= GLFW_MOD_CAPS_LOCK;
+        if (_glfw.wl.xkb.state_mod_index_is_active(_glfw.wl.xkb.state, _glfw.wl.xkb.numLockIndex, XKB_STATE_MODS_EFFECTIVE) == 1)
+            _glfw.wl.xkb.modifiers |= GLFW_MOD_NUM_LOCK;
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_keyboardHandleRepeatInfo(void* userData, void* keyboard, int rate, int delay)
+    {
+        if (keyboard != _glfw.wl.keyboard)
+            return;
+
+        _glfw.wl.keyRepeatRate = rate;
+        _glfw.wl.keyRepeatDelay = delay;
+    }
+
     [UnmanagedCallersOnly]
     static void wayland_pointerHandleEnter(void* userData,
                                            void* pointer,
@@ -731,6 +1079,21 @@ public static unsafe partial class Glfw
             wayland_pointerDestroy(_glfw.wl.pointer);
             _glfw.wl.pointer = null;
             _glfw.wl.pointerFocus = null;
+        }
+
+        if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) != 0)
+        {
+            if (_glfw.wl.keyboard == null)
+                wayland_createKeyboard(seat);
+        }
+        else if (_glfw.wl.keyboard != null)
+        {
+            if (_glfw.wl.keyboardFocus != null)
+                _glfwInputWindowFocus(_glfw.wl.keyboardFocus, GLFW_FALSE);
+
+            wayland_keyboardDestroy(_glfw.wl.keyboard);
+            _glfw.wl.keyboard = null;
+            _glfw.wl.keyboardFocus = null;
         }
     }
 
