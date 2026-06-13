@@ -281,6 +281,8 @@ Implemented or partially implemented:
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
 - animated standard cursor frame timers through Linux `timerfd`
+- close-on-exec Wayland shared-memory temporary file creation for cursor and
+  fallback decoration buffers
 - custom cursor image buffers through `wl_shm`, `wl_shm_pool`, and
   premultiplied `WL_SHM_FORMAT_ARGB8888` pixel upload
 - Wayland EGL native window creation and EGL/OSMesa context creation path

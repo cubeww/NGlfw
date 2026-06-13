@@ -35,6 +35,10 @@ public static unsafe partial class Glfw
     const short POLLOUT = 0x0004;
     const int TFD_CLOEXEC = 0x80000;
     const int TFD_NONBLOCK = 0x800;
+    const int WAYLAND_O_CLOEXEC = 0x00080000;
+    const int WAYLAND_F_GETFD = 1;
+    const int WAYLAND_F_SETFD = 2;
+    const int WAYLAND_FD_CLOEXEC = 1;
     const uint BTN_LEFT = 0x110;
     const uint BTN_RIGHT = 0x111;
     const uint BTN_MIDDLE = 0x112;
@@ -851,6 +855,36 @@ public static unsafe partial class Glfw
         wayland_proxyDestroyWithOpcode(pool, WL_SHM_POOL_DESTROY);
     }
 
+    static int wayland_createTmpfileCloexec(byte* name)
+    {
+        int fd;
+
+        try
+        {
+            fd = wayland_mkostemp(name, WAYLAND_O_CLOEXEC);
+        }
+        catch (System.EntryPointNotFoundException)
+        {
+            fd = -1;
+        }
+
+        if (fd < 0)
+        {
+            fd = wayland_mkstemp(name);
+            if (fd >= 0)
+            {
+                var flags = wayland_fcntl(fd, WAYLAND_F_GETFD, 0);
+                if (flags != -1)
+                    wayland_fcntl(fd, WAYLAND_F_SETFD, flags | WAYLAND_FD_CLOEXEC);
+            }
+        }
+
+        if (fd >= 0)
+            wayland_unlink(name);
+
+        return fd;
+    }
+
     static int wayland_createAnonymousFile(nint size, out int errorCode)
     {
         errorCode = 0;
@@ -865,7 +899,7 @@ public static unsafe partial class Glfw
         var nameBytes = Encoding.UTF8.GetBytes(path + "/glfw-shared-XXXXXX\0");
         fixed (byte* name = nameBytes)
         {
-            var fd = wayland_mkstemp(name);
+            var fd = wayland_createTmpfileCloexec(name);
             if (fd < 0)
             {
                 errorCode = Marshal.GetLastPInvokeError();
@@ -4979,8 +5013,14 @@ public static unsafe partial class Glfw
     [DllImport("libc", EntryPoint = "mkstemp", SetLastError = true)]
     static extern int wayland_mkstemp(byte* template);
 
+    [DllImport("libc", EntryPoint = "mkostemp", SetLastError = true)]
+    static extern int wayland_mkostemp(byte* template, int flags);
+
     [DllImport("libc", EntryPoint = "unlink", SetLastError = true)]
     static extern int wayland_unlink(byte* pathname);
+
+    [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
+    static extern int wayland_fcntl(int fd, int cmd, int arg);
 
     [DllImport("libc", EntryPoint = "posix_fallocate")]
     static extern int wayland_posix_fallocate(int fd, nint offset, nint len);
