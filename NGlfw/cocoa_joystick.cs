@@ -5,6 +5,20 @@ namespace NGlfw;
 
 public static unsafe partial class Glfw
 {
+    static long cocoa_getJoystickElementValue(_GLFWjoystick* js, _GLFWjoyelementNS* element)
+    {
+        var value = 0L;
+
+        if (js->ns.device != null)
+        {
+            void* valueRef;
+            if (IOHIDDeviceGetValue(js->ns.device, element->native, &valueRef) == 0)
+                value = IOHIDValueGetIntegerValue(valueRef);
+        }
+
+        return value;
+    }
+
     static byte cocoa_nameByte(byte[] bytes, int index)
     {
         return index < bytes.Length ? bytes[index] : (byte)0;
@@ -382,6 +396,65 @@ public static unsafe partial class Glfw
 
     static int _glfwPollJoystickCocoa(_GLFWjoystick* js, int mode)
     {
+        if ((mode & _GLFW_POLL_AXES) != 0)
+        {
+            for (nint i = 0; i < CFArrayGetCount(js->ns.axes); i++)
+            {
+                var axis = (_GLFWjoyelementNS*)CFArrayGetValueAtIndex(js->ns.axes, i);
+                var raw = cocoa_getJoystickElementValue(js, axis);
+
+                if (raw < axis->minimum)
+                    axis->minimum = raw;
+                if (raw > axis->maximum)
+                    axis->maximum = raw;
+
+                var size = axis->maximum - axis->minimum;
+                if (size == 0)
+                {
+                    _glfwInputJoystickAxis(js, (int)i, 0f);
+                }
+                else
+                {
+                    var value = 2f * (raw - axis->minimum) / size - 1f;
+                    _glfwInputJoystickAxis(js, (int)i, value);
+                }
+            }
+        }
+
+        if ((mode & _GLFW_POLL_BUTTONS) != 0)
+        {
+            for (nint i = 0; i < CFArrayGetCount(js->ns.buttons); i++)
+            {
+                var button = (_GLFWjoyelementNS*)CFArrayGetValueAtIndex(js->ns.buttons, i);
+                var value = cocoa_getJoystickElementValue(js, button) - button->minimum;
+                var state = value > 0 ? GLFW_PRESS : GLFW_RELEASE;
+                _glfwInputJoystickButton(js, (int)i, state);
+            }
+
+            int* states = stackalloc int[9]
+            {
+                GLFW_HAT_UP,
+                GLFW_HAT_RIGHT_UP,
+                GLFW_HAT_RIGHT,
+                GLFW_HAT_RIGHT_DOWN,
+                GLFW_HAT_DOWN,
+                GLFW_HAT_LEFT_DOWN,
+                GLFW_HAT_LEFT,
+                GLFW_HAT_LEFT_UP,
+                GLFW_HAT_CENTERED
+            };
+
+            for (nint i = 0; i < CFArrayGetCount(js->ns.hats); i++)
+            {
+                var hat = (_GLFWjoyelementNS*)CFArrayGetValueAtIndex(js->ns.hats, i);
+                var state = cocoa_getJoystickElementValue(js, hat) - hat->minimum;
+                if (state < 0 || state > 8)
+                    state = 8;
+
+                _glfwInputJoystickHat(js, (int)i, states[(int)state]);
+            }
+        }
+
         return js->connected;
     }
 

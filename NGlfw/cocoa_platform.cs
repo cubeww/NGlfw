@@ -2044,6 +2044,12 @@ public static unsafe partial class Glfw
     static extern void* IOHIDDeviceCopyMatchingElements(void* device, void* matching, int options);
 
     [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern int IOHIDDeviceGetValue(void* device, void* element, void** value);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
+    static extern long IOHIDValueGetIntegerValue(void* value);
+
+    [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
     static extern nuint IOHIDElementGetTypeID();
 
     [DllImport("/System/Library/Frameworks/IOKit.framework/IOKit")]
