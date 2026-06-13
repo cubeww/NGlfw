@@ -131,6 +131,13 @@ public static unsafe partial class Glfw
 
         cocoa_setObjectWindow(window->ns.view, window);
 
+        window->ns.markedText = cocoa_msgSend_id(cocoa_msgSend_id(cocoa_getClass("NSMutableAttributedString"), "alloc"), "init");
+
+        var urlType = cocoa_stringFromUTF8(_glfwCocoaPasteboardTypeURL);
+        var draggedTypes = cocoa_msgSend_id_ptr(cocoa_getClass("NSArray"), "arrayWithObject:", urlType);
+        cocoa_msgSend_void_ptr(window->ns.view, "registerForDraggedTypes:", draggedTypes);
+        cocoa_releaseTemporaryString(urlType);
+
         if (window->monitor != null)
             objc_msgSend_void_long(window->ns.@object, cocoa_sel("setLevel:"), NSMainMenuWindowLevel + 1);
         else
@@ -293,6 +300,9 @@ public static unsafe partial class Glfw
         cocoa_clearObjectWindow(window->ns.view);
         cocoa_msgSend_void(window->ns.view, "release");
         window->ns.view = null;
+
+        cocoa_msgSend_void(window->ns.markedText, "release");
+        window->ns.markedText = null;
 
         cocoa_clearObjectWindow(window->ns.@object);
         cocoa_msgSend_void(window->ns.@object, "close");
@@ -1013,8 +1023,7 @@ public static unsafe partial class Glfw
 
     static void _glfwSetCursorCocoa(_GLFWwindow* window, _GLFWcursor* cursor)
     {
-        if (cursor != null && cursor->ns.@object != null)
-            cocoa_msgSend_void(cursor->ns.@object, "set");
+        cocoa_updateCursorImage(window);
     }
 
     static byte* _glfwGetScancodeNameCocoa(int scancode)

@@ -33,9 +33,11 @@ public static unsafe partial class Glfw
     const ulong NSEventMaskAny = ulong.MaxValue;
     const long NSEventTypeApplicationDefined = 15;
     const ulong NSBitmapFormatAlphaNonpremultiplied = 1;
+    const ulong NSDragOperationGeneric = 4;
 
     static readonly byte* _glfwCocoaMappingName = _glfw_allocate_static_string("Mac OS X");
     static readonly byte* _glfwCocoaPasteboardTypeString = _glfw_allocate_static_string("public.utf8-plain-text");
+    static readonly byte* _glfwCocoaPasteboardTypeURL = _glfw_allocate_static_string("public.url");
     static readonly byte* _glfwCocoaRunLoopDefaultMode = _glfw_allocate_static_string("kCFRunLoopDefaultMode");
     static readonly byte* _glfwCocoaOpenGLBundleID = _glfw_allocate_static_string("com.apple.opengl");
     static readonly object cocoaObjectMapLock = new();
@@ -70,6 +72,7 @@ public static unsafe partial class Glfw
         public void* delegateObject;
         public void* view;
         public void* layer;
+        public void* markedText;
         public int maximized;
         public int iconified;
         public int visible;
@@ -110,6 +113,13 @@ public static unsafe partial class Glfw
     {
         public NSPoint origin;
         public NSSize size;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NSRange
+    {
+        public nuint location;
+        public nuint length;
     }
 
     public struct _GLFWmonitorNS
@@ -161,6 +171,13 @@ public static unsafe partial class Glfw
         var bytes = cocoa_ascii(name);
         fixed (byte* p = bytes)
             return sel_registerName(p);
+    }
+
+    static void* cocoa_getProtocol(string name)
+    {
+        var bytes = cocoa_ascii(name);
+        fixed (byte* p = bytes)
+            return objc_getProtocol(p);
     }
 
     static void* cocoa_msgSend_id(void* receiver, string selector)
@@ -221,6 +238,19 @@ public static unsafe partial class Glfw
 
         fixed (short* keycodes = _glfw.ns.keycodes)
             return keycodes[scancode];
+    }
+
+    static ulong cocoa_translateKeyToModifierFlag(int key)
+    {
+        return key switch
+        {
+            GLFW_KEY_LEFT_SHIFT or GLFW_KEY_RIGHT_SHIFT => NSEventModifierFlagShift,
+            GLFW_KEY_LEFT_CONTROL or GLFW_KEY_RIGHT_CONTROL => NSEventModifierFlagControl,
+            GLFW_KEY_LEFT_ALT or GLFW_KEY_RIGHT_ALT => NSEventModifierFlagOption,
+            GLFW_KEY_LEFT_SUPER or GLFW_KEY_RIGHT_SUPER => NSEventModifierFlagCommand,
+            GLFW_KEY_CAPS_LOCK => NSEventModifierFlagCapsLock,
+            _ => 0
+        };
     }
 
     static void cocoa_setObjectWindow(void* @object, _GLFWwindow* window)
@@ -336,6 +366,29 @@ public static unsafe partial class Glfw
 
         cocoa_msgSend_void(cocoa_getClass("NSCursor"), "unhide");
         _glfw.ns.cursorHidden = GLFW_FALSE;
+    }
+
+    static void cocoa_updateCursorImage(_GLFWwindow* window)
+    {
+        if (window == null)
+            return;
+
+        if (window->cursorMode == GLFW_CURSOR_NORMAL)
+        {
+            cocoa_showCursor();
+
+            if (window->cursor != null && window->cursor->ns.@object != null)
+                cocoa_msgSend_void(window->cursor->ns.@object, "set");
+            else
+                cocoa_msgSend_void(cocoa_msgSend_id(cocoa_getClass("NSCursor"), "arrowCursor"), "set");
+        }
+        else
+            cocoa_hideCursor();
+    }
+
+    static NSRange cocoa_emptyRange()
+    {
+        return new NSRange { location = nuint.MaxValue, length = 0 };
     }
 
     static void* cocoa_registerWindowClass()
@@ -460,14 +513,38 @@ public static unsafe partial class Glfw
             if (cls == null)
                 return null;
 
+            var textInputClientProtocol = cocoa_getProtocol("NSTextInputClient");
+            if (textInputClientProtocol != null)
+                class_addProtocol(cls, textInputClientProtocol);
+
             var boolTypes = cocoa_ascii("c@:");
+            var eventBoolTypes = cocoa_ascii("c@:@");
+            var dragOperationTypes = cocoa_ascii("Q@:@");
             var voidTypes = cocoa_ascii("v@:");
             var eventVoidTypes = cocoa_ascii("v@:@");
             var drawRectTypes = cocoa_ascii("v@:{CGRect={CGPoint=dd}{CGSize=dd}}");
+            var rangeTypes = cocoa_ascii("{_NSRange=QQ}@:");
+            var markedTextTypes = cocoa_ascii("v@:@{_NSRange=QQ}{_NSRange=QQ}");
+            var objectTypes = cocoa_ascii("@@:");
+            var substringTypes = cocoa_ascii("@@:{_NSRange=QQ}^{_NSRange=QQ}");
+            var indexForPointTypes = cocoa_ascii("Q@:{CGPoint=dd}");
+            var rectForRangeTypes = cocoa_ascii("{CGRect={CGPoint=dd}{CGSize=dd}}@:{_NSRange=QQ}^{_NSRange=QQ}");
+            var insertTextTypes = cocoa_ascii("v@:@{_NSRange=QQ}");
+            var selectorVoidTypes = cocoa_ascii("v@::");
             fixed (byte* boolTypesPtr = boolTypes)
+            fixed (byte* eventBoolTypesPtr = eventBoolTypes)
+            fixed (byte* dragOperationTypesPtr = dragOperationTypes)
             fixed (byte* voidTypesPtr = voidTypes)
             fixed (byte* eventVoidTypesPtr = eventVoidTypes)
             fixed (byte* drawRectTypesPtr = drawRectTypes)
+            fixed (byte* rangeTypesPtr = rangeTypes)
+            fixed (byte* markedTextTypesPtr = markedTextTypes)
+            fixed (byte* objectTypesPtr = objectTypes)
+            fixed (byte* substringTypesPtr = substringTypes)
+            fixed (byte* indexForPointTypesPtr = indexForPointTypes)
+            fixed (byte* rectForRangeTypesPtr = rectForRangeTypes)
+            fixed (byte* insertTextTypesPtr = insertTextTypes)
+            fixed (byte* selectorVoidTypesPtr = selectorVoidTypes)
             {
                 class_addMethod(cls, cocoa_sel("isOpaque"),
                     (void*)(delegate* unmanaged<void*, nint, byte>)&cocoa_viewIsOpaque,
@@ -478,12 +555,18 @@ public static unsafe partial class Glfw
                 class_addMethod(cls, cocoa_sel("acceptsFirstResponder"),
                     (void*)(delegate* unmanaged<void*, nint, byte>)&cocoa_viewYes,
                     boolTypesPtr);
+                class_addMethod(cls, cocoa_sel("acceptsFirstMouse:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, byte>)&cocoa_viewAcceptsFirstMouse,
+                    eventBoolTypesPtr);
                 class_addMethod(cls, cocoa_sel("wantsUpdateLayer"),
                     (void*)(delegate* unmanaged<void*, nint, byte>)&cocoa_viewYes,
                     boolTypesPtr);
                 class_addMethod(cls, cocoa_sel("updateLayer"),
                     (void*)(delegate* unmanaged<void*, nint, void>)&cocoa_viewUpdateLayer,
                     voidTypesPtr);
+                class_addMethod(cls, cocoa_sel("cursorUpdate:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_viewCursorUpdate,
+                    eventVoidTypesPtr);
                 class_addMethod(cls, cocoa_sel("viewDidChangeBackingProperties"),
                     (void*)(delegate* unmanaged<void*, nint, void>)&cocoa_viewDidChangeBackingProperties,
                     voidTypesPtr);
@@ -538,6 +621,45 @@ public static unsafe partial class Glfw
                 class_addMethod(cls, cocoa_sel("flagsChanged:"),
                     (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_viewFlagsChanged,
                     eventVoidTypesPtr);
+                class_addMethod(cls, cocoa_sel("draggingEntered:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, ulong>)&cocoa_viewDraggingEntered,
+                    dragOperationTypesPtr);
+                class_addMethod(cls, cocoa_sel("performDragOperation:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, byte>)&cocoa_viewPerformDragOperation,
+                    eventBoolTypesPtr);
+                class_addMethod(cls, cocoa_sel("hasMarkedText"),
+                    (void*)(delegate* unmanaged<void*, nint, byte>)&cocoa_viewHasMarkedText,
+                    boolTypesPtr);
+                class_addMethod(cls, cocoa_sel("markedRange"),
+                    (void*)(delegate* unmanaged<void*, nint, NSRange>)&cocoa_viewMarkedRange,
+                    rangeTypesPtr);
+                class_addMethod(cls, cocoa_sel("selectedRange"),
+                    (void*)(delegate* unmanaged<void*, nint, NSRange>)&cocoa_viewSelectedRange,
+                    rangeTypesPtr);
+                class_addMethod(cls, cocoa_sel("setMarkedText:selectedRange:replacementRange:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, NSRange, NSRange, void>)&cocoa_viewSetMarkedText,
+                    markedTextTypesPtr);
+                class_addMethod(cls, cocoa_sel("unmarkText"),
+                    (void*)(delegate* unmanaged<void*, nint, void>)&cocoa_viewUnmarkText,
+                    voidTypesPtr);
+                class_addMethod(cls, cocoa_sel("validAttributesForMarkedText"),
+                    (void*)(delegate* unmanaged<void*, nint, void*>)&cocoa_viewValidAttributesForMarkedText,
+                    objectTypesPtr);
+                class_addMethod(cls, cocoa_sel("attributedSubstringForProposedRange:actualRange:"),
+                    (void*)(delegate* unmanaged<void*, nint, NSRange, void*, void*>)&cocoa_viewAttributedSubstringForProposedRange,
+                    substringTypesPtr);
+                class_addMethod(cls, cocoa_sel("characterIndexForPoint:"),
+                    (void*)(delegate* unmanaged<void*, nint, NSPoint, ulong>)&cocoa_viewCharacterIndexForPoint,
+                    indexForPointTypesPtr);
+                class_addMethod(cls, cocoa_sel("firstRectForCharacterRange:actualRange:"),
+                    (void*)(delegate* unmanaged<void*, nint, NSRange, void*, NSRect>)&cocoa_viewFirstRectForCharacterRange,
+                    rectForRangeTypesPtr);
+                class_addMethod(cls, cocoa_sel("insertText:replacementRange:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, NSRange, void>)&cocoa_viewInsertText,
+                    insertTextTypesPtr);
+                class_addMethod(cls, cocoa_sel("doCommandBySelector:"),
+                    (void*)(delegate* unmanaged<void*, nint, nint, void>)&cocoa_viewDoCommandBySelector,
+                    selectorVoidTypesPtr);
             }
 
             objc_registerClassPair(cls);
@@ -709,6 +831,12 @@ public static unsafe partial class Glfw
     }
 
     [UnmanagedCallersOnly]
+    static byte cocoa_viewAcceptsFirstMouse(void* self, nint cmd, void* eventObject)
+    {
+        return 1;
+    }
+
+    [UnmanagedCallersOnly]
     static void cocoa_viewUpdateLayer(void* self, nint cmd)
     {
         var window = cocoa_getObjectWindow(self);
@@ -719,6 +847,12 @@ public static unsafe partial class Glfw
             cocoa_msgSend_void(window->context.nsgl.@object, "update");
 
         _glfwInputWindowDamage(window);
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_viewCursorUpdate(void* self, nint cmd, void* eventObject)
+    {
+        cocoa_updateCursorImage(cocoa_getObjectWindow(self));
     }
 
     [UnmanagedCallersOnly]
@@ -846,6 +980,9 @@ public static unsafe partial class Glfw
         if (window == null)
             return;
 
+        if (window->cursorMode == GLFW_CURSOR_HIDDEN)
+            cocoa_hideCursor();
+
         window->ns.hovered = GLFW_TRUE;
         _glfwInputCursorEnter(window, GLFW_TRUE);
     }
@@ -856,6 +993,9 @@ public static unsafe partial class Glfw
         var window = cocoa_getObjectWindow(self);
         if (window == null)
             return;
+
+        if (window->cursorMode == GLFW_CURSOR_HIDDEN)
+            cocoa_showCursor();
 
         window->ns.hovered = GLFW_FALSE;
         _glfwInputCursorEnter(window, GLFW_FALSE);
@@ -868,9 +1008,17 @@ public static unsafe partial class Glfw
         if (window == null)
             return;
 
-        _glfwInputScroll(window,
-            objc_msgSend_double(eventObject, cocoa_sel("scrollingDeltaX")),
-            objc_msgSend_double(eventObject, cocoa_sel("scrollingDeltaY")));
+        var deltaX = objc_msgSend_double(eventObject, cocoa_sel("scrollingDeltaX"));
+        var deltaY = objc_msgSend_double(eventObject, cocoa_sel("scrollingDeltaY"));
+
+        if (objc_msgSend_bool(eventObject, cocoa_sel("hasPreciseScrollingDeltas")) != 0)
+        {
+            deltaX *= 0.1;
+            deltaY *= 0.1;
+        }
+
+        if (deltaX != 0.0 || deltaY != 0.0)
+            _glfwInputScroll(window, deltaX, deltaY);
     }
 
     static void cocoa_viewKey(void* self, void* eventObject, int action)
@@ -893,28 +1041,9 @@ public static unsafe partial class Glfw
 
         cocoa_viewKey(self, eventObject, GLFW_PRESS);
 
-        var characters = cocoa_msgSend_id(eventObject, "characters");
-        if (characters == null)
-            return;
-
-        var utf8 = objc_msgSend_UTF8String(characters, cocoa_sel("UTF8String"));
-        if (utf8 == null)
-            return;
-
-        var text = Marshal.PtrToStringUTF8((nint)utf8);
-        if (string.IsNullOrEmpty(text))
-            return;
-
-        var mods = cocoa_eventMods(eventObject);
-        var plain = (mods & GLFW_MOD_SUPER) == 0 ? GLFW_TRUE : GLFW_FALSE;
-        foreach (var rune in text.EnumerateRunes())
-        {
-            var codepoint = rune.Value;
-            if (codepoint >= 0xf700 && codepoint <= 0xf7ff)
-                continue;
-
-            _glfwInputChar(window, (uint)codepoint, mods, plain);
-        }
+        var eventArray = cocoa_msgSend_id_ptr(cocoa_getClass("NSArray"), "arrayWithObject:", eventObject);
+        if (eventArray != null)
+            cocoa_msgSend_void_ptr(self, "interpretKeyEvents:", eventArray);
     }
 
     [UnmanagedCallersOnly]
@@ -935,11 +1064,237 @@ public static unsafe partial class Glfw
         if (key == GLFW_KEY_UNKNOWN)
             return;
 
-        var action = key >= 0 && key <= GLFW_KEY_LAST && window->keys[key] == GLFW_PRESS
-            ? GLFW_RELEASE
-            : GLFW_PRESS;
+        var modifierFlags = (ulong)objc_msgSend_ulong(eventObject, cocoa_sel("modifierFlags")) &
+                            NSEventModifierFlagDeviceIndependentFlagsMask;
+        var keyFlag = cocoa_translateKeyToModifierFlag(key);
+        var action = (keyFlag & modifierFlags) != 0
+            ? window->keys[key] == GLFW_PRESS ? GLFW_RELEASE : GLFW_PRESS
+            : GLFW_RELEASE;
 
-        _glfwInputKey(window, key, scancode, action, cocoa_eventMods(eventObject));
+        _glfwInputKey(window, key, scancode, action, cocoa_translateFlags(modifierFlags));
+    }
+
+    [UnmanagedCallersOnly]
+    static ulong cocoa_viewDraggingEntered(void* self, nint cmd, void* sender)
+    {
+        return NSDragOperationGeneric;
+    }
+
+    [UnmanagedCallersOnly]
+    static byte cocoa_viewPerformDragOperation(void* self, nint cmd, void* sender)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null)
+            return 0;
+
+        var contentRect = window->ns.view != null
+            ? objc_msgSend_rect(window->ns.view, cocoa_sel("frame"))
+            : cocoa_makeRect(0, 0, window->ns.width, window->ns.height);
+        var pos = objc_msgSend_point(sender, cocoa_sel("draggingLocation"));
+        _glfwInputCursorPos(window, pos.x, contentRect.size.height - pos.y);
+
+        var pasteboard = cocoa_msgSend_id(sender, "draggingPasteboard");
+        if (pasteboard == null)
+            return 1;
+
+        var urlClass = cocoa_getClass("NSURL");
+        var classes = cocoa_msgSend_id_ptr(cocoa_getClass("NSArray"), "arrayWithObject:", urlClass);
+        var urls = objc_msgSend_id_ptr_ptr(pasteboard,
+            cocoa_sel("readObjectsForClasses:options:"),
+            classes,
+            null);
+        if (urls == null)
+            return 1;
+
+        var urlCount = (nuint)objc_msgSend_ulong(urls, cocoa_sel("count"));
+        if (urlCount == 0)
+            return 1;
+
+        var paths = (byte**)_glfw_calloc(urlCount, (nuint)sizeof(byte*));
+        if (paths == null)
+        {
+            _glfwInputError(GLFW_OUT_OF_MEMORY);
+            return 0;
+        }
+
+        var pathCount = 0;
+        for (nuint i = 0; i < urlCount; i++)
+        {
+            var url = objc_msgSend_id_ulong(urls, cocoa_sel("objectAtIndex:"), (ulong)i);
+            if (url == null || objc_msgSend_bool(url, cocoa_sel("isFileURL")) == 0)
+                continue;
+
+            var representation = objc_msgSend_UTF8String(url, cocoa_sel("fileSystemRepresentation"));
+            if (representation == null)
+                continue;
+
+            paths[pathCount] = _glfw_strdup(representation);
+            if (paths[pathCount] != null)
+                pathCount++;
+        }
+
+        if (pathCount != 0)
+            _glfwInputDrop(window, pathCount, paths);
+
+        for (var i = 0; i < pathCount; i++)
+            _glfw_free(paths[i]);
+        _glfw_free(paths);
+
+        return 1;
+    }
+
+    [UnmanagedCallersOnly]
+    static byte cocoa_viewHasMarkedText(void* self, nint cmd)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null || window->ns.markedText == null)
+            return 0;
+
+        return objc_msgSend_ulong(window->ns.markedText, cocoa_sel("length")) != 0 ? (byte)1 : (byte)0;
+    }
+
+    [UnmanagedCallersOnly]
+    static NSRange cocoa_viewMarkedRange(void* self, nint cmd)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null || window->ns.markedText == null)
+            return cocoa_emptyRange();
+
+        var length = (nuint)objc_msgSend_ulong(window->ns.markedText, cocoa_sel("length"));
+        if (length == 0)
+            return cocoa_emptyRange();
+
+        return new NSRange { location = 0, length = length - 1 };
+    }
+
+    [UnmanagedCallersOnly]
+    static NSRange cocoa_viewSelectedRange(void* self, nint cmd)
+    {
+        return cocoa_emptyRange();
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_viewSetMarkedText(void* self, nint cmd, void* stringObject, NSRange selectedRange, NSRange replacementRange)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null)
+            return;
+
+        cocoa_msgSend_void(window->ns.markedText, "release");
+        window->ns.markedText = null;
+
+        var mutableClass = cocoa_getClass("NSMutableAttributedString");
+        var allocated = cocoa_msgSend_id(mutableClass, "alloc");
+        if (allocated == null)
+            return;
+
+        if (stringObject == null)
+            window->ns.markedText = cocoa_msgSend_id(allocated, "init");
+        else if (objc_msgSend_bool_ptr(stringObject,
+                     cocoa_sel("isKindOfClass:"),
+                     cocoa_getClass("NSAttributedString")) != 0)
+        {
+            window->ns.markedText = cocoa_msgSend_id_ptr(allocated,
+                "initWithAttributedString:",
+                stringObject);
+        }
+        else
+        {
+            window->ns.markedText = cocoa_msgSend_id_ptr(allocated,
+                "initWithString:",
+                stringObject);
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_viewUnmarkText(void* self, nint cmd)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null || window->ns.markedText == null)
+            return;
+
+        var mutableString = cocoa_msgSend_id(window->ns.markedText, "mutableString");
+        if (mutableString == null)
+            return;
+
+        var empty = cocoa_stringFromUTF8("");
+        cocoa_msgSend_void_ptr(mutableString, "setString:", empty);
+        cocoa_releaseTemporaryString(empty);
+    }
+
+    [UnmanagedCallersOnly]
+    static void* cocoa_viewValidAttributesForMarkedText(void* self, nint cmd)
+    {
+        return cocoa_msgSend_id(cocoa_getClass("NSArray"), "array");
+    }
+
+    [UnmanagedCallersOnly]
+    static void* cocoa_viewAttributedSubstringForProposedRange(void* self, nint cmd, NSRange range, void* actualRange)
+    {
+        return null;
+    }
+
+    [UnmanagedCallersOnly]
+    static ulong cocoa_viewCharacterIndexForPoint(void* self, nint cmd, NSPoint point)
+    {
+        return 0;
+    }
+
+    [UnmanagedCallersOnly]
+    static NSRect cocoa_viewFirstRectForCharacterRange(void* self, nint cmd, NSRange range, void* actualRange)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null || window->ns.view == null)
+            return cocoa_makeRect(0, 0, 0, 0);
+
+        var frame = objc_msgSend_rect(window->ns.view, cocoa_sel("frame"));
+        return cocoa_makeRect(frame.origin.x, frame.origin.y, 0, 0);
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_viewInsertText(void* self, nint cmd, void* stringObject, NSRange replacementRange)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null || stringObject == null)
+            return;
+
+        void* characters;
+        if (objc_msgSend_bool_ptr(stringObject,
+                cocoa_sel("isKindOfClass:"),
+                cocoa_getClass("NSAttributedString")) != 0)
+        {
+            characters = cocoa_msgSend_id(stringObject, "string");
+        }
+        else
+            characters = stringObject;
+
+        if (characters == null)
+            return;
+
+        var utf8 = objc_msgSend_UTF8String(characters, cocoa_sel("UTF8String"));
+        if (utf8 == null)
+            return;
+
+        var text = Marshal.PtrToStringUTF8((nint)utf8);
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        var eventObject = cocoa_msgSend_id(cocoa_getNSApp(), "currentEvent");
+        var mods = eventObject != null ? cocoa_eventMods(eventObject) : 0;
+        var plain = (mods & GLFW_MOD_SUPER) == 0 ? GLFW_TRUE : GLFW_FALSE;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var codepoint = rune.Value;
+            if (codepoint >= 0xf700 && codepoint <= 0xf7ff)
+                continue;
+
+            _glfwInputChar(window, (uint)codepoint, mods, plain);
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_viewDoCommandBySelector(void* self, nint cmd, nint selector)
+    {
     }
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_getClass")]
@@ -947,6 +1302,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libobjc.A.dylib", EntryPoint = "objc_lookUpClass")]
     static extern void* objc_lookUpClass(byte* name);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "objc_getProtocol")]
+    static extern void* objc_getProtocol(byte* name);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "sel_registerName")]
     static extern nint sel_registerName(byte* name);
@@ -959,6 +1317,9 @@ public static unsafe partial class Glfw
 
     [DllImport("libobjc.A.dylib", EntryPoint = "class_addMethod")]
     static extern byte class_addMethod(void* cls, nint name, void* imp, byte* types);
+
+    [DllImport("libobjc.A.dylib", EntryPoint = "class_addProtocol")]
+    static extern byte class_addProtocol(void* cls, void* protocol);
 
     [DllImport("libobjc.A.dylib", EntryPoint = "class_addIvar")]
     static extern byte class_addIvar(void* cls, byte* name, nuint size, byte alignment, byte* types);

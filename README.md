@@ -123,9 +123,11 @@ Started, but not yet functional:
   focus, opacity, style, limits, aspect ratio, and event polling
 - basic Cocoa window delegate callbacks for close, resize, move, iconify,
   restore, focus, and framebuffer/content-scale changes
-- basic Cocoa view callbacks for damage, mouse buttons, cursor movement,
-  cursor enter/leave, scrolling, key presses/releases, modifier key changes,
-  and simple UTF-8 character input
+- Cocoa view callbacks for damage, mouse buttons, cursor movement,
+  cursor enter/leave, precise scrolling, key presses/releases, modifier key
+  changes, `interpretKeyEvents` text input, and basic `NSTextInputClient`
+  marked-text handling
+- Cocoa file drag-and-drop through URL pasteboard objects and `_glfwInputDrop`
 - basic CoreGraphics monitor enumeration, monitor position, full display mode
   enumeration with duplicate filtering, current video mode, fullscreen video
   mode switching/restoration, work area fallback, gamma ramp access, and the
@@ -149,9 +151,9 @@ Known remaining work:
 
 - real NSApplication delegate/helper behavior, menu bar setup, resource
   directory handling, and launch lifecycle parity
-- complete `NSView` / `NSTextInputClient` parity, including marked text,
-  IME composition, drag-and-drop, tracking areas, private cursor update details,
-  precise disabled-cursor motion, and cursor warping through CoreGraphics
+- complete `NSView` / `NSTextInputClient` parity, including tracking areas,
+  IME and drag-and-drop edge-case validation, precise disabled-cursor motion,
+  and cursor warping through CoreGraphics
 - full keyboard layout Unicode translation for scancode names
 - display reconfiguration callbacks, IOKit fallback monitor names, fade
   transitions, and IOKit fallback refresh-rate lookup
