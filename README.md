@@ -122,6 +122,7 @@ unverified on real macOS:
   regular activation policy for menubar-enabled apps
 - Cocoa resource-directory `chdir` behavior for bundled apps
 - Cocoa `NSUserDefaults` registration for `ApplePressAndHoldEnabled = NO`
+- Cocoa `CGEventSource` setup with local event suppression disabled
 - Cocoa backend file skeletons for init, windows, monitors, cursors, clipboard,
   joysticks, Vulkan surface hooks, and native accessors
 - Cocoa native accessors for `NSWindow`, `NSView`, `CGDirectDisplayID`, and

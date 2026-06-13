@@ -751,6 +751,12 @@ public static unsafe partial class Glfw
         cocoa_observeKeyboardInputSourceChanges();
         cocoa_createKeyTables();
 
+        _glfw.ns.eventSource = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
+        if (_glfw.ns.eventSource == null)
+            return GLFW_FALSE;
+
+        CGEventSourceSetLocalEventsSuppressionInterval(_glfw.ns.eventSource, 0.0);
+
         if (cocoa_initializeTIS() == 0)
             return GLFW_FALSE;
 
@@ -779,6 +785,12 @@ public static unsafe partial class Glfw
             CFRelease(_glfw.ns.inputSource);
             _glfw.ns.inputSource = null;
             _glfw.ns.unicodeData = null;
+        }
+
+        if (_glfw.ns.eventSource != null)
+        {
+            CFRelease(_glfw.ns.eventSource);
+            _glfw.ns.eventSource = null;
         }
 
         _glfw_free(_glfw.ns.clipboardString);

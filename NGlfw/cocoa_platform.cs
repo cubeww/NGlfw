@@ -36,6 +36,7 @@ public static unsafe partial class Glfw
     const ulong NSBitmapFormatAlphaNonpremultiplied = 1;
     const ulong NSDragOperationGeneric = 4;
     const long NSApplicationActivationPolicyRegular = 0;
+    const int kCGEventSourceStateHIDSystemState = 1;
     const ulong NSTrackingMouseEnteredAndExited = 1;
     const ulong NSTrackingCursorUpdate = 1 << 2;
     const ulong NSTrackingActiveInKeyWindow = 1 << 5;
@@ -103,6 +104,7 @@ public static unsafe partial class Glfw
         public void* delegateObject;
         public void* helper;
         public void* helperClass;
+        public void* eventSource;
         public void* hidManager;
         public void* cursor;
         public void* keyUpMonitor;
@@ -1955,6 +1957,12 @@ public static unsafe partial class Glfw
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     static extern int CGSetDisplayTransferByTable(uint display, uint tableSize, float* red, float* green, float* blue);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern void* CGEventSourceCreate(int stateID);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    static extern void CGEventSourceSetLocalEventsSuppressionInterval(void* source, double seconds);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFStringCreateWithCString(void* allocator, byte* cStr, uint encoding);
