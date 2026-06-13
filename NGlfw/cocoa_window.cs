@@ -2,11 +2,6 @@ namespace NGlfw;
 
 public static unsafe partial class Glfw
 {
-    static void cocoa_reportUnimplemented(string feature)
-    {
-        _glfwInputError(GLFW_FEATURE_UNIMPLEMENTED, "Cocoa: {0} has not yet been ported", feature);
-    }
-
     static void cocoa_acquireMonitor(_GLFWwindow* window)
     {
         if (window->monitor == null || window->ns.@object == null)
