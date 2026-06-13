@@ -4222,6 +4222,9 @@ public static unsafe partial class Glfw
 
         while (_glfw.wl.client.display_flush(_glfw.wl.display) == -1)
         {
+            if (wayland_getErrno() != EAGAIN)
+                return GLFW_FALSE;
+
             POLLFD fd = new()
             {
                 fd = _glfw.wl.client.display_get_fd(_glfw.wl.display),
@@ -4233,6 +4236,19 @@ public static unsafe partial class Glfw
         }
 
         return GLFW_TRUE;
+    }
+
+    static int wayland_getErrno()
+    {
+        try
+        {
+            var location = wayland_errnoLocation();
+            return location != null ? *location : Marshal.GetLastPInvokeError();
+        }
+        catch (System.EntryPointNotFoundException)
+        {
+            return Marshal.GetLastPInvokeError();
+        }
     }
 
     static void wayland_dispatchCloseRequests()
@@ -5039,4 +5055,7 @@ public static unsafe partial class Glfw
 
     [DllImport("libc", EntryPoint = "pipe2", SetLastError = true)]
     static extern int wayland_pipe2(int* pipefd, int flags);
+
+    [DllImport("libc", EntryPoint = "__errno_location")]
+    static extern int* wayland_errnoLocation();
 }
