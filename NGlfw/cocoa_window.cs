@@ -724,6 +724,14 @@ public static unsafe partial class Glfw
 
     static int _glfwFramebufferTransparentCocoa(_GLFWwindow* window)
     {
+        if (window->ns.@object != null && window->ns.view != null)
+        {
+            return objc_msgSend_bool(window->ns.@object, cocoa_sel("isOpaque")) == 0 &&
+                   objc_msgSend_bool(window->ns.view, cocoa_sel("isOpaque")) == 0
+                ? GLFW_TRUE
+                : GLFW_FALSE;
+        }
+
         return window->ns.transparent;
     }
 
