@@ -631,9 +631,11 @@ public static unsafe partial class Glfw
                         cocoa_transformY(ypos + height - 1),
                         width,
                         height);
-                    var frameRect = objc_msgSend_rect_rect(window->ns.@object,
-                        cocoa_sel("frameRectForContentRect:"),
-                        contentRect);
+                    var styleMask = objc_msgSend_ulong(window->ns.@object, cocoa_sel("styleMask"));
+                    var frameRect = objc_msgSend_rect_rect_ulong(window->ns.@object,
+                        cocoa_sel("frameRectForContentRect:styleMask:"),
+                        contentRect,
+                        styleMask);
                     objc_msgSend_void_rect_bool(window->ns.@object,
                         cocoa_sel("setFrame:display:"),
                         frameRect,
@@ -653,6 +655,7 @@ public static unsafe partial class Glfw
             cocoa_releaseMonitor(window);
 
         _glfwInputWindowMonitor(window, monitor);
+        _glfwPollEventsCocoa();
 
         if (window->ns.@object != null)
         {
@@ -694,9 +697,10 @@ public static unsafe partial class Glfw
                 cocoa_msgSend_void_ptr(window->ns.@object, "makeFirstResponder:", window->ns.view);
 
                 var contentRect = cocoa_makeRect(xpos, cocoa_transformY(ypos + height - 1), width, height);
-                var frameRect = objc_msgSend_rect_rect(window->ns.@object,
-                    cocoa_sel("frameRectForContentRect:"),
-                    contentRect);
+                var frameRect = objc_msgSend_rect_rect_ulong(window->ns.@object,
+                    cocoa_sel("frameRectForContentRect:styleMask:"),
+                    contentRect,
+                    styleMask);
                 objc_msgSend_void_rect_bool(window->ns.@object,
                     cocoa_sel("setFrame:display:"),
                     frameRect,
