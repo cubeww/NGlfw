@@ -754,6 +754,7 @@ public static unsafe partial class Glfw
         public void* subcompositorInterface;
         public void* shmInterface;
         public void* seatInterface;
+        public void* pointerInterface;
         public void* outputInterface;
         public void* dataDeviceManagerInterface;
         public void* surfaceInterface;

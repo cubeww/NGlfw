@@ -13,6 +13,11 @@ public static unsafe partial class Glfw
     const uint WL_SURFACE_SET_BUFFER_SCALE = 8;
     const uint WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION = 3;
     const uint WL_OUTPUT_RELEASE = 0;
+    const uint WL_SEAT_GET_POINTER = 0;
+    const uint WL_SEAT_RELEASE = 3;
+    const uint WL_SEAT_RELEASE_SINCE_VERSION = 5;
+    const uint WL_POINTER_RELEASE = 1;
+    const uint WL_POINTER_RELEASE_SINCE_VERSION = 3;
     const uint WL_MARSHAL_FLAG_DESTROY = 1;
     const uint XDG_WM_BASE_DESTROY = 0;
     const uint XDG_WM_BASE_GET_XDG_SURFACE = 2;
@@ -436,6 +441,7 @@ public static unsafe partial class Glfw
                     _glfw.wl.client.seatInterface,
                     _glfwWaylandWlSeat,
                     wayland_min(version, 4));
+                _glfwAddSeatListenerWayland(_glfw.wl.seat);
             }
         }
         else if (wayland_stringEquals(interfaceName, "wl_data_device_manager") != 0)
@@ -594,6 +600,7 @@ public static unsafe partial class Glfw
         _glfw.wl.client.subcompositorInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_subcompositor_interface");
         _glfw.wl.client.shmInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_shm_interface");
         _glfw.wl.client.seatInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_seat_interface");
+        _glfw.wl.client.pointerInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_pointer_interface");
         _glfw.wl.client.outputInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_output_interface");
         _glfw.wl.client.dataDeviceManagerInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_data_device_manager_interface");
         _glfw.wl.client.surfaceInterface = wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_surface_interface");
@@ -628,6 +635,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.subcompositorInterface == null ||
             _glfw.wl.client.shmInterface == null ||
             _glfw.wl.client.seatInterface == null ||
+            _glfw.wl.client.pointerInterface == null ||
             _glfw.wl.client.outputInterface == null ||
             _glfw.wl.client.dataDeviceManagerInterface == null ||
             _glfw.wl.client.surfaceInterface == null)
@@ -728,8 +736,9 @@ public static unsafe partial class Glfw
             _glfwPlatformFreeModule(_glfw.wl.xkb.handle);
 
         wayland_proxyDestroyWithOpcode(_glfw.wl.wmBase, XDG_WM_BASE_DESTROY);
+        wayland_pointerDestroy(_glfw.wl.pointer);
         wayland_proxyDestroy(_glfw.wl.dataDeviceManager);
-        wayland_proxyDestroy(_glfw.wl.seat);
+        wayland_seatDestroy(_glfw.wl.seat);
         wayland_proxyDestroy(_glfw.wl.shm);
         wayland_proxyDestroyWithOpcode(_glfw.wl.subcompositor, 0);
         wayland_proxyDestroy(_glfw.wl.compositor);
@@ -745,12 +754,16 @@ public static unsafe partial class Glfw
         _glfw_free(_glfwWaylandRegistryListener);
         _glfw_free(_glfwWaylandOutputListener);
         _glfw_free(_glfwWaylandSurfaceListener);
+        _glfw_free(_glfwWaylandSeatListener);
+        _glfw_free(_glfwWaylandPointerListener);
         _glfw_free(_glfwWaylandXdgWmBaseListener);
         _glfw_free(_glfwWaylandXdgSurfaceListener);
         _glfw_free(_glfwWaylandXdgToplevelListener);
         _glfwWaylandRegistryListener = null;
         _glfwWaylandOutputListener = null;
         _glfwWaylandSurfaceListener = null;
+        _glfwWaylandSeatListener = null;
+        _glfwWaylandPointerListener = null;
         _glfwWaylandXdgWmBaseListener = null;
         _glfwWaylandXdgSurfaceListener = null;
         _glfwWaylandXdgToplevelListener = null;

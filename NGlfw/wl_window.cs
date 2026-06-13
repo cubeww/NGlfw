@@ -5,6 +5,19 @@ namespace NGlfw;
 public static unsafe partial class Glfw
 {
     const int VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR = 1000006000;
+    const uint WL_SEAT_CAPABILITY_POINTER = 1;
+    const uint WL_POINTER_BUTTON_STATE_RELEASED = 0;
+    const uint WL_POINTER_BUTTON_STATE_PRESSED = 1;
+    const uint WL_POINTER_AXIS_VERTICAL_SCROLL = 0;
+    const uint WL_POINTER_AXIS_HORIZONTAL_SCROLL = 1;
+    const uint BTN_LEFT = 0x110;
+    const uint BTN_RIGHT = 0x111;
+    const uint BTN_MIDDLE = 0x112;
+    const uint BTN_SIDE = 0x113;
+    const uint BTN_EXTRA = 0x114;
+    const uint BTN_FORWARD = 0x115;
+    const uint BTN_BACK = 0x116;
+    const uint BTN_TASK = 0x117;
 
     struct VkWaylandSurfaceCreateInfoKHR
     {
@@ -23,6 +36,27 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, uint, void> preferred_buffer_transform;
     }
 
+    struct wl_seat_listener
+    {
+        public delegate* unmanaged<void*, void*, uint, void> capabilities;
+        public delegate* unmanaged<void*, void*, byte*, void> name;
+    }
+
+    struct wl_pointer_listener
+    {
+        public delegate* unmanaged<void*, void*, uint, void*, int, int, void> enter;
+        public delegate* unmanaged<void*, void*, uint, void*, void> leave;
+        public delegate* unmanaged<void*, void*, uint, int, int, void> motion;
+        public delegate* unmanaged<void*, void*, uint, uint, uint, uint, void> button;
+        public delegate* unmanaged<void*, void*, uint, uint, int, void> axis;
+        public delegate* unmanaged<void*, void*, void> frame;
+        public delegate* unmanaged<void*, void*, uint, void> axis_source;
+        public delegate* unmanaged<void*, void*, uint, uint, void> axis_stop;
+        public delegate* unmanaged<void*, void*, uint, int, void> axis_discrete;
+        public delegate* unmanaged<void*, void*, uint, int, void> axis_value120;
+        public delegate* unmanaged<void*, void*, uint, uint, void> axis_relative_direction;
+    }
+
     struct xdg_surface_listener
     {
         public delegate* unmanaged<void*, void*, uint, void> configure;
@@ -35,6 +69,8 @@ public static unsafe partial class Glfw
     }
 
     static wl_surface_listener* _glfwWaylandSurfaceListener;
+    static wl_seat_listener* _glfwWaylandSeatListener;
+    static wl_pointer_listener* _glfwWaylandPointerListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
 
@@ -53,6 +89,45 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandSurfaceListener;
+    }
+
+    static wl_seat_listener* wayland_getSeatListener()
+    {
+        if (_glfwWaylandSeatListener == null)
+        {
+            _glfwWaylandSeatListener = (wl_seat_listener*)_glfw_calloc(1, (nuint)sizeof(wl_seat_listener));
+            if (_glfwWaylandSeatListener != null)
+            {
+                _glfwWaylandSeatListener->capabilities = &wayland_seatHandleCapabilities;
+                _glfwWaylandSeatListener->name = &wayland_seatHandleName;
+            }
+        }
+
+        return _glfwWaylandSeatListener;
+    }
+
+    static wl_pointer_listener* wayland_getPointerListener()
+    {
+        if (_glfwWaylandPointerListener == null)
+        {
+            _glfwWaylandPointerListener = (wl_pointer_listener*)_glfw_calloc(1, (nuint)sizeof(wl_pointer_listener));
+            if (_glfwWaylandPointerListener != null)
+            {
+                _glfwWaylandPointerListener->enter = &wayland_pointerHandleEnter;
+                _glfwWaylandPointerListener->leave = &wayland_pointerHandleLeave;
+                _glfwWaylandPointerListener->motion = &wayland_pointerHandleMotion;
+                _glfwWaylandPointerListener->button = &wayland_pointerHandleButton;
+                _glfwWaylandPointerListener->axis = &wayland_pointerHandleAxis;
+                _glfwWaylandPointerListener->frame = &wayland_pointerHandleFrame;
+                _glfwWaylandPointerListener->axis_source = &wayland_pointerHandleAxisSource;
+                _glfwWaylandPointerListener->axis_stop = &wayland_pointerHandleAxisStop;
+                _glfwWaylandPointerListener->axis_discrete = &wayland_pointerHandleAxisDiscrete;
+                _glfwWaylandPointerListener->axis_value120 = &wayland_pointerHandleAxisValue120;
+                _glfwWaylandPointerListener->axis_relative_direction = &wayland_pointerHandleAxisRelativeDirection;
+            }
+        }
+
+        return _glfwWaylandPointerListener;
     }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
@@ -212,6 +287,252 @@ public static unsafe partial class Glfw
     [UnmanagedCallersOnly]
     static void wayland_surfaceHandlePreferredBufferTransform(void* userData, void* surface, uint transform)
     {
+    }
+
+    static double wayland_fixedToDouble(int value)
+    {
+        return value / 256.0;
+    }
+
+    static int wayland_pointerButtonToGLFW(uint button)
+    {
+        if (button >= BTN_LEFT && button <= BTN_TASK)
+            return (int)(button - BTN_LEFT);
+
+        return -1;
+    }
+
+    static void* wayland_seatGetPointer(void* seat)
+    {
+        if (seat == null || _glfw.wl.client.pointerInterface == null)
+            return null;
+
+        var pointer = _glfw.wl.client.proxy_marshal_constructor(seat,
+            WL_SEAT_GET_POINTER,
+            _glfw.wl.client.pointerInterface,
+            null);
+
+        wayland_tagProxy(pointer);
+        return pointer;
+    }
+
+    static void wayland_pointerDestroy(void* pointer)
+    {
+        if (pointer == null)
+            return;
+
+        if (_glfw.wl.client.proxy_get_version != null &&
+            _glfw.wl.client.proxy_get_version(pointer) >= WL_POINTER_RELEASE_SINCE_VERSION)
+        {
+            wayland_proxyDestroyWithOpcode(pointer, WL_POINTER_RELEASE);
+        }
+        else
+            wayland_proxyDestroy(pointer);
+    }
+
+    static void wayland_seatDestroy(void* seat)
+    {
+        if (seat == null)
+            return;
+
+        if (_glfw.wl.client.proxy_get_version != null &&
+            _glfw.wl.client.proxy_get_version(seat) >= WL_SEAT_RELEASE_SINCE_VERSION)
+        {
+            wayland_proxyDestroyWithOpcode(seat, WL_SEAT_RELEASE);
+        }
+        else
+            wayland_proxyDestroy(seat);
+    }
+
+    static void wayland_createPointer(void* seat)
+    {
+        if (_glfw.wl.pointer != null)
+            return;
+
+        var pointer = wayland_seatGetPointer(seat);
+        if (pointer == null)
+            return;
+
+        var listener = wayland_getPointerListener();
+        if (listener == null ||
+            _glfw.wl.client.proxy_add_listener(pointer, listener, null) != 0)
+        {
+            wayland_pointerDestroy(pointer);
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add pointer listener");
+            return;
+        }
+
+        _glfw.wl.pointer = pointer;
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleEnter(void* userData,
+                                           void* pointer,
+                                           uint serial,
+                                           void* surface,
+                                           int sx,
+                                           int sy)
+    {
+        if (surface == null || wayland_proxyHasTag(surface) == 0 || _glfw.wl.client.proxy_get_user_data == null)
+            return;
+
+        var window = (_GLFWwindow*)_glfw.wl.client.proxy_get_user_data(surface);
+        if (window == null)
+            return;
+
+        _glfw.wl.serial = serial;
+        _glfw.wl.pointerEnterSerial = serial;
+        _glfw.wl.pointerFocus = window;
+
+        if (surface == window->wl.surface)
+        {
+            window->wl.hovered = GLFW_TRUE;
+            _glfwSetCursorWayland(window, window->wl.currentCursor);
+            _glfwInputCursorEnter(window, GLFW_TRUE);
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleLeave(void* userData, void* pointer, uint serial, void* surface)
+    {
+        if (surface == null || wayland_proxyHasTag(surface) == 0)
+            return;
+
+        var window = _glfw.wl.pointerFocus;
+        if (window == null)
+            return;
+
+        _glfw.wl.serial = serial;
+        _glfw.wl.pointerFocus = null;
+        _glfw.wl.cursorPreviousName = null;
+
+        if (window->wl.hovered != 0)
+        {
+            window->wl.hovered = GLFW_FALSE;
+            _glfwInputCursorEnter(window, GLFW_FALSE);
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleMotion(void* userData, void* pointer, uint time, int sx, int sy)
+    {
+        var window = _glfw.wl.pointerFocus;
+        if (window == null || window->cursorMode == GLFW_CURSOR_DISABLED)
+            return;
+
+        var xpos = wayland_fixedToDouble(sx);
+        var ypos = wayland_fixedToDouble(sy);
+        window->wl.cursorPosX = xpos;
+        window->wl.cursorPosY = ypos;
+
+        if (window->wl.hovered != 0)
+        {
+            _glfw.wl.cursorPreviousName = null;
+            _glfwInputCursorPos(window, xpos, ypos);
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleButton(void* userData,
+                                            void* pointer,
+                                            uint serial,
+                                            uint time,
+                                            uint button,
+                                            uint state)
+    {
+        var window = _glfw.wl.pointerFocus;
+        if (window == null || window->wl.hovered == 0)
+            return;
+
+        _glfw.wl.serial = serial;
+
+        _glfwInputMouseClick(window,
+            wayland_pointerButtonToGLFW(button),
+            state == WL_POINTER_BUTTON_STATE_PRESSED ? GLFW_PRESS : GLFW_RELEASE,
+            (int)_glfw.wl.xkb.modifiers);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleAxis(void* userData, void* pointer, uint time, uint axis, int value)
+    {
+        var window = _glfw.wl.pointerFocus;
+        if (window == null)
+            return;
+
+        if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL)
+            _glfwInputScroll(window, -wayland_fixedToDouble(value) / 10.0, 0.0);
+        else if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
+            _glfwInputScroll(window, 0.0, -wayland_fixedToDouble(value) / 10.0);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleFrame(void* userData, void* pointer)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleAxisSource(void* userData, void* pointer, uint source)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleAxisStop(void* userData, void* pointer, uint time, uint axis)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleAxisDiscrete(void* userData, void* pointer, uint axis, int discrete)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleAxisValue120(void* userData, void* pointer, uint axis, int value120)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_pointerHandleAxisRelativeDirection(void* userData, void* pointer, uint axis, uint direction)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_seatHandleCapabilities(void* userData, void* seat, uint caps)
+    {
+        if ((caps & WL_SEAT_CAPABILITY_POINTER) != 0)
+        {
+            if (_glfw.wl.pointer == null)
+                wayland_createPointer(seat);
+        }
+        else if (_glfw.wl.pointer != null)
+        {
+            if (_glfw.wl.pointerFocus != null && _glfw.wl.pointerFocus->wl.hovered != 0)
+            {
+                _glfw.wl.pointerFocus->wl.hovered = GLFW_FALSE;
+                _glfwInputCursorEnter(_glfw.wl.pointerFocus, GLFW_FALSE);
+            }
+
+            wayland_pointerDestroy(_glfw.wl.pointer);
+            _glfw.wl.pointer = null;
+            _glfw.wl.pointerFocus = null;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_seatHandleName(void* userData, void* seat, byte* name)
+    {
+    }
+
+    static void _glfwAddSeatListenerWayland(void* seat)
+    {
+        if (seat == null)
+            return;
+
+        var listener = wayland_getSeatListener();
+        if (listener == null ||
+            _glfw.wl.client.proxy_add_listener(seat, listener, null) != 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to add seat listener");
+        }
     }
 
     static void* wayland_xdgWmBaseGetXdgSurface(void* wmBase, void* surface)
