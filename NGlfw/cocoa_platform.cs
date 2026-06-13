@@ -1214,6 +1214,12 @@ public static unsafe partial class Glfw
             var yscale = (float)(fbRect.size.height / contentRect.size.height);
             if (xscale != window->ns.xscale || yscale != window->ns.yscale)
             {
+                if (window->ns.retina != 0 && window->ns.layer != null)
+                {
+                    var scale = objc_msgSend_double(window->ns.@object, cocoa_sel("backingScaleFactor"));
+                    objc_msgSend_void_double(window->ns.layer, cocoa_sel("setContentsScale:"), scale);
+                }
+
                 window->ns.xscale = xscale;
                 window->ns.yscale = yscale;
                 _glfwInputWindowContentScale(window, xscale, yscale);
