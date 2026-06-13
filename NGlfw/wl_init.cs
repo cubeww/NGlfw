@@ -1803,28 +1803,34 @@ public static unsafe partial class Glfw
         }
 
         _glfw.wl.cursor.handle = wayland_loadModule("libwayland-cursor.so.0");
-        if (_glfw.wl.cursor.handle != null)
+        if (_glfw.wl.cursor.handle == null)
         {
-            _glfw.wl.cursor.theme_load =
-                (delegate* unmanaged<byte*, int, void*, void*>)wayland_getModuleSymbol(_glfw.wl.cursor.handle, "wl_cursor_theme_load");
-            _glfw.wl.cursor.theme_destroy =
-                (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.cursor.handle, "wl_cursor_theme_destroy");
-            _glfw.wl.cursor.theme_get_cursor =
-                (delegate* unmanaged<void*, byte*, void*>)wayland_getModuleSymbol(_glfw.wl.cursor.handle, "wl_cursor_theme_get_cursor");
-            _glfw.wl.cursor.image_get_buffer =
-                (delegate* unmanaged<void*, void*>)wayland_getModuleSymbol(_glfw.wl.cursor.handle, "wl_cursor_image_get_buffer");
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to load libwayland-cursor");
+            return GLFW_FALSE;
         }
 
+        _glfw.wl.cursor.theme_load =
+            (delegate* unmanaged<byte*, int, void*, void*>)wayland_getModuleSymbol(_glfw.wl.cursor.handle, "wl_cursor_theme_load");
+        _glfw.wl.cursor.theme_destroy =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.cursor.handle, "wl_cursor_theme_destroy");
+        _glfw.wl.cursor.theme_get_cursor =
+            (delegate* unmanaged<void*, byte*, void*>)wayland_getModuleSymbol(_glfw.wl.cursor.handle, "wl_cursor_theme_get_cursor");
+        _glfw.wl.cursor.image_get_buffer =
+            (delegate* unmanaged<void*, void*>)wayland_getModuleSymbol(_glfw.wl.cursor.handle, "wl_cursor_image_get_buffer");
+
         _glfw.wl.egl.handle = wayland_loadModule("libwayland-egl.so.1");
-        if (_glfw.wl.egl.handle != null)
+        if (_glfw.wl.egl.handle == null)
         {
-            _glfw.wl.egl.window_create =
-                (delegate* unmanaged<void*, int, int, void*>)wayland_getModuleSymbol(_glfw.wl.egl.handle, "wl_egl_window_create");
-            _glfw.wl.egl.window_destroy =
-                (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.egl.handle, "wl_egl_window_destroy");
-            _glfw.wl.egl.window_resize =
-                (delegate* unmanaged<void*, int, int, int, int, void>)wayland_getModuleSymbol(_glfw.wl.egl.handle, "wl_egl_window_resize");
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to load libwayland-egl");
+            return GLFW_FALSE;
         }
+
+        _glfw.wl.egl.window_create =
+            (delegate* unmanaged<void*, int, int, void*>)wayland_getModuleSymbol(_glfw.wl.egl.handle, "wl_egl_window_create");
+        _glfw.wl.egl.window_destroy =
+            (delegate* unmanaged<void*, void>)wayland_getModuleSymbol(_glfw.wl.egl.handle, "wl_egl_window_destroy");
+        _glfw.wl.egl.window_resize =
+            (delegate* unmanaged<void*, int, int, int, int, void>)wayland_getModuleSymbol(_glfw.wl.egl.handle, "wl_egl_window_resize");
 
         if (wayland_loadXkb() == 0)
             return GLFW_FALSE;
