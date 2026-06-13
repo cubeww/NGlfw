@@ -133,6 +133,7 @@ Started, but not yet functional:
   enumeration with duplicate filtering, current video mode, fullscreen video
   mode switching/restoration, work area fallback, gamma ramp access, and the
   Cocoa monitor native accessor
+- Cocoa monitor hotplug polling with disconnected-monitor detection
 - NSScreen mapping for localized monitor names, content scale, and visible
   work area queries
 - standard Cocoa cursor creation for the public cursor shapes, including

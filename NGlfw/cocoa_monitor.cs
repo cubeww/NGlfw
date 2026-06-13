@@ -37,17 +37,6 @@ public static unsafe partial class Glfw
         };
     }
 
-    static int cocoa_monitorExists(uint unitNumber)
-    {
-        for (var i = 0; i < _glfw.monitorCount; i++)
-        {
-            if (_glfw.monitors[i]->ns.unitNumber == unitNumber)
-                return GLFW_TRUE;
-        }
-
-        return GLFW_FALSE;
-    }
-
     static void* cocoa_getScreenForDisplay(uint displayID)
     {
         var screens = cocoa_msgSend_id(cocoa_getClass("NSScreen"), "screens");
@@ -103,17 +92,39 @@ public static unsafe partial class Glfw
     static void _glfwPollMonitorsCocoa()
     {
         uint displayCount = 0;
-        if (CGGetOnlineDisplayList(0, null, &displayCount) != 0 || displayCount == 0)
+        if (CGGetOnlineDisplayList(0, null, &displayCount) != 0)
             return;
 
-        var displays = (uint*)_glfw_calloc(displayCount, sizeof(uint));
-        if (displays == null)
-            return;
-
-        if (CGGetOnlineDisplayList(displayCount, displays, &displayCount) != 0)
+        uint* displays = null;
+        if (displayCount != 0)
         {
-            _glfw_free(displays);
-            return;
+            displays = (uint*)_glfw_calloc(displayCount, sizeof(uint));
+            if (displays == null)
+                return;
+
+            if (CGGetOnlineDisplayList(displayCount, displays, &displayCount) != 0)
+            {
+                _glfw_free(displays);
+                return;
+            }
+        }
+
+        for (var i = 0; i < _glfw.monitorCount; i++)
+            _glfw.monitors[i]->ns.screen = null;
+
+        var disconnectedCount = _glfw.monitorCount;
+        _GLFWmonitor** disconnected = null;
+        if (disconnectedCount != 0)
+        {
+            disconnected = (_GLFWmonitor**)_glfw_calloc((nuint)disconnectedCount, (nuint)sizeof(_GLFWmonitor*));
+            if (disconnected != null)
+            {
+                _glfw_memcpy(disconnected,
+                    _glfw.monitors,
+                    (nuint)(disconnectedCount * sizeof(_GLFWmonitor*)));
+            }
+            else
+                disconnectedCount = 0;
         }
 
         for (uint i = 0; i < displayCount; i++)
@@ -122,10 +133,24 @@ public static unsafe partial class Glfw
                 continue;
 
             var unitNumber = CGDisplayUnitNumber(displays[i]);
-            if (cocoa_monitorExists(unitNumber) != 0)
-                continue;
-
             var screen = cocoa_getScreenForDisplay(displays[i]);
+
+            var existing = -1;
+            for (var j = 0; j < disconnectedCount; j++)
+            {
+                if (disconnected[j] != null && disconnected[j]->ns.unitNumber == unitNumber)
+                {
+                    existing = j;
+                    break;
+                }
+            }
+
+            if (existing >= 0)
+            {
+                disconnected[existing]->ns.screen = screen;
+                disconnected[existing] = null;
+                continue;
+            }
 
             var size = CGDisplayScreenSize(displays[i]);
             var widthMM = (int)size.width;
@@ -160,6 +185,13 @@ public static unsafe partial class Glfw
             _glfwInputMonitor(monitor, GLFW_CONNECTED, _GLFW_INSERT_LAST);
         }
 
+        for (var i = 0; i < disconnectedCount; i++)
+        {
+            if (disconnected[i] != null)
+                _glfwInputMonitor(disconnected[i], GLFW_DISCONNECTED, 0);
+        }
+
+        _glfw_free(disconnected);
         _glfw_free(displays);
     }
 
