@@ -16,6 +16,7 @@ public static unsafe partial class Glfw
     const uint WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1 = 1;
     const uint WL_KEYBOARD_KEY_STATE_RELEASED = 0;
     const uint WL_KEYBOARD_KEY_STATE_PRESSED = 1;
+    const uint WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION = 4;
     const uint XKB_KEY_NoSymbol = 0;
     const int XKB_KEYMAP_FORMAT_TEXT_V1 = 1;
     const int XKB_COMPOSE_COMPILE_NO_FLAGS = 0;
@@ -30,6 +31,8 @@ public static unsafe partial class Glfw
     const int MAP_SHARED = 1;
     const int ENOENT = 2;
     const short POLLOUT = 0x0004;
+    const int TFD_CLOEXEC = 0x80000;
+    const int TFD_NONBLOCK = 0x800;
     const uint BTN_LEFT = 0x110;
     const uint BTN_RIGHT = 0x111;
     const uint BTN_MIDDLE = 0x112;
@@ -116,6 +119,12 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, uint, uint, uint, uint, void> key;
         public delegate* unmanaged<void*, void*, uint, uint, uint, uint, uint, void> modifiers;
         public delegate* unmanaged<void*, void*, int, int, void> repeat_info;
+    }
+
+    struct ITIMERSPEC
+    {
+        public TIMESPEC it_interval;
+        public TIMESPEC it_value;
     }
 
     struct xdg_surface_listener
@@ -653,6 +662,15 @@ public static unsafe partial class Glfw
             wayland_proxyDestroy(keyboard);
     }
 
+    static void wayland_stopKeyRepeatTimer()
+    {
+        if (_glfw.wl.keyRepeatTimerfd < 0)
+            return;
+
+        ITIMERSPEC timer = default;
+        wayland_timerfd_settime(_glfw.wl.keyRepeatTimerfd, 0, &timer, null);
+    }
+
     static void wayland_createKeyboard(void* seat)
     {
         if (_glfw.wl.keyboard != null)
@@ -851,6 +869,8 @@ public static unsafe partial class Glfw
         if (window == null)
             return;
 
+        wayland_stopKeyRepeatTimer();
+
         _glfw.wl.serial = serial;
         _glfw.wl.keyboardFocus = null;
         _glfwInputWindowFocus(window, GLFW_FALSE);
@@ -872,6 +892,28 @@ public static unsafe partial class Glfw
         var action = state == WL_KEYBOARD_KEY_STATE_PRESSED ? GLFW_PRESS : GLFW_RELEASE;
 
         _glfw.wl.serial = serial;
+
+        ITIMERSPEC timer = default;
+        if (action == GLFW_PRESS &&
+            _glfw.wl.keyRepeatTimerfd >= 0 &&
+            _glfw.wl.xkb.keymap != null &&
+            _glfw.wl.xkb.keymap_key_repeats != null &&
+            _glfw.wl.xkb.keymap_key_repeats(_glfw.wl.xkb.keymap, scancode + 8) != 0 &&
+            _glfw.wl.keyRepeatRate > 0)
+        {
+            _glfw.wl.keyRepeatScancode = (int)scancode;
+            if (_glfw.wl.keyRepeatRate > 1)
+                timer.it_interval.tv_nsec = 1000000000 / _glfw.wl.keyRepeatRate;
+            else
+                timer.it_interval.tv_sec = 1;
+
+            timer.it_value.tv_sec = _glfw.wl.keyRepeatDelay / 1000;
+            timer.it_value.tv_nsec = (_glfw.wl.keyRepeatDelay % 1000) * 1000000;
+        }
+
+        if (_glfw.wl.keyRepeatTimerfd >= 0)
+            wayland_timerfd_settime(_glfw.wl.keyRepeatTimerfd, 0, &timer, null);
+
         _glfwInputKey(window, key, (int)scancode, action, (int)_glfw.wl.xkb.modifiers);
 
         if (action == GLFW_PRESS)
@@ -928,6 +970,28 @@ public static unsafe partial class Glfw
 
         _glfw.wl.keyRepeatRate = rate;
         _glfw.wl.keyRepeatDelay = delay;
+    }
+
+    static void wayland_dispatchKeyRepeats()
+    {
+        var window = _glfw.wl.keyboardFocus;
+        if (window == null || _glfw.wl.keyRepeatTimerfd < 0)
+            return;
+
+        ulong repeats;
+        if (wayland_read(_glfw.wl.keyRepeatTimerfd, &repeats, (nuint)sizeof(ulong)) != sizeof(ulong))
+            return;
+
+        for (ulong i = 0; i < repeats; i++)
+        {
+            var scancode = _glfw.wl.keyRepeatScancode;
+            _glfwInputKey(window,
+                wayland_translateKey((uint)scancode),
+                scancode,
+                GLFW_PRESS,
+                (int)_glfw.wl.xkb.modifiers);
+            wayland_inputText(window, (uint)scancode);
+        }
     }
 
     [UnmanagedCallersOnly]
@@ -1803,9 +1867,17 @@ public static unsafe partial class Glfw
         }
 
         var @event = GLFW_FALSE;
-        POLLFD fd = new()
+        const int DISPLAY_FD = 0;
+        const int KEYREPEAT_FD = 1;
+        POLLFD* fds = stackalloc POLLFD[2];
+        fds[DISPLAY_FD] = new POLLFD
         {
             fd = _glfw.wl.client.display_get_fd(_glfw.wl.display),
+            events = POLLIN
+        };
+        fds[KEYREPEAT_FD] = new POLLFD
+        {
+            fd = _glfw.wl.keyRepeatTimerfd,
             events = POLLIN
         };
 
@@ -1824,14 +1896,16 @@ public static unsafe partial class Glfw
                 return;
             }
 
-            fd.revents = 0;
-            if (_glfwPollPOSIX(&fd, 1, timeout) == 0)
+            fds[DISPLAY_FD].revents = 0;
+            fds[KEYREPEAT_FD].fd = _glfw.wl.keyRepeatTimerfd;
+            fds[KEYREPEAT_FD].revents = 0;
+            if (_glfwPollPOSIX(fds, 2, timeout) == 0)
             {
                 _glfw.wl.client.display_cancel_read(_glfw.wl.display);
                 return;
             }
 
-            if ((fd.revents & POLLIN) != 0)
+            if ((fds[DISPLAY_FD].revents & POLLIN) != 0)
             {
                 _glfw.wl.client.display_read_events(_glfw.wl.display);
                 if (_glfw.wl.client.display_dispatch_pending(_glfw.wl.display) > 0)
@@ -1839,6 +1913,12 @@ public static unsafe partial class Glfw
             }
             else
                 _glfw.wl.client.display_cancel_read(_glfw.wl.display);
+
+            if ((fds[KEYREPEAT_FD].revents & POLLIN) != 0)
+            {
+                wayland_dispatchKeyRepeats();
+                @event = GLFW_TRUE;
+            }
         }
     }
 
@@ -2226,4 +2306,13 @@ public static unsafe partial class Glfw
 
     [DllImport("libc", EntryPoint = "close", SetLastError = true)]
     static extern int wayland_close(int fd);
+
+    [DllImport("libc", EntryPoint = "read", SetLastError = true)]
+    static extern nint wayland_read(int fd, void* buf, nuint count);
+
+    [DllImport("libc", EntryPoint = "timerfd_create", SetLastError = true)]
+    static extern int wayland_timerfd_create(int clockid, int flags);
+
+    [DllImport("libc", EntryPoint = "timerfd_settime", SetLastError = true)]
+    static extern int wayland_timerfd_settime(int fd, int flags, ITIMERSPEC* newValue, ITIMERSPEC* oldValue);
 }

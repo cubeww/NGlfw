@@ -238,6 +238,7 @@ Implemented or partially implemented:
   button, and scroll callbacks
 - initial `wl_keyboard` capability handling, keymap compilation, focus,
   key press/release, modifier tracking, and text input callbacks
+- keyboard repeat via Linux `timerfd` integrated into the Wayland event loop
 - basic Wayland event loop using `wl_display_prepare_read`, display-fd polling,
   `wl_display_read_events`, pending dispatch, and `wl_display.sync` wakeups
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
@@ -253,7 +254,7 @@ Known remaining work:
 
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
-- `wl_keyboard` repeat timers and scancode name lookup
+- Wayland scancode name lookup
 - data-device event handling
 - keyboard repeat timers, animated cursor timers, and libdecor fd integration in
   the Wayland event loop

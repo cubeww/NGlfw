@@ -1122,6 +1122,14 @@ public static unsafe partial class Glfw
             return GLFW_FALSE;
         }
 
+        if (_glfw.wl.seat != null &&
+            _glfw.wl.client.proxy_get_version != null &&
+            _glfw.wl.client.proxy_get_version(_glfw.wl.seat) >= WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION)
+        {
+            _glfw.wl.keyRepeatTimerfd = wayland_timerfd_create(CLOCK_MONOTONIC,
+                TFD_CLOEXEC | TFD_NONBLOCK);
+        }
+
         if (_glfw.wl.compositor == null)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to find wl_compositor in your compositor");
@@ -1185,6 +1193,9 @@ public static unsafe partial class Glfw
             _glfw.wl.client.display_disconnect(_glfw.wl.display);
         if (_glfw.wl.client.handle != null)
             _glfwPlatformFreeModule(_glfw.wl.client.handle);
+
+        if (_glfw.wl.keyRepeatTimerfd >= 0)
+            wayland_close(_glfw.wl.keyRepeatTimerfd);
 
         _glfw_free(_glfw.wl.clipboardString);
         _glfw_free(_glfw.wl.offers);
