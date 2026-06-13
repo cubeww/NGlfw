@@ -80,6 +80,15 @@ public static unsafe partial class Glfw
     const uint XDG_ACTIVATION_TOKEN_SET_SURFACE = 2;
     const uint XDG_ACTIVATION_TOKEN_COMMIT = 3;
     const uint XDG_ACTIVATION_TOKEN_DESTROY = 4;
+    const uint ZWP_RELATIVE_POINTER_MANAGER_DESTROY = 0;
+    const uint ZWP_RELATIVE_POINTER_MANAGER_GET_RELATIVE_POINTER = 1;
+    const uint ZWP_RELATIVE_POINTER_DESTROY = 0;
+    const uint ZWP_POINTER_CONSTRAINTS_DESTROY = 0;
+    const uint ZWP_POINTER_CONSTRAINTS_LOCK_POINTER = 1;
+    const uint ZWP_POINTER_CONSTRAINTS_CONFINE_POINTER = 2;
+    const uint ZWP_POINTER_CONSTRAINTS_LIFETIME_PERSISTENT = 2;
+    const uint ZWP_LOCKED_POINTER_DESTROY = 0;
+    const uint ZWP_CONFINED_POINTER_DESTROY = 0;
     const uint WP_VIEWPORTER_DESTROY = 0;
     const uint WP_VIEWPORTER_GET_VIEWPORT = 1;
     const uint WP_VIEWPORT_DESTROY = 0;
@@ -98,6 +107,8 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwWaylandZxdgDecorationManagerV1 = _glfw_allocate_static_string("zxdg_decoration_manager_v1");
     static readonly byte* _glfwWaylandZwpIdleInhibitManagerV1 = _glfw_allocate_static_string("zwp_idle_inhibit_manager_v1");
     static readonly byte* _glfwWaylandXdgActivationV1 = _glfw_allocate_static_string("xdg_activation_v1");
+    static readonly byte* _glfwWaylandZwpRelativePointerManagerV1 = _glfw_allocate_static_string("zwp_relative_pointer_manager_v1");
+    static readonly byte* _glfwWaylandZwpPointerConstraintsV1 = _glfw_allocate_static_string("zwp_pointer_constraints_v1");
     static readonly byte* _glfwWaylandWpViewporter = _glfw_allocate_static_string("wp_viewporter");
     static readonly byte* _glfwWaylandWpFractionalScaleManagerV1 = _glfw_allocate_static_string("wp_fractional_scale_manager_v1");
     static readonly byte* _glfwWaylandXkbControl = _glfw_allocate_static_string("Control");
@@ -150,6 +161,11 @@ public static unsafe partial class Glfw
     static wl_interface* _glfwWaylandZwpIdleInhibitorV1Interface;
     static wl_interface* _glfwWaylandXdgActivationV1Interface;
     static wl_interface* _glfwWaylandXdgActivationTokenV1Interface;
+    static wl_interface* _glfwWaylandZwpRelativePointerManagerV1Interface;
+    static wl_interface* _glfwWaylandZwpRelativePointerV1Interface;
+    static wl_interface* _glfwWaylandZwpPointerConstraintsV1Interface;
+    static wl_interface* _glfwWaylandZwpLockedPointerV1Interface;
+    static wl_interface* _glfwWaylandZwpConfinedPointerV1Interface;
     static wl_interface* _glfwWaylandWpViewporterInterface;
     static wl_interface* _glfwWaylandWpViewportInterface;
     static wl_interface* _glfwWaylandWpFractionalScaleManagerInterface;
@@ -489,6 +505,142 @@ public static unsafe partial class Glfw
 
         _glfwWaylandXdgActivationV1Interface = activation;
         _glfwWaylandXdgActivationTokenV1Interface = token;
+        return GLFW_TRUE;
+    }
+
+    static int wayland_initPointerConstraintInterfaces()
+    {
+        if (_glfwWaylandZwpRelativePointerManagerV1Interface != null)
+            return GLFW_TRUE;
+
+        var relativeManager = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var relativePointer = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var constraints = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var lockedPointer = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        var confinedPointer = (wl_interface*)_glfw_calloc(1, (nuint)sizeof(wl_interface));
+        if (relativeManager == null ||
+            relativePointer == null ||
+            constraints == null ||
+            lockedPointer == null ||
+            confinedPointer == null)
+        {
+            return GLFW_FALSE;
+        }
+
+        var relativeManagerMethods = wayland_allocMessages(2);
+        var relativePointerMethods = wayland_allocMessages(1);
+        var relativePointerEvents = wayland_allocMessages(1);
+        var constraintsMethods = wayland_allocMessages(3);
+        var lockedPointerMethods = wayland_allocMessages(3);
+        var lockedPointerEvents = wayland_allocMessages(2);
+        var confinedPointerMethods = wayland_allocMessages(2);
+        var confinedPointerEvents = wayland_allocMessages(2);
+        if (relativeManagerMethods == null ||
+            relativePointerMethods == null ||
+            relativePointerEvents == null ||
+            constraintsMethods == null ||
+            lockedPointerMethods == null ||
+            lockedPointerEvents == null ||
+            confinedPointerMethods == null ||
+            confinedPointerEvents == null)
+        {
+            return GLFW_FALSE;
+        }
+
+        var getRelativePointerTypes = wayland_allocTypes(2);
+        var lockPointerTypes = wayland_allocTypes(5);
+        var confinePointerTypes = wayland_allocTypes(5);
+        var setLockedRegionTypes = wayland_allocTypes(1);
+        var setConfinedRegionTypes = wayland_allocTypes(1);
+        if (getRelativePointerTypes == null ||
+            lockPointerTypes == null ||
+            confinePointerTypes == null ||
+            setLockedRegionTypes == null ||
+            setConfinedRegionTypes == null)
+        {
+            return GLFW_FALSE;
+        }
+
+        getRelativePointerTypes[0] = relativePointer;
+        getRelativePointerTypes[1] = (wl_interface*)_glfw.wl.client.pointerInterface;
+        lockPointerTypes[0] = lockedPointer;
+        lockPointerTypes[1] = (wl_interface*)_glfw.wl.client.surfaceInterface;
+        lockPointerTypes[2] = (wl_interface*)_glfw.wl.client.pointerInterface;
+        lockPointerTypes[3] = (wl_interface*)_glfw.wl.client.regionInterface;
+        confinePointerTypes[0] = confinedPointer;
+        confinePointerTypes[1] = (wl_interface*)_glfw.wl.client.surfaceInterface;
+        confinePointerTypes[2] = (wl_interface*)_glfw.wl.client.pointerInterface;
+        confinePointerTypes[3] = (wl_interface*)_glfw.wl.client.regionInterface;
+        setLockedRegionTypes[0] = (wl_interface*)_glfw.wl.client.regionInterface;
+        setConfinedRegionTypes[0] = (wl_interface*)_glfw.wl.client.regionInterface;
+
+        wayland_setMessage(relativeManagerMethods, 0, "destroy", "", null);
+        wayland_setMessage(relativeManagerMethods, 1, "get_relative_pointer", "no", getRelativePointerTypes);
+        wayland_setMessage(relativePointerMethods, 0, "destroy", "", null);
+        wayland_setMessage(relativePointerEvents, 0, "relative_motion", "uuffff", null);
+
+        wayland_setMessage(constraintsMethods, 0, "destroy", "", null);
+        wayland_setMessage(constraintsMethods, 1, "lock_pointer", "noo?ou", lockPointerTypes);
+        wayland_setMessage(constraintsMethods, 2, "confine_pointer", "noo?ou", confinePointerTypes);
+
+        wayland_setMessage(lockedPointerMethods, 0, "destroy", "", null);
+        wayland_setMessage(lockedPointerMethods, 1, "set_cursor_position_hint", "ff", null);
+        wayland_setMessage(lockedPointerMethods, 2, "set_region", "?o", setLockedRegionTypes);
+        wayland_setMessage(lockedPointerEvents, 0, "locked", "", null);
+        wayland_setMessage(lockedPointerEvents, 1, "unlocked", "", null);
+
+        wayland_setMessage(confinedPointerMethods, 0, "destroy", "", null);
+        wayland_setMessage(confinedPointerMethods, 1, "set_region", "?o", setConfinedRegionTypes);
+        wayland_setMessage(confinedPointerEvents, 0, "confined", "", null);
+        wayland_setMessage(confinedPointerEvents, 1, "unconfined", "", null);
+
+        *relativeManager = new wl_interface
+        {
+            name = _glfwWaylandZwpRelativePointerManagerV1,
+            version = 1,
+            method_count = 2,
+            methods = relativeManagerMethods
+        };
+        *relativePointer = new wl_interface
+        {
+            name = _glfw_allocate_static_string("zwp_relative_pointer_v1"),
+            version = 1,
+            method_count = 1,
+            methods = relativePointerMethods,
+            event_count = 1,
+            events = relativePointerEvents
+        };
+        *constraints = new wl_interface
+        {
+            name = _glfwWaylandZwpPointerConstraintsV1,
+            version = 1,
+            method_count = 3,
+            methods = constraintsMethods
+        };
+        *lockedPointer = new wl_interface
+        {
+            name = _glfw_allocate_static_string("zwp_locked_pointer_v1"),
+            version = 1,
+            method_count = 3,
+            methods = lockedPointerMethods,
+            event_count = 2,
+            events = lockedPointerEvents
+        };
+        *confinedPointer = new wl_interface
+        {
+            name = _glfw_allocate_static_string("zwp_confined_pointer_v1"),
+            version = 1,
+            method_count = 2,
+            methods = confinedPointerMethods,
+            event_count = 2,
+            events = confinedPointerEvents
+        };
+
+        _glfwWaylandZwpRelativePointerManagerV1Interface = relativeManager;
+        _glfwWaylandZwpRelativePointerV1Interface = relativePointer;
+        _glfwWaylandZwpPointerConstraintsV1Interface = constraints;
+        _glfwWaylandZwpLockedPointerV1Interface = lockedPointer;
+        _glfwWaylandZwpConfinedPointerV1Interface = confinedPointer;
         return GLFW_TRUE;
     }
 
@@ -1220,6 +1372,28 @@ public static unsafe partial class Glfw
                     1);
             }
         }
+        else if (wayland_stringEquals(interfaceName, "zwp_relative_pointer_manager_v1") != 0)
+        {
+            if (_glfw.wl.relativePointerManager == null && _glfwWaylandZwpRelativePointerManagerV1Interface != null)
+            {
+                _glfw.wl.relativePointerManager = wayland_registryBind(registry,
+                    name,
+                    _glfwWaylandZwpRelativePointerManagerV1Interface,
+                    _glfwWaylandZwpRelativePointerManagerV1,
+                    1);
+            }
+        }
+        else if (wayland_stringEquals(interfaceName, "zwp_pointer_constraints_v1") != 0)
+        {
+            if (_glfw.wl.pointerConstraints == null && _glfwWaylandZwpPointerConstraintsV1Interface != null)
+            {
+                _glfw.wl.pointerConstraints = wayland_registryBind(registry,
+                    name,
+                    _glfwWaylandZwpPointerConstraintsV1Interface,
+                    _glfwWaylandZwpPointerConstraintsV1,
+                    1);
+            }
+        }
         else if (wayland_stringEquals(interfaceName, "wp_fractional_scale_manager_v1") != 0)
         {
             if (_glfw.wl.fractionalScaleManager == null && _glfwWaylandWpFractionalScaleManagerInterface != null)
@@ -1354,6 +1528,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, void*, void*, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor");
         _glfw.wl.client.proxy_marshal_constructor_object =
             (delegate* unmanaged<void*, uint, void*, void*, void*, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor");
+        _glfw.wl.client.proxy_marshal_constructor_object_object_object_uint =
+            (delegate* unmanaged<void*, uint, void*, void*, void*, void*, void*, uint, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor");
         _glfw.wl.client.proxy_marshal_constructor_int_int =
             (delegate* unmanaged<void*, uint, void*, void*, int, int, void*>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal_constructor");
         _glfw.wl.client.proxy_marshal_constructor_int_int_int_int_uint =
@@ -1418,6 +1594,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_destroy == null ||
             _glfw.wl.client.proxy_marshal_constructor == null ||
             _glfw.wl.client.proxy_marshal_constructor_object == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object_object_object_uint == null ||
             _glfw.wl.client.proxy_marshal_constructor_int_int == null ||
             _glfw.wl.client.proxy_marshal_constructor_int_int_int_int_uint == null ||
             _glfw.wl.client.proxy_marshal_constructor_versioned == null ||
@@ -1493,6 +1670,11 @@ public static unsafe partial class Glfw
         if (wayland_initXdgActivationInterfaces() == 0)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize xdg-activation protocol tables");
+            return GLFW_FALSE;
+        }
+        if (wayland_initPointerConstraintInterfaces() == 0)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to initialize pointer constraint protocol tables");
             return GLFW_FALSE;
         }
         if (wayland_initViewporterInterfaces() == 0)
@@ -1609,6 +1791,8 @@ public static unsafe partial class Glfw
         wayland_proxyDestroyWithOpcode(_glfw.wl.decorationManager, ZXDG_DECORATION_MANAGER_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.idleInhibitManager, ZWP_IDLE_INHIBIT_MANAGER_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.activationManager, XDG_ACTIVATION_DESTROY);
+        wayland_proxyDestroyWithOpcode(_glfw.wl.relativePointerManager, ZWP_RELATIVE_POINTER_MANAGER_DESTROY);
+        wayland_proxyDestroyWithOpcode(_glfw.wl.pointerConstraints, ZWP_POINTER_CONSTRAINTS_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.cursorSurface, WL_SURFACE_DESTROY);
         wayland_proxyDestroyWithOpcode(_glfw.wl.subcompositor, 0);
         wayland_proxyDestroy(_glfw.wl.compositor);
@@ -1638,6 +1822,9 @@ public static unsafe partial class Glfw
         _glfw_free(_glfwWaylandFractionalScaleListener);
         _glfw_free(_glfwWaylandXdgDecorationListener);
         _glfw_free(_glfwWaylandXdgActivationListener);
+        _glfw_free(_glfwWaylandRelativePointerListener);
+        _glfw_free(_glfwWaylandLockedPointerListener);
+        _glfw_free(_glfwWaylandConfinedPointerListener);
         _glfw_free(_glfwWaylandXdgWmBaseListener);
         _glfw_free(_glfwWaylandXdgSurfaceListener);
         _glfw_free(_glfwWaylandXdgToplevelListener);
@@ -1653,6 +1840,9 @@ public static unsafe partial class Glfw
         _glfwWaylandFractionalScaleListener = null;
         _glfwWaylandXdgDecorationListener = null;
         _glfwWaylandXdgActivationListener = null;
+        _glfwWaylandRelativePointerListener = null;
+        _glfwWaylandLockedPointerListener = null;
+        _glfwWaylandConfinedPointerListener = null;
         _glfwWaylandXdgWmBaseListener = null;
         _glfwWaylandXdgSurfaceListener = null;
         _glfwWaylandXdgToplevelListener = null;

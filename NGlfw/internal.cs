@@ -748,6 +748,7 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void> proxy_destroy;
         public delegate* unmanaged<void*, uint, void*, void*, void*> proxy_marshal_constructor;
         public delegate* unmanaged<void*, uint, void*, void*, void*, void*> proxy_marshal_constructor_object;
+        public delegate* unmanaged<void*, uint, void*, void*, void*, void*, void*, uint, void*> proxy_marshal_constructor_object_object_object_uint;
         public delegate* unmanaged<void*, uint, void*, void*, int, int, void*> proxy_marshal_constructor_int_int;
         public delegate* unmanaged<void*, uint, void*, void*, int, int, int, int, uint, void*> proxy_marshal_constructor_int_int_int_int_uint;
         public delegate* unmanaged<void*, uint, void*, uint, void*> proxy_marshal_constructor_versioned;

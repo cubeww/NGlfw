@@ -261,6 +261,10 @@ Implemented or partially implemented:
   binding, and fullscreen idle inhibitor creation/destruction
 - hand-written `xdg_activation_v1` protocol tables, registry binding,
   activation-token listener handling, focus requests, and attention requests
+- hand-written `zwp_relative_pointer_v1` and
+  `zwp_pointer_constraints_v1` protocol tables, registry binding, relative
+  motion callbacks, pointer locking for disabled cursor mode, and pointer
+  confinement for captured cursor mode
 - basic `wl_pointer.set_cursor` path for hidden and disabled cursor modes
 - `libwayland-cursor` theme loading, cursor surface creation, standard cursor
   theme lookup, and visible standard cursor image attachment
@@ -277,8 +281,7 @@ Known remaining work:
   beyond the currently hand-written core wrappers
 - Wayland clipboard edge-case parity and runtime validation
 - libdecor fd integration in the Wayland event loop
-- advanced pointer events, full disabled-cursor behavior, and
-  interactive decoration move/resize paths
+- advanced pointer events and interactive decoration move/resize paths
 - additional viewport users such as fallback decorations and runtime
   fractional-scaling validation
 - libdecor and client-side fallback decoration support

@@ -164,6 +164,23 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void*, byte*, void> done;
     }
 
+    struct zwp_relative_pointer_v1_listener
+    {
+        public delegate* unmanaged<void*, void*, uint, uint, int, int, int, int, void> relative_motion;
+    }
+
+    struct zwp_locked_pointer_v1_listener
+    {
+        public delegate* unmanaged<void*, void*, void> locked;
+        public delegate* unmanaged<void*, void*, void> unlocked;
+    }
+
+    struct zwp_confined_pointer_v1_listener
+    {
+        public delegate* unmanaged<void*, void*, void> confined;
+        public delegate* unmanaged<void*, void*, void> unconfined;
+    }
+
     struct ITIMERSPEC
     {
         public TIMESPEC it_interval;
@@ -191,6 +208,9 @@ public static unsafe partial class Glfw
     static wp_fractional_scale_v1_listener* _glfwWaylandFractionalScaleListener;
     static zxdg_toplevel_decoration_v1_listener* _glfwWaylandXdgDecorationListener;
     static xdg_activation_token_v1_listener* _glfwWaylandXdgActivationListener;
+    static zwp_relative_pointer_v1_listener* _glfwWaylandRelativePointerListener;
+    static zwp_locked_pointer_v1_listener* _glfwWaylandLockedPointerListener;
+    static zwp_confined_pointer_v1_listener* _glfwWaylandConfinedPointerListener;
     static xdg_surface_listener* _glfwWaylandXdgSurfaceListener;
     static xdg_toplevel_listener* _glfwWaylandXdgToplevelListener;
 
@@ -356,6 +376,51 @@ public static unsafe partial class Glfw
         }
 
         return _glfwWaylandXdgActivationListener;
+    }
+
+    static zwp_relative_pointer_v1_listener* wayland_getRelativePointerListener()
+    {
+        if (_glfwWaylandRelativePointerListener == null)
+        {
+            _glfwWaylandRelativePointerListener =
+                (zwp_relative_pointer_v1_listener*)_glfw_calloc(1, (nuint)sizeof(zwp_relative_pointer_v1_listener));
+            if (_glfwWaylandRelativePointerListener != null)
+                _glfwWaylandRelativePointerListener->relative_motion = &wayland_relativePointerHandleRelativeMotion;
+        }
+
+        return _glfwWaylandRelativePointerListener;
+    }
+
+    static zwp_locked_pointer_v1_listener* wayland_getLockedPointerListener()
+    {
+        if (_glfwWaylandLockedPointerListener == null)
+        {
+            _glfwWaylandLockedPointerListener =
+                (zwp_locked_pointer_v1_listener*)_glfw_calloc(1, (nuint)sizeof(zwp_locked_pointer_v1_listener));
+            if (_glfwWaylandLockedPointerListener != null)
+            {
+                _glfwWaylandLockedPointerListener->locked = &wayland_lockedPointerHandleLocked;
+                _glfwWaylandLockedPointerListener->unlocked = &wayland_lockedPointerHandleUnlocked;
+            }
+        }
+
+        return _glfwWaylandLockedPointerListener;
+    }
+
+    static zwp_confined_pointer_v1_listener* wayland_getConfinedPointerListener()
+    {
+        if (_glfwWaylandConfinedPointerListener == null)
+        {
+            _glfwWaylandConfinedPointerListener =
+                (zwp_confined_pointer_v1_listener*)_glfw_calloc(1, (nuint)sizeof(zwp_confined_pointer_v1_listener));
+            if (_glfwWaylandConfinedPointerListener != null)
+            {
+                _glfwWaylandConfinedPointerListener->confined = &wayland_confinedPointerHandleConfined;
+                _glfwWaylandConfinedPointerListener->unconfined = &wayland_confinedPointerHandleUnconfined;
+            }
+        }
+
+        return _glfwWaylandConfinedPointerListener;
     }
 
     static xdg_surface_listener* wayland_getXdgSurfaceListener()
@@ -2010,6 +2075,173 @@ public static unsafe partial class Glfw
         return GLFW_TRUE;
     }
 
+    static void* wayland_relativePointerManagerGetRelativePointer(void* manager, void* pointer)
+    {
+        if (manager == null ||
+            pointer == null ||
+            _glfwWaylandZwpRelativePointerV1Interface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object == null)
+        {
+            return null;
+        }
+
+        var relativePointer = _glfw.wl.client.proxy_marshal_constructor_object(manager,
+            ZWP_RELATIVE_POINTER_MANAGER_GET_RELATIVE_POINTER,
+            _glfwWaylandZwpRelativePointerV1Interface,
+            null,
+            pointer);
+
+        wayland_tagProxy(relativePointer);
+        return relativePointer;
+    }
+
+    static void* wayland_pointerConstraintsLockPointer(void* constraints,
+                                                       void* surface,
+                                                       void* pointer,
+                                                       void* region,
+                                                       uint lifetime)
+    {
+        if (constraints == null ||
+            surface == null ||
+            pointer == null ||
+            _glfwWaylandZwpLockedPointerV1Interface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object_object_object_uint == null)
+        {
+            return null;
+        }
+
+        var lockedPointer = _glfw.wl.client.proxy_marshal_constructor_object_object_object_uint(constraints,
+            ZWP_POINTER_CONSTRAINTS_LOCK_POINTER,
+            _glfwWaylandZwpLockedPointerV1Interface,
+            null,
+            surface,
+            pointer,
+            region,
+            lifetime);
+
+        wayland_tagProxy(lockedPointer);
+        return lockedPointer;
+    }
+
+    static void* wayland_pointerConstraintsConfinePointer(void* constraints,
+                                                          void* surface,
+                                                          void* pointer,
+                                                          void* region,
+                                                          uint lifetime)
+    {
+        if (constraints == null ||
+            surface == null ||
+            pointer == null ||
+            _glfwWaylandZwpConfinedPointerV1Interface == null ||
+            _glfw.wl.client.proxy_marshal_constructor_object_object_object_uint == null)
+        {
+            return null;
+        }
+
+        var confinedPointer = _glfw.wl.client.proxy_marshal_constructor_object_object_object_uint(constraints,
+            ZWP_POINTER_CONSTRAINTS_CONFINE_POINTER,
+            _glfwWaylandZwpConfinedPointerV1Interface,
+            null,
+            surface,
+            pointer,
+            region,
+            lifetime);
+
+        wayland_tagProxy(confinedPointer);
+        return confinedPointer;
+    }
+
+    static void wayland_relativePointerDestroy(void* relativePointer)
+    {
+        wayland_proxyDestroyWithOpcode(relativePointer, ZWP_RELATIVE_POINTER_DESTROY);
+    }
+
+    static void wayland_lockedPointerDestroy(void* lockedPointer)
+    {
+        wayland_proxyDestroyWithOpcode(lockedPointer, ZWP_LOCKED_POINTER_DESTROY);
+    }
+
+    static void wayland_confinedPointerDestroy(void* confinedPointer)
+    {
+        wayland_proxyDestroyWithOpcode(confinedPointer, ZWP_CONFINED_POINTER_DESTROY);
+    }
+
+    static void wayland_lockPointer(_GLFWwindow* window)
+    {
+        if (_glfw.wl.relativePointerManager == null || _glfw.wl.pointerConstraints == null)
+        {
+            _glfwInputError(GLFW_FEATURE_UNAVAILABLE, "Wayland: The compositor does not support pointer locking");
+            return;
+        }
+
+        window->wl.relativePointer =
+            wayland_relativePointerManagerGetRelativePointer(_glfw.wl.relativePointerManager, _glfw.wl.pointer);
+        var relativeListener = wayland_getRelativePointerListener();
+        if (window->wl.relativePointer == null ||
+            relativeListener == null ||
+            _glfw.wl.client.proxy_add_listener(window->wl.relativePointer, relativeListener, window) != 0)
+        {
+            wayland_relativePointerDestroy(window->wl.relativePointer);
+            window->wl.relativePointer = null;
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to create relative pointer");
+            return;
+        }
+
+        window->wl.lockedPointer =
+            wayland_pointerConstraintsLockPointer(_glfw.wl.pointerConstraints,
+                window->wl.surface,
+                _glfw.wl.pointer,
+                null,
+                ZWP_POINTER_CONSTRAINTS_LIFETIME_PERSISTENT);
+        var lockedListener = wayland_getLockedPointerListener();
+        if (window->wl.lockedPointer == null ||
+            lockedListener == null ||
+            _glfw.wl.client.proxy_add_listener(window->wl.lockedPointer, lockedListener, window) != 0)
+        {
+            wayland_lockedPointerDestroy(window->wl.lockedPointer);
+            wayland_relativePointerDestroy(window->wl.relativePointer);
+            window->wl.lockedPointer = null;
+            window->wl.relativePointer = null;
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to lock pointer");
+        }
+    }
+
+    static void wayland_unlockPointer(_GLFWwindow* window)
+    {
+        wayland_relativePointerDestroy(window->wl.relativePointer);
+        window->wl.relativePointer = null;
+        wayland_lockedPointerDestroy(window->wl.lockedPointer);
+        window->wl.lockedPointer = null;
+    }
+
+    static void wayland_confinePointer(_GLFWwindow* window)
+    {
+        if (_glfw.wl.pointerConstraints == null)
+            return;
+
+        window->wl.confinedPointer =
+            wayland_pointerConstraintsConfinePointer(_glfw.wl.pointerConstraints,
+                window->wl.surface,
+                _glfw.wl.pointer,
+                null,
+                ZWP_POINTER_CONSTRAINTS_LIFETIME_PERSISTENT);
+        var confinedListener = wayland_getConfinedPointerListener();
+        if (window->wl.confinedPointer == null ||
+            confinedListener == null ||
+            _glfw.wl.client.proxy_add_listener(window->wl.confinedPointer, confinedListener, window) != 0)
+        {
+            wayland_confinedPointerDestroy(window->wl.confinedPointer);
+            window->wl.confinedPointer = null;
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Wayland: Failed to confine pointer");
+        }
+    }
+
+    static void wayland_unconfinePointer(_GLFWwindow* window)
+    {
+        wayland_confinedPointerDestroy(window->wl.confinedPointer);
+        window->wl.confinedPointer = null;
+    }
+
     static void wayland_updateXdgSizeLimits(_GLFWwindow* window)
     {
         if (window->wl.xdg.toplevel == null)
@@ -2202,6 +2434,57 @@ public static unsafe partial class Glfw
         wayland_xdgActivationActivate(_glfw.wl.activationManager, token, window->wl.surface);
         wayland_xdgActivationTokenDestroy(window->wl.activationToken);
         window->wl.activationToken = null;
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_relativePointerHandleRelativeMotion(void* userData,
+                                                            void* pointer,
+                                                            uint timeHi,
+                                                            uint timeLo,
+                                                            int dx,
+                                                            int dy,
+                                                            int dxUnaccel,
+                                                            int dyUnaccel)
+    {
+        var window = (_GLFWwindow*)userData;
+        if (window == null || window->cursorMode != GLFW_CURSOR_DISABLED)
+            return;
+
+        var xpos = window->virtualCursorPosX;
+        var ypos = window->virtualCursorPosY;
+
+        if (window->rawMouseMotion != 0)
+        {
+            xpos += wayland_fixedToDouble(dxUnaccel);
+            ypos += wayland_fixedToDouble(dyUnaccel);
+        }
+        else
+        {
+            xpos += wayland_fixedToDouble(dx);
+            ypos += wayland_fixedToDouble(dy);
+        }
+
+        _glfwInputCursorPos(window, xpos, ypos);
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_lockedPointerHandleLocked(void* userData, void* lockedPointer)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_lockedPointerHandleUnlocked(void* userData, void* lockedPointer)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_confinedPointerHandleConfined(void* userData, void* confinedPointer)
+    {
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_confinedPointerHandleUnconfined(void* userData, void* confinedPointer)
+    {
     }
 
     static int wayland_createXdgShellObjects(_GLFWwindow* window)
@@ -2427,6 +2710,9 @@ public static unsafe partial class Glfw
         wayland_xdgActivationTokenDestroy(window->wl.activationToken);
         window->wl.activationToken = null;
         wayland_setIdleInhibitor(window, GLFW_FALSE);
+        wayland_relativePointerDestroy(window->wl.relativePointer);
+        wayland_lockedPointerDestroy(window->wl.lockedPointer);
+        wayland_confinedPointerDestroy(window->wl.confinedPointer);
         wayland_fractionalScaleDestroy(window->wl.fractionalScale);
         wayland_viewportDestroy(window->wl.scalingViewport);
         wayland_proxyDestroyWithOpcode(window->wl.surface, WL_SURFACE_DESTROY);
@@ -3177,13 +3463,37 @@ public static unsafe partial class Glfw
         if (_glfw.wl.pointer == null || _glfw.wl.pointerFocus != window)
             return;
 
+        if (window->cursorMode == GLFW_CURSOR_DISABLED)
+        {
+            if (window->wl.confinedPointer != null)
+                wayland_unconfinePointer(window);
+            if (window->wl.lockedPointer == null)
+                wayland_lockPointer(window);
+        }
+        else if (window->cursorMode == GLFW_CURSOR_CAPTURED)
+        {
+            if (window->wl.lockedPointer != null)
+                wayland_unlockPointer(window);
+            if (window->wl.confinedPointer == null)
+                wayland_confinePointer(window);
+        }
+        else if (window->cursorMode == GLFW_CURSOR_NORMAL ||
+                 window->cursorMode == GLFW_CURSOR_HIDDEN)
+        {
+            if (window->wl.lockedPointer != null)
+                wayland_unlockPointer(window);
+            else if (window->wl.confinedPointer != null)
+                wayland_unconfinePointer(window);
+        }
+
         if (window->cursorMode == GLFW_CURSOR_HIDDEN ||
             window->cursorMode == GLFW_CURSOR_DISABLED)
         {
             wayland_stopCursorTimer();
             wayland_pointerSetCursor(_glfw.wl.pointer, _glfw.wl.pointerEnterSerial, null, 0, 0);
         }
-        else
+        else if (window->cursorMode == GLFW_CURSOR_NORMAL ||
+                 window->cursorMode == GLFW_CURSOR_CAPTURED)
         {
             if (cursor != null)
                 wayland_setCursorImage(window, &cursor->wl);
