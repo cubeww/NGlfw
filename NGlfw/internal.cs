@@ -787,10 +787,36 @@ public static unsafe partial class Glfw
     public struct _GLFWlibraryWayland_xkb
     {
         public void* handle;
+        public delegate* unmanaged<int, void*> context_new;
+        public delegate* unmanaged<void*, void> context_unref;
+        public delegate* unmanaged<void*, byte*, int, int, void*> keymap_new_from_string;
+        public delegate* unmanaged<void*, void> keymap_unref;
+        public delegate* unmanaged<void*, byte*, uint> keymap_mod_get_index;
+        public delegate* unmanaged<void*, uint, int> keymap_key_repeats;
+        public delegate* unmanaged<void*, uint, uint, uint, uint**, int> keymap_key_get_syms_by_level;
+        public delegate* unmanaged<void*, void*> state_new;
+        public delegate* unmanaged<void*, void> state_unref;
+        public delegate* unmanaged<void*, uint, uint**, int> state_key_get_syms;
+        public delegate* unmanaged<void*, uint, uint, uint, uint, uint, uint, int> state_update_mask;
+        public delegate* unmanaged<void*, uint, uint> state_key_get_layout;
+        public delegate* unmanaged<void*, uint, int, int> state_mod_index_is_active;
+        public delegate* unmanaged<void*, byte*, int, void*> compose_table_new_from_locale;
+        public delegate* unmanaged<void*, void> compose_table_unref;
+        public delegate* unmanaged<void*, int, void*> compose_state_new;
+        public delegate* unmanaged<void*, void> compose_state_unref;
+        public delegate* unmanaged<void*, uint, int> compose_state_feed;
+        public delegate* unmanaged<void*, int> compose_state_get_status;
+        public delegate* unmanaged<void*, uint> compose_state_get_one_sym;
         public void* context;
         public void* keymap;
         public void* state;
         public void* composeState;
+        public uint controlIndex;
+        public uint altIndex;
+        public uint shiftIndex;
+        public uint superIndex;
+        public uint capsLockIndex;
+        public uint numLockIndex;
         public uint modifiers;
     }
 

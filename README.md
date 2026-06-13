@@ -220,6 +220,8 @@ Implemented or partially implemented:
 - registry listener setup and global discovery for core Wayland objects
 - binding for `wl_compositor`, `wl_subcompositor`, `wl_shm`, `wl_output`,
   `wl_seat`, `wl_data_device_manager`, and `xdg_wm_base`
+- `libxkbcommon` dynamic loading, XKB context initialization, and Wayland
+  keycode/scancode translation tables
 - initial `wl_output` monitor listener path for geometry, modes, scale, and
   monitor connection/removal
 - native `wl_surface` creation/destruction for windows
@@ -249,7 +251,9 @@ Known remaining work:
 
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
-- keyboard, data-device, and XKB event handling
+- `wl_keyboard` listener handling for keymap, focus, key, modifier, text input,
+  and repeat events
+- data-device event handling
 - keyboard repeat timers, animated cursor timers, and libdecor fd integration in
   the Wayland event loop
 - advanced pointer events, full disabled-cursor behavior, and
