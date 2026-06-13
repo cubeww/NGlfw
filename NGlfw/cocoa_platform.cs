@@ -40,6 +40,7 @@ public static unsafe partial class Glfw
     const ulong NSTrackingAssumeInside = 1 << 8;
     const ulong NSTrackingInVisibleRect = 1 << 9;
     const ulong NSTrackingEnabledDuringMouseDrag = 1 << 10;
+    const ulong NSWindowOcclusionStateVisible = 1 << 1;
 
     static readonly byte* _glfwCocoaMappingName = _glfw_allocate_static_string("Mac OS X");
     static readonly byte* _glfwCocoaPasteboardTypeString = _glfw_allocate_static_string("public.utf8-plain-text");
@@ -519,6 +520,9 @@ public static unsafe partial class Glfw
                 class_addMethod(cls, cocoa_sel("windowDidResignKey:"),
                     (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_windowDidResignKey,
                     voidTypesPtr);
+                class_addMethod(cls, cocoa_sel("windowDidChangeOcclusionState:"),
+                    (void*)(delegate* unmanaged<void*, nint, void*, void>)&cocoa_windowDidChangeOcclusionState,
+                    voidTypesPtr);
             }
 
             objc_registerClassPair(cls);
@@ -853,6 +857,23 @@ public static unsafe partial class Glfw
 
         window->ns.focused = GLFW_FALSE;
         _glfwInputWindowFocus(window, GLFW_FALSE);
+    }
+
+    [UnmanagedCallersOnly]
+    static void cocoa_windowDidChangeOcclusionState(void* self, nint cmd, void* notification)
+    {
+        var window = cocoa_getObjectWindow(self);
+        if (window == null || window->ns.@object == null)
+            return;
+
+        var occlusionStateSelector = cocoa_sel("occlusionState");
+        if (objc_msgSend_bool_nint(window->ns.@object, cocoa_sel("respondsToSelector:"), occlusionStateSelector) == 0)
+            return;
+
+        var state = objc_msgSend_ulong(window->ns.@object, occlusionStateSelector);
+        window->ns.occluded = (state & NSWindowOcclusionStateVisible) != 0
+            ? GLFW_FALSE
+            : GLFW_TRUE;
     }
 
     [UnmanagedCallersOnly]

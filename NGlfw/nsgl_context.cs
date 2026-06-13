@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+
 namespace NGlfw;
 
 public static unsafe partial class Glfw
@@ -40,6 +43,27 @@ public static unsafe partial class Glfw
 
     static void swapBuffersNSGL(_GLFWwindow* window)
     {
+        if (window->ns.occluded != 0)
+        {
+            var interval = 0;
+            objc_msgSend_void_ptr_long(window->context.nsgl.@object,
+                cocoa_sel("getValues:forParameter:"),
+                &interval,
+                NSOpenGLContextParameterSwapInterval);
+
+            if (interval > 0)
+            {
+                const double framerate = 60.0;
+                var frequency = _glfwPlatformGetTimerFrequency();
+                var value = _glfwPlatformGetTimerValue();
+                var elapsed = value / (double)frequency;
+                var period = 1.0 / framerate;
+                var delay = period - elapsed % period;
+
+                Thread.Sleep(TimeSpan.FromSeconds(delay));
+            }
+        }
+
         cocoa_msgSend_void(window->context.nsgl.@object, "flushBuffer");
     }
 

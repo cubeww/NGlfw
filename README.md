@@ -122,7 +122,7 @@ Started, but not yet functional:
 - common Cocoa window operations, including title, position, size, visibility,
   focus, opacity, style, limits, aspect ratio, and event polling
 - basic Cocoa window delegate callbacks for close, resize, move, iconify,
-  restore, focus, and framebuffer/content-scale changes
+  restore, focus, occlusion state, and framebuffer/content-scale changes
 - Cocoa view callbacks for damage, mouse buttons, cursor movement,
   cursor enter/leave, precise scrolling, key presses/releases, modifier key
   changes, `interpretKeyEvents` text input, and basic `NSTextInputClient`
@@ -147,6 +147,7 @@ Started, but not yet functional:
 - NSGL pixel format attribute selection, native OpenGL context creation,
   make-current, swap buffers, swap interval, function lookup, destroy path, and
   native context accessor
+- NSGL occluded-window swap interval sleep simulation
 - Cocoa EGL platform selection for ANGLE OpenGL and Metal hints
 - Cocoa Vulkan surface creation through `CAMetalLayer`,
   `VK_EXT_metal_surface`, and `VK_MVK_macos_surface`
@@ -161,8 +162,8 @@ Known remaining work:
 - full keyboard layout Unicode translation for scancode names
 - display reconfiguration callbacks, IOKit fallback monitor names, fade
   transitions, and IOKit fallback refresh-rate lookup
-- NSGL runtime validation, occluded-window swap interval sleep simulation, and
-  edge-case parity for context hints unsupported by macOS
+- NSGL runtime validation and edge-case parity for context hints unsupported by
+  macOS
 - IOKit / HID joystick support
 - runtime validation on macOS
 
