@@ -1103,6 +1103,35 @@ public static unsafe partial class Glfw
 
     static int _glfwGetEGLPlatformCocoa(int** attribs)
     {
+        if (_glfw.egl.ANGLE_platform_angle != 0)
+        {
+            var type = 0;
+
+            if (_glfw.egl.ANGLE_platform_angle_opengl != 0)
+            {
+                if (_glfw.hints.init.angleType == GLFW_ANGLE_PLATFORM_TYPE_OPENGL)
+                    type = EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE;
+            }
+
+            if (_glfw.egl.ANGLE_platform_angle_metal != 0)
+            {
+                if (_glfw.hints.init.angleType == GLFW_ANGLE_PLATFORM_TYPE_METAL)
+                    type = EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
+            }
+
+            if (type != 0)
+            {
+                *attribs = (int*)_glfw_calloc(3, (nuint)sizeof(int));
+                if (*attribs == null)
+                    return 0;
+
+                (*attribs)[0] = EGL_PLATFORM_ANGLE_TYPE_ANGLE;
+                (*attribs)[1] = type;
+                (*attribs)[2] = EGL_NONE;
+                return EGL_PLATFORM_ANGLE_ANGLE;
+            }
+        }
+
         return 0;
     }
 

@@ -145,6 +145,7 @@ Started, but not yet functional:
 - NSGL pixel format attribute selection, native OpenGL context creation,
   make-current, swap buffers, swap interval, function lookup, destroy path, and
   native context accessor
+- Cocoa EGL platform selection for ANGLE OpenGL and Metal hints
 - POSIX runtime plumbing adjusted for macOS library names and pthread key sizes
 
 Known remaining work:
