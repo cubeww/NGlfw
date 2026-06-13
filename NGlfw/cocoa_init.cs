@@ -565,13 +565,17 @@ public static unsafe partial class Glfw
 
         var center = cocoa_msgSend_id(cocoa_getClass("NSNotificationCenter"), "defaultCenter");
         var name = cocoa_stringFromUTF8("NSTextInputContextKeyboardSelectionDidChangeNotification");
-        if (center != null && name != null)
+        if (center != null)
         {
-            objc_msgSend_void_ptr_ptr_ptr(center,
-                cocoa_sel("removeObserver:name:object:"),
-                _glfw.ns.helper,
-                name,
-                null);
+            if (name != null)
+            {
+                objc_msgSend_void_ptr_ptr_ptr(center,
+                    cocoa_sel("removeObserver:name:object:"),
+                    _glfw.ns.helper,
+                    name,
+                    null);
+            }
+
             cocoa_msgSend_void_ptr(center, "removeObserver:", _glfw.ns.helper);
         }
 
