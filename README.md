@@ -219,10 +219,16 @@ Implemented or partially implemented:
 - libwayland-client core entry point and protocol interface resolution
 - registry listener setup and global discovery for core Wayland objects
 - binding for `wl_compositor`, `wl_subcompositor`, `wl_shm`, `wl_output`,
-  `wl_seat`, and `wl_data_device_manager`
+  `wl_seat`, `wl_data_device_manager`, and `xdg_wm_base`
 - initial `wl_output` monitor listener path for geometry, modes, scale, and
   monitor connection/removal
-- native `wl_surface` creation/destruction for windows, before xdg-shell setup
+- native `wl_surface` creation/destruction for windows
+- hand-written minimal xdg-shell protocol tables for `xdg_wm_base`,
+  `xdg_surface`, and `xdg_toplevel`
+- initial `xdg_surface` / `xdg_toplevel` creation, configure ack, close
+  callback, title/app-id, fullscreen, maximize, minimize, and size-limit
+  requests
+- Wayland EGL native window creation and EGL/OSMesa context creation path
 - basic Wayland monitor/window/native accessor entry points
 - Wayland EGL and Vulkan extension plumbing entry points
 
@@ -230,9 +236,9 @@ Known remaining work:
 
 - generated/translated Wayland protocol interface tables and marshal wrappers
   beyond the currently hand-written core wrappers
-- xdg-shell discovery and binding
 - seat, pointer, keyboard, data-device, cursor theme, and XKB event handling
-- real `xdg_surface` / `xdg_toplevel` window creation and surface listeners
+- full `wl_surface` listeners for enter/leave/preferred scale, plus complete
+  xdg toplevel state parsing
 - protocol requests for regions, opaque/input regions, buffer scale, and
   fractional scaling
 - libdecor and fallback decoration support

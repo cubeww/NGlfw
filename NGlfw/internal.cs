@@ -731,9 +731,15 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, void> display_cancel_read;
         public delegate* unmanaged<void*, int> display_read_events;
         public delegate* unmanaged<void*, uint, void> proxy_marshal;
+        public delegate* unmanaged<void*, uint, byte*, void> proxy_marshal_string;
+        public delegate* unmanaged<void*, uint, uint, void> proxy_marshal_uint;
+        public delegate* unmanaged<void*, uint, void*, void> proxy_marshal_object;
+        public delegate* unmanaged<void*, uint, int, int, void> proxy_marshal_int_int;
+        public delegate* unmanaged<void*, uint, int, int, int, int, void> proxy_marshal_int_int_int_int;
         public delegate* unmanaged<void*, void*, void*, int> proxy_add_listener;
         public delegate* unmanaged<void*, void> proxy_destroy;
         public delegate* unmanaged<void*, uint, void*, void*, void*> proxy_marshal_constructor;
+        public delegate* unmanaged<void*, uint, void*, void*, void*, void*> proxy_marshal_constructor_object;
         public delegate* unmanaged<void*, uint, void*, uint, void*> proxy_marshal_constructor_versioned;
         public delegate* unmanaged<void*, uint, void*, uint, uint, byte*, uint, void*, void*> proxy_marshal_constructor_versioned_registry_bind;
         public delegate* unmanaged<void*, void*> proxy_get_user_data;
