@@ -139,6 +139,8 @@ public static unsafe partial class Glfw
     struct wl_data_offer_listener
     {
         public delegate* unmanaged<void*, void*, byte*, void> offer;
+        public delegate* unmanaged<void*, void*, uint, void> source_actions;
+        public delegate* unmanaged<void*, void*, uint, void> action;
     }
 
     struct wl_data_device_listener
@@ -307,7 +309,11 @@ public static unsafe partial class Glfw
         {
             _glfwWaylandDataOfferListener = (wl_data_offer_listener*)_glfw_calloc(1, (nuint)sizeof(wl_data_offer_listener));
             if (_glfwWaylandDataOfferListener != null)
+            {
                 _glfwWaylandDataOfferListener->offer = &wayland_dataOfferHandleOffer;
+                _glfwWaylandDataOfferListener->source_actions = &wayland_dataOfferHandleSourceActions;
+                _glfwWaylandDataOfferListener->action = &wayland_dataOfferHandleAction;
+            }
         }
 
         return _glfwWaylandDataOfferListener;
@@ -1902,6 +1908,32 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal_string_int(offer, WL_DATA_OFFER_RECEIVE, mimeType, fd);
     }
 
+    static void wayland_dataOfferFinish(void* offer)
+    {
+        if (offer == null ||
+            _glfw.wl.client.proxy_marshal == null ||
+            _glfw.wl.client.proxy_get_version == null ||
+            _glfw.wl.client.proxy_get_version(offer) < WL_DATA_OFFER_FINISH_SINCE_VERSION)
+        {
+            return;
+        }
+
+        _glfw.wl.client.proxy_marshal(offer, WL_DATA_OFFER_FINISH);
+    }
+
+    static void wayland_dataOfferSetActions(void* offer, uint actions, uint preferredAction)
+    {
+        if (offer == null ||
+            _glfw.wl.client.proxy_marshal_uint_uint == null ||
+            _glfw.wl.client.proxy_get_version == null ||
+            _glfw.wl.client.proxy_get_version(offer) < WL_DATA_OFFER_SET_ACTIONS_SINCE_VERSION)
+        {
+            return;
+        }
+
+        _glfw.wl.client.proxy_marshal_uint_uint(offer, WL_DATA_OFFER_SET_ACTIONS, actions, preferredAction);
+    }
+
     static void wayland_dataOfferDestroy(void* offer)
     {
         wayland_proxyDestroyWithOpcode(offer, WL_DATA_OFFER_DESTROY);
@@ -2012,6 +2044,22 @@ public static unsafe partial class Glfw
     }
 
     [UnmanagedCallersOnly]
+    static void wayland_dataOfferHandleSourceActions(void* userData, void* offer, uint sourceActions)
+    {
+        var index = wayland_offerIndex(offer);
+        if (index >= 0)
+            _glfw.wl.offers[index].sourceActions = sourceActions;
+    }
+
+    [UnmanagedCallersOnly]
+    static void wayland_dataOfferHandleAction(void* userData, void* offer, uint action)
+    {
+        var index = wayland_offerIndex(offer);
+        if (index >= 0)
+            _glfw.wl.offers[index].action = action;
+    }
+
+    [UnmanagedCallersOnly]
     static void wayland_dataDeviceHandleDataOffer(void* userData, void* device, void* offer)
     {
         var offers = (_GLFWofferWayland*)_glfw_realloc(_glfw.wl.offers,
@@ -2072,7 +2120,12 @@ public static unsafe partial class Glfw
             return;
 
         if (_glfw.wl.dragOffer != null)
+        {
             wayland_dataOfferAccept(offer, serial, _glfwWaylandTextUriList);
+            wayland_dataOfferSetActions(offer,
+                WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY,
+                WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);
+        }
         else
         {
             wayland_dataOfferAccept(offer, serial, null);
@@ -2102,19 +2155,25 @@ public static unsafe partial class Glfw
         if (_glfw.wl.dragOffer == null || _glfw.wl.dragFocus == null)
             return;
 
-        var @string = wayland_readDataOfferAsString(_glfw.wl.dragOffer, _glfwWaylandTextUriList);
+        var offer = _glfw.wl.dragOffer;
+        var window = _glfw.wl.dragFocus;
+        var @string = wayland_readDataOfferAsString(offer, _glfwWaylandTextUriList);
         if (@string != null)
         {
             var count = 0;
             var paths = _glfwParseUriList(@string, &count);
             if (paths != null)
-                _glfwInputDrop(_glfw.wl.dragFocus, count, paths);
+                _glfwInputDrop(window, count, paths);
 
             for (var i = 0; i < count; i++)
                 _glfw_free(paths[i]);
             _glfw_free(paths);
         }
 
+        wayland_dataOfferFinish(offer);
+        wayland_dataOfferDestroy(offer);
+        _glfw.wl.dragOffer = null;
+        _glfw.wl.dragFocus = null;
         _glfw_free(@string);
     }
 
@@ -3964,6 +4023,19 @@ public static unsafe partial class Glfw
     {
         if (source != null && mimeType != null && _glfw.wl.client.proxy_marshal_string != null)
             _glfw.wl.client.proxy_marshal_string(source, WL_DATA_SOURCE_OFFER, mimeType);
+    }
+
+    static void wayland_dataSourceSetActions(void* source, uint actions)
+    {
+        if (source == null ||
+            _glfw.wl.client.proxy_marshal_uint == null ||
+            _glfw.wl.client.proxy_get_version == null ||
+            _glfw.wl.client.proxy_get_version(source) < WL_DATA_SOURCE_SET_ACTIONS_SINCE_VERSION)
+        {
+            return;
+        }
+
+        _glfw.wl.client.proxy_marshal_uint(source, WL_DATA_SOURCE_SET_ACTIONS, actions);
     }
 
     static void wayland_dataSourceDestroy(void* source)

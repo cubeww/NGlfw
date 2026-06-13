@@ -637,6 +637,8 @@ public static unsafe partial class Glfw
         public void* offer;
         public int text_plain_utf8;
         public int text_uri_list;
+        public uint sourceActions;
+        public uint action;
     }
 
     public struct _GLFWscaleWayland
@@ -733,6 +735,7 @@ public static unsafe partial class Glfw
         public delegate* unmanaged<void*, uint, void> proxy_marshal;
         public delegate* unmanaged<void*, uint, byte*, void> proxy_marshal_string;
         public delegate* unmanaged<void*, uint, uint, void> proxy_marshal_uint;
+        public delegate* unmanaged<void*, uint, uint, uint, void> proxy_marshal_uint_uint;
         public delegate* unmanaged<void*, uint, uint, void*, void> proxy_marshal_uint_object;
         public delegate* unmanaged<void*, uint, uint, byte*, void> proxy_marshal_uint_string;
         public delegate* unmanaged<void*, uint, int, void> proxy_marshal_int;

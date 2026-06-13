@@ -246,6 +246,8 @@ Implemented or partially implemented:
   `wl_display_read_events`, pending dispatch, and `wl_display.sync` wakeups
 - initial Wayland data-device setup with data offer tracking, selection offer
   filtering, URI-list drag-and-drop receive, and `_glfwInputDrop` dispatch
+- Wayland drag-and-drop copy-action negotiation and `wl_data_offer.finish`
+  cleanup for accepted URI-list drops
 - clipboard string retrieval from Wayland selection offers
 - clipboard string ownership through `wl_data_source`, MIME offering, and
   compositor-requested data writes
@@ -285,7 +287,6 @@ Known remaining work:
 - Wayland clipboard edge-case parity and runtime validation
 - libdecor support and fd integration in the Wayland event loop
 - runtime fractional-scaling validation
-- drag-and-drop action/finish edge cases
 - runtime validation on a Wayland compositor
 
 Not implemented yet:

@@ -37,11 +37,18 @@ public static unsafe partial class Glfw
     const uint WL_DATA_OFFER_ACCEPT = 0;
     const uint WL_DATA_OFFER_RECEIVE = 1;
     const uint WL_DATA_OFFER_DESTROY = 2;
+    const uint WL_DATA_OFFER_FINISH = 3;
+    const uint WL_DATA_OFFER_SET_ACTIONS = 4;
+    const uint WL_DATA_OFFER_FINISH_SINCE_VERSION = 3;
+    const uint WL_DATA_OFFER_SET_ACTIONS_SINCE_VERSION = 3;
     const uint WL_DATA_SOURCE_OFFER = 0;
     const uint WL_DATA_SOURCE_DESTROY = 1;
+    const uint WL_DATA_SOURCE_SET_ACTIONS = 2;
+    const uint WL_DATA_SOURCE_SET_ACTIONS_SINCE_VERSION = 3;
     const uint WL_DATA_DEVICE_SET_SELECTION = 1;
     const uint WL_DATA_DEVICE_MANAGER_CREATE_DATA_SOURCE = 0;
     const uint WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE = 1;
+    const uint WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY = 1;
     const uint WL_DATA_DEVICE_RELEASE = 2;
     const uint WL_DATA_DEVICE_RELEASE_SINCE_VERSION = 2;
     const uint WL_BUFFER_DESTROY = 0;
@@ -1326,7 +1333,7 @@ public static unsafe partial class Glfw
                     name,
                     _glfw.wl.client.dataDeviceManagerInterface,
                     _glfwWaylandWlDataDeviceManager,
-                    1);
+                    wayland_min(version, 3));
             }
         }
         else if (wayland_stringEquals(interfaceName, "xdg_wm_base") != 0)
@@ -1514,6 +1521,8 @@ public static unsafe partial class Glfw
             (delegate* unmanaged<void*, uint, byte*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_uint =
             (delegate* unmanaged<void*, uint, uint, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
+        _glfw.wl.client.proxy_marshal_uint_uint =
+            (delegate* unmanaged<void*, uint, uint, uint, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_uint_object =
             (delegate* unmanaged<void*, uint, uint, void*, void>)wayland_getModuleSymbol(_glfw.wl.client.handle, "wl_proxy_marshal");
         _glfw.wl.client.proxy_marshal_uint_string =
@@ -1602,6 +1611,7 @@ public static unsafe partial class Glfw
             _glfw.wl.client.proxy_marshal == null ||
             _glfw.wl.client.proxy_marshal_string == null ||
             _glfw.wl.client.proxy_marshal_uint == null ||
+            _glfw.wl.client.proxy_marshal_uint_uint == null ||
             _glfw.wl.client.proxy_marshal_uint_object == null ||
             _glfw.wl.client.proxy_marshal_uint_string == null ||
             _glfw.wl.client.proxy_marshal_int == null ||
