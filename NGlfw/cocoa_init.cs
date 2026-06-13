@@ -76,6 +76,7 @@ public static unsafe partial class Glfw
         platform->getEGLPlatform = &_glfwGetEGLPlatformCocoa;
         platform->getEGLNativeDisplay = &_glfwGetEGLNativeDisplayCocoa;
         platform->getEGLNativeWindow = &_glfwGetEGLNativeWindowCocoa;
+        platform->loadLocalVulkanLoader = &_glfwLoadLocalVulkanLoaderCocoa;
         platform->getRequiredInstanceExtensions = &_glfwGetRequiredInstanceExtensionsCocoa;
         platform->getPhysicalDevicePresentationSupport = &_glfwGetPhysicalDevicePresentationSupportCocoa;
         platform->createWindowSurface = &_glfwCreateWindowSurfaceCocoa;
@@ -132,6 +133,41 @@ public static unsafe partial class Glfw
         var fileManager = cocoa_msgSend_id(cocoa_getClass("NSFileManager"), "defaultManager");
         if (fileManager != null)
             objc_msgSend_bool_ptr(fileManager, cocoa_sel("changeCurrentDirectoryPath:"), resourcesPath);
+    }
+
+    static void* _glfwLoadLocalVulkanLoaderCocoa()
+    {
+        var bundle = CFBundleGetMainBundle();
+        if (bundle == null)
+            return null;
+
+        var frameworksUrl = CFBundleCopyPrivateFrameworksURL(bundle);
+        if (frameworksUrl == null)
+            return null;
+
+        var loaderName = CFStringCreateWithCString(null, _glfwCocoaVulkanLoaderName, kCFStringEncodingASCII);
+        if (loaderName == null)
+        {
+            CFRelease(frameworksUrl);
+            return null;
+        }
+
+        var loaderUrl = CFURLCreateCopyAppendingPathComponent(null, frameworksUrl, loaderName, 0);
+        CFRelease(loaderName);
+        if (loaderUrl == null)
+        {
+            CFRelease(frameworksUrl);
+            return null;
+        }
+
+        void* handle = null;
+        var path = stackalloc byte[1024];
+        if (CFURLGetFileSystemRepresentation(loaderUrl, 1, path, 1023) != 0)
+            handle = _glfwPlatformLoadModule(path);
+
+        CFRelease(loaderUrl);
+        CFRelease(frameworksUrl);
+        return handle;
     }
 
     static void* cocoa_copyApplicationName()

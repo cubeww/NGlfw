@@ -494,6 +494,7 @@ public static unsafe partial class Glfw
         public delegate*<void*> getEGLNativeDisplay;
         public delegate*<_GLFWwindow*, void*> getEGLNativeWindow;
 
+        public delegate*<void*> loadLocalVulkanLoader;
         public delegate*<byte**, void> getRequiredInstanceExtensions;
         public delegate*<void*, void*, uint, int> getPhysicalDevicePresentationSupport;
         public delegate*<void*, _GLFWwindow*, void*, ulong*, int> createWindowSurface;

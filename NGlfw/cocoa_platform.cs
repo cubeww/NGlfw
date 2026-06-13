@@ -93,6 +93,7 @@ public static unsafe partial class Glfw
     static readonly byte* _glfwCocoaRunLoopDefaultMode = _glfw_allocate_static_string("kCFRunLoopDefaultMode");
     static readonly byte* _glfwCocoaOpenGLBundleID = _glfw_allocate_static_string("com.apple.opengl");
     static readonly byte* _glfwCocoaHIToolboxBundleID = _glfw_allocate_static_string("com.apple.HIToolbox");
+    static readonly byte* _glfwCocoaVulkanLoaderName = _glfw_allocate_static_string("libvulkan.1.dylib");
     static readonly byte* _glfwCocoaEventBlockSignature = _glfw_allocate_static_string("@?@");
     static readonly object cocoaObjectMapLock = new();
     static readonly Dictionary<nint, nint> cocoaObjectWindows = new();
@@ -2022,10 +2023,22 @@ public static unsafe partial class Glfw
     static extern void* CFBundleGetBundleWithIdentifier(void* bundleID);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void* CFBundleGetMainBundle();
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void* CFBundleCopyPrivateFrameworksURL(void* bundle);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFBundleGetFunctionPointerForName(void* bundle, void* functionName);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFBundleGetDataPointerForName(void* bundle, void* symbolName);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern void* CFURLCreateCopyAppendingPathComponent(void* allocator, void* url, void* pathComponent, byte isDirectory);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    static extern byte CFURLGetFileSystemRepresentation(void* url, byte resolveAgainstBase, byte* buffer, nint maxBufLen);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     static extern void* CFRunLoopGetMain();

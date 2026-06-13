@@ -29,7 +29,13 @@ public static unsafe partial class Glfw
             _glfw.vk.GetInstanceProcAddrNative = _glfw.hints.init.vulkanLoaderNative;
         else
         {
-            if (!NativeLibrary.TryLoad(vulkan_getLoaderName(), out var handle))
+            void* handle = null;
+            if (_glfw.platform.loadLocalVulkanLoader != null)
+                handle = _glfw.platform.loadLocalVulkanLoader();
+            if (handle == null)
+                handle = vulkan_loadModule(vulkan_getLoaderName());
+
+            if (handle == null)
             {
                 if (mode == _GLFW_REQUIRE_LOADER)
                     _glfwInputError(GLFW_API_UNAVAILABLE, "Vulkan: Loader not found");
@@ -37,9 +43,10 @@ public static unsafe partial class Glfw
                 return GLFW_FALSE;
             }
 
-            _glfw.vk.handle = (void*)handle;
+            _glfw.vk.handle = handle;
 
-            if (!NativeLibrary.TryGetExport(handle, "vkGetInstanceProcAddr", out var vkGetInstanceProcAddr))
+            var vkGetInstanceProcAddr = vulkan_getModuleSymbol(handle, "vkGetInstanceProcAddr");
+            if (vkGetInstanceProcAddr == null)
             {
                 _glfwInputError(GLFW_API_UNAVAILABLE, "Vulkan: Loader does not export vkGetInstanceProcAddr");
 
@@ -136,7 +143,7 @@ public static unsafe partial class Glfw
     static void _glfwTerminateVulkan()
     {
         if (_glfw.vk.handle != null)
-            NativeLibrary.Free((nint)_glfw.vk.handle);
+            _glfwPlatformFreeModule(_glfw.vk.handle);
 
         _glfw_free(_glfw.vk.extensions);
         _glfw.vk = default;
@@ -150,6 +157,26 @@ public static unsafe partial class Glfw
             return "libvulkan.1.dylib";
 
         return "libvulkan.so.1";
+    }
+
+    static void* vulkan_loadModule(string name)
+    {
+        var path = stackalloc byte[name.Length + 1];
+        for (var i = 0; i < name.Length; i++)
+            path[i] = (byte)name[i];
+        path[name.Length] = 0;
+
+        return _glfwPlatformLoadModule(path);
+    }
+
+    static void* vulkan_getModuleSymbol(void* module, string name)
+    {
+        var symbolName = stackalloc byte[name.Length + 1];
+        for (var i = 0; i < name.Length; i++)
+            symbolName[i] = (byte)name[i];
+        symbolName[name.Length] = 0;
+
+        return _glfwPlatformGetModuleSymbol(module, symbolName);
     }
 
     static int vulkan_stringEquals(byte* value, string expected)
@@ -189,13 +216,7 @@ public static unsafe partial class Glfw
         if (_glfw.vk.handle == null)
             return null;
 
-        var name = Marshal.PtrToStringUTF8((nint)procname);
-        if (name == null)
-            return null;
-
-        return NativeLibrary.TryGetExport((nint)_glfw.vk.handle, name, out var symbol)
-            ? (void*)symbol
-            : null;
+        return _glfwPlatformGetModuleSymbol(_glfw.vk.handle, procname);
     }
 
     static void* vulkan_getLoaderProcAddress()

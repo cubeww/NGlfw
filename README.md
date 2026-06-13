@@ -171,6 +171,8 @@ unverified on real macOS:
 - Cocoa EGL platform selection for ANGLE OpenGL and Metal hints
 - Cocoa Vulkan surface creation through `CAMetalLayer`,
   `VK_EXT_metal_surface`, and `VK_MVK_macos_surface`
+- Cocoa local Vulkan loader lookup in the application bundle `Frameworks`
+  directory
 - Cocoa IOHID manager creation, joystick/gamepad matching setup, run-loop
   scheduling, manager teardown, device callbacks, element enumeration, SDL-style
   element sorting, axis/button/hat polling, GUID generation, and disconnect
